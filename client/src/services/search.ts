@@ -26,6 +26,8 @@ import { EVENT_LISTS } from "@/config/events";
 import { EVENT_ITEM_KIND } from "@/lib/calendarEvent";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
+import { searchOnce } from "@/lib/searchOnce";
+import { Observable } from "rxjs";
 import {
   applyFilters,
   liftQuery,
@@ -421,58 +423,13 @@ function keepInStore(event: NostrEvent): NostrEvent | null {
   }
 }
 
-/** A filter as a relay's REQ takes it. */
-type SideFilter = Parameters<Relay["req"]>[0];
-
-/**
- * One side ask: a REQ on the search relay (or Zap Store's), every event through the store as it
- * arrives. `onEvent` sees what the store kept — never a copy it refused, and for a replaceable
- * or addressable the newest version it holds — so a side ask's answer is the store's, not a
- * second cache beside it (ADR 0005). Resolves at EOSE, a CLOSED, the stream failing, `signal`
- * or `timeoutMs`, whichever comes first; `eose` says the relay finished in time. Never rejects.
- */
-// TODO(searchOnce): lib/searchOnce is the shared verified one-shot; swap this for it once it lands.
-function collectFromSearch(
-  relay: Pick<Relay, "req">,
-  filter: SideFilter,
-  onEvent: (event: NostrEvent) => void,
-  { timeoutMs, signal }: { timeoutMs: number; signal?: AbortSignal },
-): Promise<{ eose: boolean }> {
-  return new Promise((resolve) => {
-    let done = false;
-    let sub: { unsubscribe(): void } | undefined;
-    // Declared before anything can call finish: a synchronous answer ends the ask during subscribe.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = (eose: boolean) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", abort);
-      sub?.unsubscribe();
-      resolve({ eose });
-    };
-    const abort = () => finish(false);
-    if (signal?.aborted) return finish(false);
-    signal?.addEventListener("abort", abort, { once: true });
-    // The timer before subscribing, so a synchronous answer finds it to clear.
-    timer = setTimeout(() => finish(false), timeoutMs);
-    try {
-      sub = relay.req(filter).subscribe({
-        next: (msg: RelayReqMessage) => {
-          if (done) return;
-          if (msg.type === "EVENT") {
-            const kept = keepInStore(msg.event);
-            if (kept) onEvent(kept);
-          } else if (msg.type === "EOSE") finish(true);
-          else if (msg.type === "CLOSED") finish(false);
-        },
-        error: () => finish(false),
-        complete: () => finish(false),
-      });
-    } catch {
-      finish(false);
-    }
-    if (done) sub?.unsubscribe();
+/** An AbortSignal as searchOnce's `stop`: it fires on abort, and at once if the signal already has. */
+function abortOf(signal: AbortSignal): Observable<unknown> {
+  return new Observable((subscriber) => {
+    const abort = () => subscriber.next(undefined);
+    if (signal.aborted) return abort();
+    signal.addEventListener("abort", abort, { once: true });
+    return () => signal.removeEventListener("abort", abort);
   });
 }
 
@@ -1414,17 +1371,19 @@ export function fetchReleaseAsset(ids: string[], timeoutMs = 5000): Promise<Rele
   const relay = zapstoreRelay();
   if (!relay) return Promise.resolve(null);
   let asset: ReleaseAsset | null = null;
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { ids },
-    (e) => {
-      if (asset || (e.kind !== 3063 && e.kind !== 1063)) return;
-      // Each kind by its own tags (lib/release): a 1063 (NIP-94) has no version.
-      const file = readReleaseAsset(e);
-      if (file.url)
-        asset = { url: file.url, mime: file.mime ?? "", size: file.size, version: file.version, hash: file.hash };
+    {
+      relay,
+      onEvent: (e) => {
+        if (asset || (e.kind !== 3063 && e.kind !== 1063)) return;
+        // Each kind by its own tags (lib/release): a 1063 (NIP-94) has no version.
+        const file = readReleaseAsset(e);
+        if (file.url)
+          asset = { url: file.url, mime: file.mime ?? "", size: file.size, version: file.version, hash: file.hash };
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => asset);
 }
 
@@ -1440,24 +1399,26 @@ export function fetchReleases(appD: string, publisher: string, timeoutMs = 5000)
   if (!relay) return Promise.resolve([]);
   // One per release address: the store answers an older copy with the newer one.
   const releases = new Map<string, AppRelease>();
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [30063], authors: [publisher], search: "include:spam", limit: 50 },
-    (e) => {
-      const d = e.tags.find((t) => t[0] === "d")?.[1] ?? "";
-      // Whose release it is, as each shape says (lib/release): NIP-82's `i` is the app's `d`,
-      // NIP-51's `a` its address; a `d` of "<app>@<version>" (NIP-82's rule) for either.
-      const release = readRelease(e);
-      const ofApp = release.app?.address === `32267:${publisher}:${appD}` || d.startsWith(`${appD}@`);
-      if (!ofApp) return;
-      releases.set(d, {
-        version: release.version ?? (d.startsWith(`${appD}@`) ? d.slice(appD.length + 1) : d),
-        at: e.created_at,
-        notes: e.content ?? "",
-        assetIds: release.assets.map((a) => a.id),
-      });
+    {
+      relay,
+      onEvent: (e) => {
+        const d = e.tags.find((t) => t[0] === "d")?.[1] ?? "";
+        // Whose release it is, as each shape says (lib/release): NIP-82's `i` is the app's `d`,
+        // NIP-51's `a` its address; a `d` of "<app>@<version>" (NIP-82's rule) for either.
+        const release = readRelease(e);
+        const ofApp = release.app?.address === `32267:${publisher}:${appD}` || d.startsWith(`${appD}@`);
+        if (!ofApp) return;
+        releases.set(d, {
+          version: release.version ?? (d.startsWith(`${appD}@`) ? d.slice(appD.length + 1) : d),
+          at: e.created_at,
+          notes: e.content ?? "",
+          assetIds: release.assets.map((a) => a.id),
+        });
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => [...releases.values()].sort((a, b) => b.at - a.at));
 }
 
@@ -1497,22 +1458,24 @@ export function fetchAppReviews(
   const relay = searchRelay();
   if (!relay) return Promise.resolve([]);
   const reviews: AppReview[] = [];
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [1111, 1], "#a": [address], search: "include:spam", limit },
-    (e) => {
-      const tag = (name: string) => e.tags.find((t) => t[0] === name)?.[1] ?? null;
-      reviews.push({
-        id: e.id,
-        pubkey: e.pubkey,
-        text: e.content,
-        at: e.created_at,
-        version: tag("v"),
-        k: tag("k"),
-        kind: e.kind,
-      });
+    {
+      relay,
+      onEvent: (e) => {
+        const tag = (name: string) => e.tags.find((t) => t[0] === name)?.[1] ?? null;
+        reviews.push({
+          id: e.id,
+          pubkey: e.pubkey,
+          text: e.content,
+          at: e.created_at,
+          version: tag("v"),
+          k: tag("k"),
+          kind: e.kind,
+        });
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => reviews.sort((a, b) => b.at - a.at));
 }
 
@@ -1584,14 +1547,16 @@ export function fetchAppZaps(address: string, opts: { limit?: number; timeoutMs?
   const relay = searchRelay();
   if (!relay) return Promise.resolve([]);
   const zaps: AppZap[] = [];
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [9735], "#a": [address], search: "include:spam", limit },
-    (e) => {
-      const { pubkey, memo } = parseZapReceipt(e);
-      zaps.push({ id: e.id, pubkey, memo, at: e.created_at });
+    {
+      relay,
+      onEvent: (e) => {
+        const { pubkey, memo } = parseZapReceipt(e);
+        zaps.push({ id: e.id, pubkey, memo, at: e.created_at });
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => zaps.sort((a, b) => b.at - a.at));
 }
 
@@ -1622,8 +1587,7 @@ export function fetchAppsByAddress(addresses: string[], timeoutMs = 5000): Promi
   if (parsed.length === 0) return Promise.resolve(out);
   const relay = searchRelay();
   if (!relay) return Promise.resolve(out);
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     {
       kinds: [32267],
       authors: [...new Set(parsed.map((p) => p.pubkey))],
@@ -1631,14 +1595,17 @@ export function fetchAppsByAddress(addresses: string[], timeoutMs = 5000): Promi
       search: "include:spam",
       limit: parsed.length * 2,
     },
-    (e) => {
-      const d = e.tags.find((t) => t[0] === "d")?.[1];
-      if (d === undefined) return;
-      const key = `32267:${e.pubkey}:${d}`;
-      const prev = out.get(key);
-      if (!prev || prev.created_at < e.created_at) out.set(key, e);
+    {
+      relay,
+      onEvent: (e) => {
+        const d = e.tags.find((t) => t[0] === "d")?.[1];
+        if (d === undefined) return;
+        const key = `32267:${e.pubkey}:${d}`;
+        const prev = out.get(key);
+        if (!prev || prev.created_at < e.created_at) out.set(key, e);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => out);
 }
 
@@ -1752,25 +1719,27 @@ export function fetchPersonVouches(pubkey: string, timeoutMs = 5000): Promise<Pe
   const relay = searchRelay();
   if (!relay) return Promise.resolve([]);
   const byAuthor = new Map<string, PersonVouch>();
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [VOUCH_KIND], "#p": [pubkey], search: "include:spam", limit: 50 },
-    (e) => {
-      const tag = (name: string) => e.tags.find((t) => t[0] === name)?.[1];
-      const t = tag("t");
-      const isVouch = tag("s") === "vouched" || t === "vouch" || t === "identity";
-      if (!isVouch) return;
-      const prev = byAuthor.get(e.pubkey);
-      if (prev && prev.at >= e.created_at) return;
-      byAuthor.set(e.pubkey, {
-        id: e.id,
-        pubkey: e.pubkey,
-        type: t === "identity" ? "identity" : "vouch",
-        text: e.content.trim(),
-        at: e.created_at,
-      });
+    {
+      relay,
+      onEvent: (e) => {
+        const tag = (name: string) => e.tags.find((t) => t[0] === name)?.[1];
+        const t = tag("t");
+        const isVouch = tag("s") === "vouched" || t === "vouch" || t === "identity";
+        if (!isVouch) return;
+        const prev = byAuthor.get(e.pubkey);
+        if (prev && prev.at >= e.created_at) return;
+        byAuthor.set(e.pubkey, {
+          id: e.id,
+          pubkey: e.pubkey,
+          type: t === "identity" ? "identity" : "vouch",
+          text: e.content.trim(),
+          at: e.created_at,
+        });
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => [...byAuthor.values()].sort((a, b) => b.at - a.at));
 }
 
@@ -1790,17 +1759,19 @@ export function fetchVouchReplies(vouchIds: string[], timeoutMs = 5000): Promise
   if (vouchIds.length === 0) return Promise.resolve(replies);
   const relay = searchRelay();
   if (!relay) return Promise.resolve(replies);
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [1111], "#e": vouchIds, "#K": [String(VOUCH_KIND)], search: "include:spam", limit: 100 },
-    (e) => {
-      const target = e.tags.find((t) => t[0] === "e")?.[1];
-      if (!target) return;
-      const prev = replies.get(target);
-      if (prev && prev.at >= e.created_at) return;
-      replies.set(target, { id: e.id, pubkey: e.pubkey, text: e.content.trim(), at: e.created_at });
+    {
+      relay,
+      onEvent: (e) => {
+        const target = e.tags.find((t) => t[0] === "e")?.[1];
+        if (!target) return;
+        const prev = replies.get(target);
+        if (prev && prev.at >= e.created_at) return;
+        replies.set(target, { id: e.id, pubkey: e.pubkey, text: e.content.trim(), at: e.created_at });
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => replies);
 }
 
@@ -1826,20 +1797,21 @@ export function fetchPersonSets(pubkey: string, timeoutMs = 5000): Promise<Perso
   if (!relay) return Promise.resolve([]);
   // Per title, one set per publisher (the newest, if a publisher has several).
   const byTitle = new Map<string, Map<string, { id: string; pubkey: string; at: number }>>();
-  return collectFromSearch(
-    relay,
-    // 200, not 50: a well-listed person sits in more sets than that, and a
-    // sample-dependent tally made "Verified Human · 6" come and go between loads.
+  return searchOnce(
     { kinds: [30000], "#p": [pubkey], search: "include:spam", limit: 200 },
-    (e) => {
-      const title = e.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1]?.trim();
-      if (!title) return;
-      if (!byTitle.has(title)) byTitle.set(title, new Map());
-      const perPublisher = byTitle.get(title)!;
-      const prev = perPublisher.get(e.pubkey);
-      if (!prev || prev.at < e.created_at) perPublisher.set(e.pubkey, { id: e.id, pubkey: e.pubkey, at: e.created_at });
+    {
+      relay,
+      onEvent: (e) => {
+        const title = e.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1]?.trim();
+        if (!title) return;
+        if (!byTitle.has(title)) byTitle.set(title, new Map());
+        const perPublisher = byTitle.get(title)!;
+        const prev = perPublisher.get(e.pubkey);
+        if (!prev || prev.at < e.created_at)
+          perPublisher.set(e.pubkey, { id: e.id, pubkey: e.pubkey, at: e.created_at });
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() =>
     [...byTitle.entries()]
       .map(([title, perPublisher]) => ({
@@ -1862,11 +1834,9 @@ export function fetchRepoActivity(address: string, timeoutMs = 5000): Promise<No
   const relay = searchRelay();
   if (!relay) return Promise.resolve([]);
   const items: NostrEvent[] = [];
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [1621, 1617, 1618], "#a": [address], search: "include:spam", limit: 20 },
-    (e) => items.push(e),
-    { timeoutMs },
+    { relay, onEvent: (e) => items.push(e), timeoutMs },
   ).then(() => items.sort((a, b) => b.created_at - a.created_at));
 }
 
@@ -1932,17 +1902,20 @@ export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<Repo
     const seen = new Set<string>();
     const recent = new AbortController();
     subs.push({ unsubscribe: () => recent.abort() });
-    void collectFromSearch(
-      relay,
+    void searchOnce(
       { kinds: [1617, 1618, 1621], "#a": [address], search: "include:spam", limit: 24 },
-      (ev) => {
-        if (ev.created_at > (result.lastAt ?? 0)) result.lastAt = ev.created_at;
-        if ((ev.kind === 1617 || ev.kind === 1618) && !seen.has(ev.pubkey)) {
-          seen.add(ev.pubkey);
-          result.contributors.push(ev.pubkey);
-        }
+      {
+        relay,
+        onEvent: (ev) => {
+          if (ev.created_at > (result.lastAt ?? 0)) result.lastAt = ev.created_at;
+          if ((ev.kind === 1617 || ev.kind === 1618) && !seen.has(ev.pubkey)) {
+            seen.add(ev.pubkey);
+            result.contributors.push(ev.pubkey);
+          }
+        },
+        timeoutMs,
+        stop: abortOf(recent.signal),
       },
-      { timeoutMs, signal: recent.signal },
     ).then(one);
   });
 }
@@ -1956,11 +1929,9 @@ export function fetchSpecsForKind(kind: number, timeoutMs = 5000): Promise<Nostr
   const relay = searchRelay();
   if (!relay) return Promise.resolve([]);
   const found: NostrEvent[] = [];
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [30817], "#k": [String(kind)], search: "include:spam", limit: 5 },
-    (e) => found.push(e),
-    { timeoutMs },
+    { relay, onEvent: (e) => found.push(e), timeoutMs },
   ).then(() => found);
 }
 
@@ -1973,13 +1944,15 @@ export function fetchNipPage(dTags: string[], timeoutMs = 5000): Promise<NostrEv
   const relay = searchRelay();
   if (!relay || dTags.length === 0) return Promise.resolve(null);
   let best: NostrEvent | null = null;
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [30818], "#d": dTags, search: "include:spam", limit: 10 },
-    (e) => {
-      if (!best || e.content.length > best.content.length) best = e;
+    {
+      relay,
+      onEvent: (e) => {
+        if (!best || e.content.length > best.content.length) best = e;
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => best);
 }
 
@@ -1992,16 +1965,18 @@ export function fetchSimilarApps(tags: string[], selfAddress: string, timeoutMs 
   const relay = searchRelay();
   if (!relay || tags.length === 0) return Promise.resolve([]);
   const byAddress = new Map<string, NostrEvent>();
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [32267], "#t": tags, search: "include:spam", limit: 24 },
-    (e) => {
-      const addr = appAddress(e);
-      if (addr === selfAddress) return;
-      const known = byAddress.get(addr);
-      if (!known || e.created_at > known.created_at) byAddress.set(addr, e);
+    {
+      relay,
+      onEvent: (e) => {
+        const addr = appAddress(e);
+        if (addr === selfAddress) return;
+        const known = byAddress.get(addr);
+        if (!known || e.created_at > known.created_at) byAddress.set(addr, e);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => {
     const overlap = (e: NostrEvent) => e.tags.filter((t) => t[0] === "t" && tags.includes(t[1])).length;
     return [...byAddress.values()].sort((a, b) => overlap(b) - overlap(a)).slice(0, 6);
@@ -2025,21 +2000,20 @@ export function fetchSimilarListings(
   if (!relay || categories.length === 0) return Promise.resolve([]);
   const wanted = new Set(categories.map((c) => c.toLowerCase()));
   const byAddress = new Map<string, NostrEvent>();
-  return collectFromSearch(
-    relay,
-    // Deep on purpose: the seller's own listings are dropped below, and one
-    // prolific seller can own the first forty in a category (Staci's 67 in
-    // "Health & Beauty", 2026-09-24, left nothing similar at 40; 200 found 53).
+  return searchOnce(
     { kinds: [30402], "#t": categories, search: "include:spam", limit: 200 },
-    (ev) => {
-      if (opts.excludePubkey && ev.pubkey === opts.excludePubkey) return;
-      const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
-      const addr = `${ev.kind}:${ev.pubkey}:${d}`;
-      if (addr === selfAddress) return;
-      const known = byAddress.get(addr);
-      if (!known || ev.created_at > known.created_at) byAddress.set(addr, ev);
+    {
+      relay,
+      onEvent: (ev) => {
+        if (opts.excludePubkey && ev.pubkey === opts.excludePubkey) return;
+        const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
+        const addr = `${ev.kind}:${ev.pubkey}:${d}`;
+        if (addr === selfAddress) return;
+        const known = byAddress.get(addr);
+        if (!known || ev.created_at > known.created_at) byAddress.set(addr, ev);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => {
     const overlap = (e: NostrEvent) =>
       new Set(
@@ -2079,7 +2053,7 @@ export function fetchCommentsByAddress(
   const byId = new Map<string, NostrEvent>();
   return Promise.all(
     filters.map((f) =>
-      collectFromSearch(relay, { ...f, search: "include:spam", limit: 150 }, (e) => byId.set(e.id, e), { timeoutMs }),
+      searchOnce({ ...f, search: "include:spam", limit: 150 }, { relay, onEvent: (e) => byId.set(e.id, e), timeoutMs }),
     ),
   ).then(() => [...byId.values()]);
 }
@@ -2120,17 +2094,18 @@ export function fetchGitStatuses(
   }
   const missing = [...repos.keys()].filter((c) => !repos.get(c)).map((c) => c.split(":"));
   const statuses: NostrEvent[] = [];
-  const statusAsk = collectFromSearch(
-    relay,
+  const statusAsk = searchOnce(
     { kinds: [1630, 1631, 1632, 1633], "#e": ids, search: "include:spam", limit: Math.max(200, ids.length * 4) },
-    (ev) => {
-      if (ev.kind >= 1630 && ev.kind <= 1633) statuses.push(ev);
+    {
+      relay,
+      onEvent: (ev) => {
+        if (ev.kind >= 1630 && ev.kind <= 1633) statuses.push(ev);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   );
   const repoAsk = missing.length
-    ? collectFromSearch(
-        relay,
+    ? searchOnce(
         {
           kinds: [30617],
           authors: [...new Set(missing.map((p) => p[1]))],
@@ -2138,14 +2113,17 @@ export function fetchGitStatuses(
           search: "include:spam",
           limit: missing.length * 2,
         },
-        (ev) => {
-          if (ev.kind !== 30617) return;
-          const coord = `30617:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
-          if (!repos.has(coord)) return;
-          const held = repos.get(coord);
-          if (!held || beats(ev, held)) repos.set(coord, ev);
+        {
+          relay,
+          onEvent: (ev) => {
+            if (ev.kind !== 30617) return;
+            const coord = `30617:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+            if (!repos.has(coord)) return;
+            const held = repos.get(coord);
+            if (!held || beats(ev, held)) repos.set(coord, ev);
+          },
+          timeoutMs,
         },
-        { timeoutMs },
       )
     : Promise.resolve();
   // Whether a status counts for an item (lib/gitEvents statusFromAuthority). A repo with no
@@ -2191,16 +2169,18 @@ export function fetchGitCommentCounts(ids: string[], timeoutMs = 5000): Promise<
   if (!relay || ids.length === 0) return Promise.resolve(out);
   const wanted = new Set(ids);
   const seen = new Set<string>();
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [1111], "#E": ids, search: "include:spam", limit: Math.max(500, ids.length * 10) },
-    (ev) => {
-      if (seen.has(ev.id)) return;
-      seen.add(ev.id);
-      const root = ev.tags.find((t) => t[0] === "E" && wanted.has(t[1]))?.[1];
-      if (root) out.set(root, (out.get(root) ?? 0) + 1);
+    {
+      relay,
+      onEvent: (ev) => {
+        if (seen.has(ev.id)) return;
+        seen.add(ev.id);
+        const root = ev.tags.find((t) => t[0] === "E" && wanted.has(t[1]))?.[1];
+        if (root) out.set(root, (out.get(root) ?? 0) + 1);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => out);
 }
 
@@ -2213,16 +2193,18 @@ export function fetchRepoForks(euc: string, selfAddress: string, timeoutMs = 500
   const relay = searchRelay();
   if (!relay || !euc) return Promise.resolve([]);
   const byMaintainer = new Map<string, NostrEvent>();
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [30617], "#r": [euc], search: "include:spam", limit: 50 },
-    (ev) => {
-      const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
-      if (`${ev.kind}:${ev.pubkey}:${d}` === selfAddress) return;
-      const known = byMaintainer.get(ev.pubkey);
-      if (!known || ev.created_at > known.created_at) byMaintainer.set(ev.pubkey, ev);
+    {
+      relay,
+      onEvent: (ev) => {
+        const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
+        if (`${ev.kind}:${ev.pubkey}:${d}` === selfAddress) return;
+        const known = byMaintainer.get(ev.pubkey);
+        if (!known || ev.created_at > known.created_at) byMaintainer.set(ev.pubkey, ev);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => [...byMaintainer.values()]);
 }
 
@@ -2237,13 +2219,15 @@ export function fetchRepoByAddress(address: string, timeoutMs = 5000): Promise<N
   const relay = searchRelay();
   if (!relay || kind !== "30617" || !/^[0-9a-f]{64}$/i.test(pubkey ?? "")) return Promise.resolve(null);
   let best: NostrEvent | null = null;
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [30617], authors: [pubkey], "#d": [d], search: "include:spam", limit: 3 },
-    (e) => {
-      if (!best || e.created_at > best.created_at) best = e;
+    {
+      relay,
+      onEvent: (e) => {
+        if (!best || e.created_at > best.created_at) best = e;
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => best);
 }
 
@@ -2270,19 +2254,21 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
   if (!relay || addresses.length === 0) return Promise.resolve(out);
   const wanted = new Set(addresses);
   const latest = new Map<string, Map<string, { status: string; at: number }>>();
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [31925], "#a": addresses, search: "include:spam", limit: Math.max(500, addresses.length * 20) },
-    (ev) => {
-      const addr = ev.tags.find((t) => t[0] === "a" && wanted.has(t[1]))?.[1];
-      if (!addr || ev.created_at > Date.now() / 1000 + RSVP_FUTURE_SLACK_S) return;
-      const status = (ev.tags.find((t) => t[0] === "status")?.[1] ?? "").toLowerCase();
-      const people = latest.get(addr) ?? new Map();
-      const known = people.get(ev.pubkey);
-      if (!known || ev.created_at > known.at) people.set(ev.pubkey, { status, at: ev.created_at });
-      latest.set(addr, people);
+    {
+      relay,
+      onEvent: (ev) => {
+        const addr = ev.tags.find((t) => t[0] === "a" && wanted.has(t[1]))?.[1];
+        if (!addr || ev.created_at > Date.now() / 1000 + RSVP_FUTURE_SLACK_S) return;
+        const status = (ev.tags.find((t) => t[0] === "status")?.[1] ?? "").toLowerCase();
+        const people = latest.get(addr) ?? new Map();
+        const known = people.get(ev.pubkey);
+        if (!known || ev.created_at > known.at) people.set(ev.pubkey, { status, at: ev.created_at });
+        latest.set(addr, people);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   ).then(() => {
     for (const [addr, people] of latest) {
       const going = [...people.entries()].filter(([, v]) => v.status === "accepted").sort((a, b) => b[1].at - a[1].at);
@@ -2330,24 +2316,26 @@ export function fetchGoalProgress(
   const seen = new Set<string>();
   const limit = Math.min(2000, goalIds.length * 200);
   const tally = new Map<string, { msats: number; zappers: { pk: string; at: number }[] }>();
-  return collectFromSearch(
-    relay,
+  return searchOnce(
     { kinds: [9735], "#e": goalIds, search: "include:spam", limit },
-    (e) => {
-      if (seen.has(e.id)) return;
-      seen.add(e.id);
-      const goal = e.tags.find((t) => t[0] === "e" && wanted.has(t[1]))?.[1];
-      if (!goal) return;
-      const closes = closesAt?.get(goal);
-      if (closes !== undefined && e.created_at > closes) return;
-      const receipt = parseZapReceipt(e);
-      const row = tally.get(goal) ?? { msats: 0, zappers: [] };
-      if (receipt.msats) row.msats += receipt.msats;
-      if (receipt.pubkey) row.zappers.push({ pk: receipt.pubkey, at: e.created_at });
-      tally.set(goal, row);
+    {
+      relay,
+      onEvent: (e) => {
+        if (seen.has(e.id)) return;
+        seen.add(e.id);
+        const goal = e.tags.find((t) => t[0] === "e" && wanted.has(t[1]))?.[1];
+        if (!goal) return;
+        const closes = closesAt?.get(goal);
+        if (closes !== undefined && e.created_at > closes) return;
+        const receipt = parseZapReceipt(e);
+        const row = tally.get(goal) ?? { msats: 0, zappers: [] };
+        if (receipt.msats) row.msats += receipt.msats;
+        if (receipt.pubkey) row.zappers.push({ pk: receipt.pubkey, at: e.created_at });
+        tally.set(goal, row);
+      },
+      timeoutMs,
     },
-    { timeoutMs },
-  ).then(({ eose }) => {
+  ).then(({ answered: eose }) => {
     for (const [goal, row] of tally) {
       const zappers = [...new Set(row.zappers.sort((a, b) => b.at - a.at).map((z) => z.pk))];
       byGoal.set(goal, { sats: Math.floor(row.msats / 1000), zappers });
@@ -2373,7 +2361,7 @@ export function fetchFromSearch(
   // A filter is settled by its EOSE, a CLOSED, or its stream failing — each on its own.
   return Promise.all(
     filters.map((f) =>
-      collectFromSearch(relay, { limit, ...f, search: "include:spam" }, (e) => byId.set(e.id, e), { timeoutMs }),
+      searchOnce({ limit, ...f, search: "include:spam" }, { relay, onEvent: (e) => byId.set(e.id, e), timeoutMs }),
     ),
   ).then(() => [...byId.values()].sort((a, b) => b.created_at - a.created_at));
 }
@@ -2443,17 +2431,19 @@ export async function searchListItems(
   const listsOf = new Map<string, string[]>();
   for (const l of lists) for (const h of l.headers) listsOf.set(h, [...(listsOf.get(h) ?? []), l.key]);
 
-  await collectFromSearch(
-    relay,
+  await searchOnce(
     lists.map((l) => ({ ...base, ...(l.whole ? { search: lens } : {}), "#z": l.headers, limit })),
-    (event) => {
-      const keys = new Set(event.tags.filter((t) => t[0] === "z").flatMap((t) => listsOf.get(t[1]) ?? []));
-      for (const key of keys) {
-        const answer = answers.get(key)!;
-        if (!answer.events.some((e) => e.id === event.id)) answer.events.push(event);
-      }
+    {
+      relay,
+      onEvent: (event) => {
+        const keys = new Set(event.tags.filter((t) => t[0] === "z").flatMap((t) => listsOf.get(t[1]) ?? []));
+        for (const key of keys) {
+          const answer = answers.get(key)!;
+          if (!answer.events.some((e) => e.id === event.id)) answer.events.push(event);
+        }
+      },
+      timeoutMs,
     },
-    { timeoutMs },
   );
   for (const answer of answers.values()) answer.full = answer.events.length >= limit;
   return answers;

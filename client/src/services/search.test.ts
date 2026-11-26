@@ -2545,8 +2545,9 @@ describe("fetchFromSearch", () => {
     const started = Date.now();
     const pending = fetchFromSearch([{ kinds: [1] }, { kinds: [7] }], { timeoutMs: 60_000 });
     await tick();
-    subject.next(frame({ ...ev("old"), created_at: 1 }));
-    subject.next(frame({ ...ev("new"), created_at: 2 }));
+    // Kind 7, which the second filter asks for: an event that answers neither is no answer.
+    subject.next(frame({ ...ev("old", 7), created_at: 1 }));
+    subject.next(frame({ ...ev("new", 7), created_at: 2 }));
     subject.next(EOSE);
     expect((await pending).map((e) => e.id)).toEqual(["new", "old"]);
     expect(Date.now() - started).toBeLessThan(5_000);
@@ -2746,6 +2747,24 @@ describe("fetchAppsByAddress", () => {
       "#d": ["net.primal.android"],
       search: "include:spam",
     });
+  });
+
+  // Every answer is one the filter asked for: a listing by someone else under the same d,
+  // sent back by a lax relay, is not that author's app.
+  it("keeps only listings that answer what was asked", async () => {
+    const pk = "b".repeat(64);
+    const stranger = "c".repeat(64);
+    const listing = (id: string, pubkey: string, kind = 32267) =>
+      ({ id, kind, pubkey, created_at: 5, content: "", sig: "s", tags: [["d", "net.primal.android"]] }) as NostrEvent;
+    reqMock.mockImplementation(() =>
+      of(frame(listing("S1", stranger)), frame(listing("N1", pk, 1)), frame(listing("L1", pk)), {
+        type: "EOSE",
+        from: "wss://x",
+        id: "s",
+      } as ReqFrame),
+    );
+    const map = await fetchAppsByAddress([`32267:${pk}:net.primal.android`]);
+    expect([...map.values()].map((e) => e.id)).toEqual(["L1"]);
   });
 });
 
