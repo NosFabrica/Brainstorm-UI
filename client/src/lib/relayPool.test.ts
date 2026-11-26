@@ -265,13 +265,10 @@ describe("events a relay sends that the filter didn't ask for", () => {
   it("are dropped from a live subscription", async () => {
     const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
     const events = await firstValueFrom(
-      pool.subscription([LIAR], asked, { eventStore: null }).pipe(
-        filter((m) => m !== "EOSE"),
-        take(1),
-        toArray(),
-      ),
+      // The pool's subscription carries events only: the group drops EOSE before it.
+      pool.subscription([LIAR], asked, { eventStore: null }).pipe(take(1), toArray()),
     );
-    expect(events.map((e) => (e as NostrEvent).id)).toEqual([mine.id]);
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
   }, 4000);
 
   it("are dropped from the raw frames pool.req and relay.req hand out", async () => {
