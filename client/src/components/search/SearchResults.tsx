@@ -6,9 +6,6 @@
  * back, so stale results structurally cannot flash).
  */
 import { FEATURES } from "@/config/featureFlags";
-import { NewAccountResult } from "@/components/compromised/NewAccountResult";
-import { CurrentAccountResult } from "@/components/retired/CurrentAccountResult";
-import { retiredBy, retiredStatus } from "@/services/retired";
 import { useCompromisedAmong } from "@/hooks/useCompromised";
 import { useListKinds } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
@@ -31,13 +28,9 @@ import {
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PersonCard } from "@/components/search/PersonCard";
 import { QuietTrustChrome } from "@/components/score/VerificationCoin";
-import { ShareNoteCard } from "@/components/share/ShareNoteCard";
-import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { QueryAsSent } from "@/components/search/QueryAsSent";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { eventPath } from "@/lib/shareId";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -53,22 +46,8 @@ import {
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
 import { FiltersPanel } from "./FiltersPanel";
-import {
-  APP_KINDS,
-  ARTICLE_KINDS,
-  CALENDAR_KIND,
-  EVENT_KINDS,
-  LIST_KINDS,
-  LIVE_KINDS,
-  MEDIA_KINDS,
-  MUSIC_KINDS,
-  NOTE_KINDS,
-  REPO_KINDS,
-  SHOP_KINDS,
-  isGitItemTab,
-  isGitTab,
-  isThingTab,
-} from "./tabKinds";
+import { TabResultCard, isPersonCard, type CardProfile, type TabCardContext } from "./TabResultCard";
+import { CALENDAR_KIND, LIVE_KINDS, NOTE_KINDS, isGitItemTab, isGitTab, isThingTab } from "./tabKinds";
 import { displayRows, tabHits, type DisplayRow } from "./pipelines";
 import { appCategoryFacets as appCategoryFacetsOf, appPlatformFacets } from "./pipelines/apps";
 import {
@@ -101,24 +80,7 @@ import { retryNow, useServerStatus } from "@/lib/serverStatus";
 import { fetchGitCommentCounts, fetchGitStatuses, fetchGoalProgress, type GoalProgress } from "@/services/search";
 import { useEventRsvps } from "@/hooks/useEventRsvps";
 import { GIT_STATE_LABEL, isGitItem, type GitState } from "@/lib/gitStatus";
-import { GIT_STATUS_KIND_SET, REPO_STATE_KIND } from "@/lib/gitEvents";
-import { RELEASE_KIND } from "@/lib/release";
-import { GitStatusCard, ReleaseCard, RepoStateCard } from "@/components/search/kindCards";
-import { WEB_BOOKMARK_KIND } from "@/lib/webBookmark";
-import {
-  AppCard,
-  EventCard,
-  LiveTile,
-  ListCard,
-  MediaCard,
-  RepoCard,
-  TrackCard,
-  mediaUrlOf,
-  ListingCard,
-} from "@/components/search/cards";
-import { ThingCard } from "@/components/search/thingCards";
-import { parseHighlight } from "@/lib/nip84";
-import { SerpRow } from "@/components/search/SerpRow";
+import { MediaCard, mediaUrlOf } from "@/components/search/cards";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
 import {
@@ -139,13 +101,9 @@ import { carriersOf } from "@/lib/resultTags";
 import { TagTabResults } from "@/components/search/TagTabResults";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
-import { liveHostOf, liveStateOf, type LiveState } from "@/lib/liveStream";
+import { liveHostOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, type EventWhen } from "@/lib/eventFilters";
-import { EventDateTile } from "@/components/share/EventDateTile";
-import { EVENT_ITEM_KIND } from "@/lib/calendarEvent";
-import { DRAFT_LISTING_KIND } from "@/lib/listing";
-import { describeThing, THING_KINDS } from "@/lib/thing";
 import { cardGroupOf } from "@/lib/listingVariants";
 import { priceBands, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -156,7 +114,7 @@ import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
 import { useSearchTags } from "@/hooks/useSearchTags";
-import { leadingCarriers, matchedTagChip, rankCarriers, tagsCarriedBy } from "@/lib/tagCarrierPeople";
+import { leadingCarriers, rankCarriers } from "@/lib/tagCarrierPeople";
 import { leadingTags } from "@/lib/tagMatch";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
@@ -178,8 +136,6 @@ const LEAD_MUSIC_KINDS = [31337];
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
 const NO_NOTES: MinimalEvent[] = [];
 const NO_HITS: SearchHit[] = [];
-
-type CardProfile = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
 function profilesOf(hits: SearchHit[]) {
   const map = new Map<string, CardProfile>();
@@ -216,39 +172,8 @@ function keepSameProfiles(prev: Map<string, CardProfile> | null, next: Map<strin
   return same ? prev : next;
 }
 
-/** The empty answers rows are handed when there is nothing: one array, so a memoised card sees no change. */
-const NO_FACES: string[] = [];
+/** A goal a complete answer found no receipt for: one object, so a memoised card sees no change. */
 const NO_RAISED: GoalProgress = { sats: 0, zappers: [] };
-
-/**
- * A person card's author with the score the page fetched, made once per author and
- * score: a copy per render was a new prop for every memoised PersonCard.
- */
-const SCORED = new WeakMap<SearchResult, { score: number | null; result: SearchResult }>();
-function withScore(author: SearchResult, score: number | null): SearchResult {
-  if (author.wotRank != null) return author;
-  const held = SCORED.get(author);
-  if (held && held.score === score) return held.result;
-  const result = { ...author, wotRank: score };
-  SCORED.set(author, { score, result });
-  return result;
-}
-
-/** The chip for the matched tag a person carries, one object per tag (matchedTagChip makes a new one per call). */
-const TAG_CHIPS = new WeakMap<object, ReturnType<typeof matchedTagChip>>();
-function tagChipFor(carried: Parameters<typeof matchedTagChip>[0]): ReturnType<typeof matchedTagChip> {
-  const tag = carried[0];
-  if (!tag) return undefined;
-  if (!TAG_CHIPS.has(tag)) TAG_CHIPS.set(tag, matchedTagChip(carried));
-  return TAG_CHIPS.get(tag);
-}
-
-/**
- * A result row skips layout and paint while it is far off screen. `auto` in the
- * intrinsic size remembers the height a row last rendered at, so the scrollbar
- * settles as the reader goes; 180px is a typical card's height before then.
- */
-const OFFSCREEN_ROW = "[content-visibility:auto] [contain-intrinsic-size:auto_180px]";
 
 export const SearchResults = memo(function SearchResults({
   query,
@@ -296,7 +221,7 @@ export const SearchResults = memo(function SearchResults({
   // The tab's live stream, so the end of the page can ask it for more.
   const streamRef = useRef<SearchHandle | null>(null);
   const firstRun = useRef(true);
-  // Result rows skip offscreen layout (OFFSCREEN_ROW) except while a remembered scroll is restored.
+  // Result rows skip offscreen layout (TabResultCard's OFFSCREEN_ROW) except while a remembered scroll is restored.
   const [rowsWhole, setRowsWhole] = useState(false);
   // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
   // 254 notes, no media-kind events, a video in most of them). The Media tab
@@ -966,8 +891,6 @@ export const SearchResults = memo(function SearchResults({
   const extraCount =
     (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) +
     (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
-  const peopleIdx = useRef(0);
-  peopleIdx.current = 0;
 
   // Recurring events (the "liverpool" monthly-meetup dump) collapse on the
   // event-shaped tabs; a chip expands the rest of each cluster.
@@ -1307,6 +1230,38 @@ export const SearchResults = memo(function SearchResults({
   const shownHits = useMemo(() => displayHits.map((d) => d.hit), [displayHits]);
   const turnPage = useCallback(() => streamRef.current?.more(), []);
   const openTab = useCallback((next: string) => changeTab(next as SearchTab), [changeTab]);
+
+  // What every result row reads (TabResultCard): built per render, as the rows are.
+  const cardContext: TabCardContext = {
+    tab,
+    pov,
+    query,
+    rowsWhole,
+    eventDayHeaders,
+    onExpand: (clusterId) => setExpandedClusters((prev) => new Set(prev).add(clusterId)),
+    displayHits,
+    peopleOnPage,
+    newAccountOf,
+    scoreOf,
+    tagMatches,
+    carriersSettled: carriers.settled,
+    carrierSets,
+    pointedNames: pointers.namesOf,
+    openProfile,
+    onPrefetchEnter,
+    onPrefetchLeave,
+    progressOf,
+    searchedKinds,
+    profiles,
+    noteRefs,
+    rsvpsOf,
+    shopGroupOf,
+    rates,
+    hitsBySeller,
+    liveStates,
+    stateOf,
+    gitComments,
+  };
 
   return (
     <SearchPriorityContext.Provider value={searchPriority}>
@@ -2056,197 +2011,20 @@ export const SearchResults = memo(function SearchResults({
                           </div>
                         </div>
                       )}
-                      {displayHits
-                        .filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id)))
-                        .map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
-                          const { event } = hit;
-                          const chip =
-                            collapsedCount > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => setExpandedClusters((prev) => new Set(prev).add(clusterId))}
-                                className="ml-1 mt-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
-                                data-testid={`cluster-expand-${clusterId}`}
-                              >
-                                {chipLabel ?? `+${collapsedCount} more like this`}
-                              </button>
-                            ) : null;
-                          // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
-                          // shares one height; list tabs are unaffected by h-full.
-                          const day = eventDayHeaders.get(event.id);
-                          const wrap = (card: React.ReactNode) => (
-                            <div key={event.id} className={rowsWhole ? "h-full" : `h-full ${OFFSCREEN_ROW}`}>
-                              {day && (
-                                <div
-                                  className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`}
-                                  data-testid={`event-day-${day.key}`}
-                                >
-                                  {day.startSec > 0 ? (
-                                    <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
-                                  ) : (
-                                    <span
-                                      className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"
-                                      aria-hidden="true"
-                                    />
-                                  )}
-                                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                    {day.label}
-                                  </span>
-                                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
-                                </div>
-                              )}
-                              {card}
-                              {chip}
-                            </div>
-                          );
-                          if (event.kind === 0 && hit.author) {
-                            // A new account whose compromised one is on this page is already shown, above that one.
-                            const replaced = newAccountOf.get(event.pubkey);
-                            if (replaced && peopleOnPage.includes(replaced)) return null;
-                            // The same for a Current account whose Retired one is on this page.
-                            const retiredOne = retiredBy(event.pubkey)?.pubkey;
-                            if (retiredOne && peopleOnPage.includes(retiredOne)) return null;
-                            // …and a Retired account leads with its owner's Current one: that account's
-                            // own row from this page when it has one, so its score comes along.
-                            const currentOne = retiredStatus(event.pubkey)?.currentPubkey;
-                            const currentRow = currentOne
-                              ? displayHits.find((d) => d.hit.event.kind === 0 && d.hit.event.pubkey === currentOne)
-                                  ?.hit
-                              : undefined;
-                            const currentAuthor = currentRow?.author
-                              ? {
-                                  ...currentRow.author,
-                                  wotRank: currentRow.author.wotRank ?? scoreOf(currentRow.event.pubkey) ?? null,
-                                }
-                              : undefined;
-                            const idx = peopleIdx.current++;
-                            // The one tag the words matched, if this person carries it.
-                            const cardTag =
-                              tagMatches.length > 0 && carriers.settled
-                                ? tagChipFor(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
-                                : undefined;
-                            const scored = withScore(hit.author, scoreOf(event.pubkey) ?? null);
-                            return wrap(
-                              <>
-                                {/* A compromised account: the owner's new one goes first, highlighted. */}
-                                <NewAccountResult compromisedPubkey={event.pubkey} pov={pov} onOpen={openProfile} />
-                                {/* A retired account: the owner's current one goes first, lightly set apart. */}
-                                <CurrentAccountResult
-                                  retiredPubkey={event.pubkey}
-                                  known={currentAuthor}
-                                  pov={pov}
-                                  onOpen={openProfile}
-                                />
-                                <PersonCard
-                                  result={scored}
-                                  idx={idx}
-                                  pov={pov}
-                                  onOpen={openProfile}
-                                  onPrefetchEnter={onPrefetchEnter}
-                                  onPrefetchLeave={onPrefetchLeave}
-                                  showFollowedBy={idx < 3}
-                                  tag={cardTag}
-                                  pointedBy={pointers.namesOf.get(event.pubkey)}
-                                />
-                              </>,
-                            );
-                          }
-                          // The kinds with no card of their own, whichever tab they are on.
-                          if (THING_KINDS.has(event.kind)) {
-                            const thing = describeThing(event);
-                            if (thing)
-                              return wrap(
-                                <ThingCard
-                                  event={event}
-                                  author={hit.author}
-                                  score={scoreOf(event.pubkey)}
-                                  thing={thing}
-                                  progress={progressOf(event)}
-                                />,
-                              );
-                          }
-                          if (ARTICLE_KINDS.has(event.kind)) {
-                            return wrap(
-                              <EmbeddedArticleCard
-                                leadKinds={searchedKinds}
-                                mixed={tab === "articles"}
-                                event={event as MinimalEvent}
-                                author={profiles.get(event.pubkey)}
-                                trustScore01={scoreOf(event.pubkey) ?? null}
-                              />,
-                            );
-                          }
-                          // A NIP-84 highlight is its passage marked and where it is from (SerpRow's
-                          // HighlightRow), as on the Top page and the All tab — never its passage as a bare note.
-                          if (event.kind === 9802 && parseHighlight(event))
-                            return wrap(
-                              <SerpRow event={event} author={hit.author} score={scoreOf(event.pubkey)} query={query} />,
-                            );
-                          if (NOTE_KINDS.has(event.kind) && tab !== "media") {
-                            return wrap(
-                              <ShareNoteCard
-                                event={event as MinimalEvent}
-                                profiles={profiles}
-                                eventsById={noteRefs.eventsById}
-                                addrByCoord={noteRefs.addrByCoord}
-                                href={eventPath(event)}
-                                showAuthor
-                                authorScore={scoreOf(event.pubkey)}
-                              />,
-                            );
-                          }
-                          const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
-                          if (EVENT_KINDS.has(event.kind) || (tab === "events" && event.kind === EVENT_ITEM_KIND)) {
-                            const r = rsvpsOf(event);
-                            return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? NO_FACES} />);
-                          }
-                          if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-                          // A NIP-99 draft is not in the Shop, but drawn where it turns up as the listing it is.
-                          if (SHOP_KINDS.has(event.kind) || event.kind === DRAFT_LISTING_KIND)
-                            return wrap(
-                              <ListingCard
-                                {...typed}
-                                group={shopGroupOf(event.id)}
-                                rates={rates}
-                                sellerListings={hitsBySeller.get(event.pubkey)}
-                              />,
-                            );
-                          if (LIVE_KINDS.has(event.kind)) {
-                            const hostPk = liveHostOf(event);
-                            return wrap(
-                              <LiveTile
-                                {...typed}
-                                state={liveStates.get(event.id) ?? liveStateOf(event)}
-                                hostScore={hostPk ? scoreOf(hostPk) : undefined}
-                              />,
-                            );
-                          }
-                          if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
-                          if (REPO_KINDS.has(event.kind))
-                            return wrap(
-                              <RepoCard
-                                {...typed}
-                                state={stateOf(event) ?? undefined}
-                                comments={gitComments.get(event.id)}
-                                forkOf={forkOf}
-                              />,
-                            );
-                          // NIP-34 statuses and repo state, and releases: their own cards (components/search/kindCards).
-                          if (GIT_STATUS_KIND_SET.has(event.kind)) return wrap(<GitStatusCard {...typed} />);
-                          if (event.kind === REPO_STATE_KIND) return wrap(<RepoStateCard {...typed} />);
-                          if (event.kind === RELEASE_KIND) return wrap(<ReleaseCard {...typed} />);
-                          if (event.kind === WEB_BOOKMARK_KIND) return wrap(<SerpRow {...typed} query={query} />);
-                          if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
-                          if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
-                          // Open-set posture: an unmapped kind renders rather than vanishing —
-                          // the relay may index new kinds before this UI learns them. With
-                          // something to show it is a media card; without, the composed
-                          // page's generic row, which reads a `name` tag, a kind label and an
-                          // `alt` line (a kind-39999 place has no content and no picture, and
-                          // was a blank media tile).
-                          if (mediaUrlOf(event) !== null) return wrap(<MediaCard {...typed} />);
-                          return wrap(<SerpRow {...typed} query={query} />);
-                        })}
+                      {(() => {
+                        // The people cards' order among the rows, for the first few's "followed by".
+                        let people = 0;
+                        return displayHits
+                          .filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id)))
+                          .map((row) => (
+                            <TabResultCard
+                              key={row.hit.event.id}
+                              row={row}
+                              personIdx={isPersonCard(row.hit, cardContext) ? people++ : -1}
+                              ctx={cardContext}
+                            />
+                          ));
+                      })()}
                     </div>
                   )}
                   <MoreResults
