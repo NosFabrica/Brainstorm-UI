@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { useSocialActions } from "@/hooks/useSocialActions";
+import { asyncHandler } from "@/lib/asyncHandler";
 
 /** Publishes a kind-1984 report for `hexPubkey` with the reason picked. */
 export function ReportDialog({
@@ -82,7 +83,7 @@ export function ReportDialog({
           <button
             type="button"
             disabled={social.isPending("report", hexPubkey) || social.isAnyPending}
-            onClick={async () => {
+            onClick={asyncHandler(async () => {
               const result = await social.report(hexPubkey, reportReason);
               if (result.cancelled) return;
               if (result.success) {
@@ -91,7 +92,7 @@ export function ReportDialog({
               } else {
                 toast({ title: "Error", description: result.error || "Failed to report", variant: "destructive" });
               }
-            }}
+            })}
             className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:pointer-events-none disabled:opacity-50 sm:flex-none"
             data-testid="button-report-confirm"
           >
