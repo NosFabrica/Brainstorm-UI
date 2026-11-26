@@ -25,7 +25,6 @@ import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { toPubkeys } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import { useToast } from "@/hooks/use-toast";
 import { type GroupKey } from "@/components/network/networkGroups";
 import { type NetworkCardActions, type NetworkCardView } from "@/components/network/cardContext";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
@@ -37,6 +36,7 @@ import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 import { isProfileOverviewFresh, prefetchProfileOverview, useExpandedRow } from "./network/rowOverview";
 import { useRowScores } from "./network/useRowScores";
+import { useRowSocialActions } from "./network/useRowSocialActions";
 import {
   connectionTier,
   groupFromSearch,
@@ -100,7 +100,6 @@ export default function NetworkPage() {
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchAbortRef = useRef(0);
-  const { toast } = useToast();
   const social = useSocialActions(user?.pubkey);
   // Polled app-wide while a run is in flight (hooks/useScoringStatus), not here.
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
@@ -505,73 +504,8 @@ export default function NetworkPage() {
     setExpandedPubkey(null);
   }, []);
 
-  const handleSocialFollow = useCallback(
-    async (pk: string) => {
-      const result = await social.follow(pk);
-      if (result.cancelled) return result;
-      if (result.success) toast({ title: "Followed", description: "Added to your contact list" });
-      else
-        toast({
-          title: "Error",
-          description: result.error || "Follow failed",
-          variant: "destructive",
-        });
-      return result;
-    },
-    [social, toast],
-  );
-
-  const handleSocialUnfollow = useCallback(
-    async (pk: string) => {
-      const result = await social.unfollow(pk);
-      if (result.cancelled) return result;
-      if (result.success)
-        toast({
-          title: "Unfollowed",
-          description: "Removed from your contact list",
-        });
-      else
-        toast({
-          title: "Error",
-          description: result.error || "Unfollow failed",
-          variant: "destructive",
-        });
-      return result;
-    },
-    [social, toast],
-  );
-
-  const handleSocialMute = useCallback(
-    async (pk: string) => {
-      const result = await social.mute(pk);
-      if (result.cancelled) return result;
-      if (result.success) toast({ title: "Muted", description: "Added to your mute list" });
-      else
-        toast({
-          title: "Error",
-          description: result.error || "Mute failed",
-          variant: "destructive",
-        });
-      return result;
-    },
-    [social, toast],
-  );
-
-  const handleSocialUnmute = useCallback(
-    async (pk: string) => {
-      const result = await social.unmute(pk);
-      if (result.cancelled) return result;
-      if (result.success) toast({ title: "Unmuted", description: "Removed from your mute list" });
-      else
-        toast({
-          title: "Error",
-          description: result.error || "Unmute failed",
-          variant: "destructive",
-        });
-      return result;
-    },
-    [social, toast],
-  );
+  const { handleSocialFollow, handleSocialUnfollow, handleSocialMute, handleSocialUnmute } =
+    useRowSocialActions(social);
 
   // Stable, identity-constant deps shared by every card. Memoized so the
   // context value only changes when one of these callbacks/refs does (in
