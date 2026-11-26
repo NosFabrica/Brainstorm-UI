@@ -89,3 +89,6 @@ export interface RelayLatency {
   status: "connected" | "degraded" | "disconnected";
   checkedAt: Date;
 }
+
+/** The header card a directory filter came from. */
+export type KpiFilter = "scored" | "sp_adopters" | "queue" | "failed";
