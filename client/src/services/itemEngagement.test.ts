@@ -21,7 +21,11 @@ vi.mock("@/config/dictionary", () => ({ dictionaryRelays: () => ["wss://dcosl.br
 vi.mock("@/services/listReads", () => ({ readListEvents: reads.readListEvents }));
 vi.mock("@/services/nostr", () => ({ fetchFromSearchRelayByFilters: reads.fetchFromSearchRelayByFilters }));
 
-import { fetchItemReactions, fetchGitHubClaimants, publishEndorsement } from "./itemEngagement";
+import { githubClaimantsOf } from "@/lib/itemEngagement";
+import { fetchItemReactions, fetchGitHubClaimantProfiles, publishEndorsement } from "./itemEngagement";
+
+/** The claims a handle's profiles make, as hooks/useGitHubEvidence reads them. */
+const claimsFor = async (handle: string) => githubClaimantsOf(await fetchGitHubClaimantProfiles(handle), handle);
 
 const A = "a".repeat(64);
 const item = {
@@ -53,7 +57,7 @@ describe("fetchItemReactions", () => {
   });
 });
 
-describe("fetchGitHubClaimants", () => {
+describe("fetchGitHubClaimantProfiles", () => {
   it("asks our index for profiles claiming the handle and keeps the real claims", async () => {
     reads.fetchFromSearchRelayByFilters.mockResolvedValue([
       { id: "p1", kind: 0, pubkey: A, created_at: 1, content: "{}", tags: [["i", "github:vcavallo", "proof"]] },
@@ -66,7 +70,7 @@ describe("fetchGitHubClaimants", () => {
         tags: [["i", "twitter:vcavallo", "x"]],
       },
     ]);
-    const out = await fetchGitHubClaimants("vcavallo");
+    const out = await claimsFor("vcavallo");
     expect(out).toEqual([{ pubkey: A, proof: "proof" }]);
     expect(reads.fetchFromSearchRelayByFilters).toHaveBeenCalledWith(
       [{ kinds: [0], "#i": ["github:vcavallo"], limit: 100 }],
@@ -75,7 +79,7 @@ describe("fetchGitHubClaimants", () => {
   });
 });
 
-describe("fetchGitHubClaimants, many at once", () => {
+describe("fetchGitHubClaimantProfiles, many at once", () => {
   const claim = (pubkey: string, handle: string) => ({
     id: pubkey.slice(0, 4) + handle,
     kind: 0,
@@ -88,7 +92,7 @@ describe("fetchGitHubClaimants, many at once", () => {
   it("asks for every handle of a list in one REQ, and hands each its own claimants", async () => {
     const B = "b".repeat(64);
     reads.fetchFromSearchRelayByFilters.mockResolvedValue([claim(A, "alice"), claim(B, "bob")]);
-    const [alice, bob, carol] = await Promise.all(["alice", "bob", "carol"].map(fetchGitHubClaimants));
+    const [alice, bob, carol] = await Promise.all(["alice", "bob", "carol"].map(claimsFor));
     expect(reads.fetchFromSearchRelayByFilters).toHaveBeenCalledTimes(1);
     expect(reads.fetchFromSearchRelayByFilters).toHaveBeenCalledWith(
       [{ kinds: [0], "#i": ["github:alice", "github:bob", "github:carol"], limit: 300 }],
@@ -101,21 +105,21 @@ describe("fetchGitHubClaimants, many at once", () => {
 
   it("stays under the relay's subscription cap: fifty handles a REQ", async () => {
     reads.fetchFromSearchRelayByFilters.mockResolvedValue([]);
-    await Promise.all(Array.from({ length: 120 }, (_, i) => fetchGitHubClaimants(`user${i}`)));
+    await Promise.all(Array.from({ length: 120 }, (_, i) => claimsFor(`user${i}`)));
     const sizes = reads.fetchFromSearchRelayByFilters.mock.calls.map((c) => (c[0][0]["#i"] as string[]).length);
     expect(sizes).toEqual([50, 50, 20]);
   });
 
   it("asks once for a handle two rows share, and answers both", async () => {
     reads.fetchFromSearchRelayByFilters.mockResolvedValue([claim(A, "alice")]);
-    const [one, two] = await Promise.all([fetchGitHubClaimants("alice"), fetchGitHubClaimants("alice")]);
+    const [one, two] = await Promise.all([claimsFor("alice"), claimsFor("alice")]);
     expect(reads.fetchFromSearchRelayByFilters.mock.calls[0][0][0]["#i"]).toEqual(["github:alice"]);
     expect(one).toEqual(two);
   });
 
   it("answers no claimants, rather than failing, when the relay can't be read", async () => {
     reads.fetchFromSearchRelayByFilters.mockRejectedValue(new Error("down"));
-    expect(await fetchGitHubClaimants("alice")).toEqual([]);
+    expect(await claimsFor("alice")).toEqual([]);
   });
 });
 

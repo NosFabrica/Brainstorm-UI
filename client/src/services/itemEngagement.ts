@@ -20,7 +20,6 @@ import {
   endorsersOf,
   githubClaimantsOf,
   type Endorser,
-  type GitHubClaimant,
 } from "@/lib/itemEngagement";
 
 const TIMEOUT_MS = 6000;
@@ -108,10 +107,6 @@ export function fetchGitHubClaimantProfiles(handle: string): Promise<NostrEvent[
     if (waiting.size >= CLAIMANT_BATCH) flushClaimants();
     else flushTimer ??= setTimeout(flushClaimants, CLAIMANT_WINDOW_MS);
   });
-}
-
-export async function fetchGitHubClaimants(handle: string): Promise<GitHubClaimant[]> {
-  return githubClaimantsOf(await fetchGitHubClaimantProfiles(handle), handle);
 }
 
 export async function publishEndorsement(item: {
