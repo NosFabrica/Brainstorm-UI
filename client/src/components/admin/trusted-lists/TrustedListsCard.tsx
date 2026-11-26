@@ -166,7 +166,7 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
         </div>
       ) : (
         <div className="space-y-2">
-          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={chooseHouse}>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => void chooseHouse()}>
             <Home className="h-4 w-4" /> {HOUSE_NAME}
           </Button>
           <BrainstormUserPicker

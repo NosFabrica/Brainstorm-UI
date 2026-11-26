@@ -282,7 +282,7 @@ export function AssignUsersDialog({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") runSearch();
+                if (e.key === "Enter") void runSearch();
               }}
               placeholder={mode === "nostr" ? "Search Nostr by name…" : "Search Brainstorm users by name or npub…"}
               className="w-full rounded-xl border border-slate-200 bg-white/80 py-2 pl-8 pr-3 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
@@ -291,7 +291,7 @@ export function AssignUsersDialog({
           </div>
           <Button
             size="sm"
-            onClick={runSearch}
+            onClick={() => void runSearch()}
             disabled={searching || !query.trim()}
             className="no-default-hover-elevate no-default-active-elevate shrink-0 gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-accent"
           >
@@ -416,7 +416,7 @@ export function AssignUsersDialog({
           </Button>
           <Button
             disabled={assigning || tray.length === 0}
-            onClick={handleAssign}
+            onClick={() => void handleAssign()}
             className="no-default-hover-elevate no-default-active-elevate gap-1.5 bg-brand-deep text-white hover:bg-brand-accent"
             data-testid="assign-confirm"
           >

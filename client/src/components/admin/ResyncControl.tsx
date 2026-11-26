@@ -100,7 +100,7 @@ export function ResyncControl({
             <Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={busy} onClick={handleResync}>
+            <Button disabled={busy} onClick={() => void handleResync()}>
               {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
               Confirm resync
             </Button>

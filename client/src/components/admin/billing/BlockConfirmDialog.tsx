@@ -40,10 +40,10 @@ export function BlockConfirmDialog({
           </Button>
           <Button
             variant="destructive"
-            onClick={async () => {
+            onClick={() => {
               const sub = confirmBlock;
               setConfirmBlock(null);
-              if (sub) await handleSetBlock(sub, true);
+              if (sub) void handleSetBlock(sub, true);
             }}
             data-testid="button-billing-block-confirm"
           >

@@ -110,7 +110,8 @@ export function PlanMappingFormDialog({
       return;
     }
     setErrors({});
-    onSubmit(mode === "edit" ? changedFields(parsed.data) : parsed.data);
+    // The parent shows its own failure, through `serverError`.
+    void onSubmit(mode === "edit" ? changedFields(parsed.data) : parsed.data);
   }
 
   const grantsNonPublic = policies.find((p) => String(p.id) === schedulingId)?.is_public === false;

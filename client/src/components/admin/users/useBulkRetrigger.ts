@@ -128,8 +128,8 @@ export function useBulkRetrigger({
       setRunning(false);
       const resultSource: BulkSource = source === "retry" ? (lastResult?.source ?? "users") : source;
       setLastResult({ source: resultSource, successes, failures });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({
         title:
           failures.length === 0
@@ -147,7 +147,7 @@ export function useBulkRetrigger({
   const confirm = useCallback(() => {
     const target = pending;
     setPending(null);
-    if (target) run(target.pubkeys, target.source === "retry" ? (lastResult?.source ?? "users") : target.source);
+    if (target) void run(target.pubkeys, target.source === "retry" ? (lastResult?.source ?? "users") : target.source);
   }, [pending, run, lastResult]);
 
   /** Drops the last result if it came from `source` (that table's filter or range changed). */
