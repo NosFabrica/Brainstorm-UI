@@ -139,6 +139,23 @@ describe("notes arriving one by one", () => {
     expect(eventsByIdsMock.mock.calls[0][0]).toEqual([first]);
     expect(eventsByIdsMock.mock.calls[1][0]).toEqual([second]);
   });
+
+  // CODING_STANDARDS, "settled before dependents": a caller whose notes are still
+  // streaming passes its ask's `settled`, and the references go out once, together.
+  it("asks nothing while the notes are still streaming, then once for them all", async () => {
+    const [a, b, c] = ["4", "5", "6"].map((x) => x.repeat(64));
+    const { rerender } = renderHook(({ notes, ready }) => useNoteRefs(notes, { ready }), {
+      wrapper,
+      initialProps: { notes: [ref(a, 7)], ready: false },
+    });
+    rerender({ notes: [ref(a, 7), ref(b, 8)], ready: false });
+    rerender({ notes: [ref(a, 7), ref(b, 8), ref(c, 9)], ready: false });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(eventsByIdsMock).not.toHaveBeenCalled();
+    rerender({ notes: [ref(a, 7), ref(b, 8), ref(c, 9)], ready: true });
+    await waitFor(() => expect(eventsByIdsMock).toHaveBeenCalledTimes(1));
+    expect([...eventsByIdsMock.mock.calls[0][0]].sort()).toEqual([a, b, c].sort());
+  });
 });
 
 describe("capHints", () => {

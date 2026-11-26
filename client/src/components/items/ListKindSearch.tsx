@@ -107,7 +107,7 @@ function useKindHits(
     /** Places inside this area only, kept before anything is matched or counted (Search this area). */
     within?: MapView | null;
   } = {},
-): { hits: KindHit[]; pending: boolean } {
+): { hits: KindHit[]; pending: boolean; settled: boolean } {
   const dictionary = useDictionary(true, { anonymous: true });
   const entry = (dictionary.data ?? []).find((e) => e.resolved && conceptViewOf(e.communityCoordinate) === view);
   const resolved = entry?.resolved;
@@ -153,6 +153,8 @@ function useKindHits(
   return {
     hits,
     pending: dictionary.isPending || (!!entry && items.isPending) || (asksRelay && matches.isPending),
+    // Every read the hits come from has finished: what is keyed on them asks now (useTrustOrdered).
+    settled: !dictionary.isPending && (!entry || items.settled) && (!asksRelay || !matches.isPending),
   };
 }
 
@@ -206,8 +208,12 @@ const CANDIDATES = 60;
  * The hits in trust's order — what more people the reader trusts recommend
  * first (hooks/useTrustedRecommenders) — and the line that says so.
  */
-function useTrustOrdered(hits: KindHit[]) {
-  const { countOf, who } = useTrustedRecommenders(hits.flatMap((h) => h.copies));
+function useTrustOrdered(hits: KindHit[], settled: boolean) {
+  // Asked once the hits are in, not per arriving item (CODING_STANDARDS, "settled before dependents").
+  const { countOf, who } = useTrustedRecommenders(
+    hits.flatMap((h) => h.copies),
+    { settled },
+  );
   const copiesOf = new Map(hits.map((h) => [h.id, h.copies.map((c) => c.id)]));
   const count = (id: string) => countOf(copiesOf.get(id) ?? [id]);
   return { ordered: orderByTrust(hits, count), lineOf: (id: string) => recommendedLine(count(id), who) };
@@ -259,8 +265,8 @@ function Heading({
  */
 function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
   const narrow = useIsMobile(1024);
-  const { hits: found } = useKindHits("place", query, CANDIDATES);
-  const { rated, lineOf, ratingLine } = useRatedPlaces(found);
+  const { hits: found, settled } = useKindHits("place", query, CANDIDATES);
+  const { rated, lineOf, ratingLine } = useRatedPlaces(found, settled);
   const hits = rated.slice(0, 3);
   const lines = linesOf(hits);
   const town = townNamed(
@@ -359,8 +365,8 @@ const OWNED_MAX = 500;
 
 function BooksPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   // On the Top page a book is found by its title: a name in a byline is not a search for the book.
-  const { hits: found } = useKindHits("book", query, CANDIDATES, { titleOnly: true });
-  const { ordered, lineOf } = useTrustOrdered(found);
+  const { hits: found, settled } = useKindHits("book", query, CANDIDATES, { titleOnly: true });
+  const { ordered, lineOf } = useTrustOrdered(found, settled);
   const hits = ordered.slice(0, 6);
   // Above People when the words name Books; right after them when they're most of a title; low on
   // the page, by Media, when they only share a word with titles ("west") — that search is for people
@@ -548,8 +554,8 @@ function PlaceRow({
  * review doesn't top the list (hooks/usePlacesRatings, the contract's
  * section 8) — after trust's order among equals; and the line each shows.
  */
-function useRatedPlaces(hits: KindHit[]) {
-  const { ordered, lineOf } = useTrustOrdered(hits);
+function useRatedPlaces(hits: KindHit[], settled: boolean) {
+  const { ordered, lineOf } = useTrustOrdered(hits, settled);
   const addresses = hits.map((h) => h.address).filter((a): a is string => !!a);
   const curator = addresses[0]?.split(":")[1] ?? null;
   const ratingOf = usePlacesRatings(addresses, curator);
@@ -718,8 +724,8 @@ function pinsOf(hits: KindHit[]) {
 
 function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const narrow = useIsMobile(1024);
-  const { hits: found } = useKindHits("place", query, CANDIDATES);
-  const { rated, lineOf, ratingLine } = useRatedPlaces(found);
+  const { hits: found, settled } = useKindHits("place", query, CANDIDATES);
+  const { rated, lineOf, ratingLine } = useRatedPlaces(found, settled);
   const hits = rated.slice(0, 3);
   const lines = linesOf(hits);
   // A town the words name is said: "Places in Austin".
@@ -797,8 +803,8 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
 }
 
 function GitHubPreview({ query, slot, named, onSeeAll }: PreviewProps) {
-  const { hits: found } = useKindHits("github-account", query, CANDIDATES);
-  const { ordered, lineOf } = useTrustOrdered(found);
+  const { hits: found, settled } = useKindHits("github-account", query, CANDIDATES);
+  const { ordered, lineOf } = useTrustOrdered(found, settled);
   const hits = ordered.slice(0, 3);
   // An account the words don't name waits at the end of the page, with the other matches that
   // only share a word; a shown person who owns it carries it on their row (Suggestion `owned`).
@@ -1003,8 +1009,8 @@ const shortMonth = new Intl.DateTimeFormat(undefined, { month: "short" });
 
 /** Books: a shelf, the way a bookshop shows them — covers first. */
 function BooksPage({ query }: { query: string }) {
-  const { hits: found, pending } = useKindHits("book", query, PAGE_MAX, { browse: true });
-  const { ordered: hits, lineOf } = useTrustOrdered(found);
+  const { hits: found, pending, settled } = useKindHits("book", query, PAGE_MAX, { browse: true });
+  const { ordered: hits, lineOf } = useTrustOrdered(found, settled);
   if (hits.length === 0) return <PageEmpty pending={pending} label="Books" query={query} />;
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-6 py-4 sm:grid-cols-4 lg:grid-cols-5" data-testid="kind-page-books">
@@ -1103,7 +1109,7 @@ function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab:
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
-  const { hits: townFound, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
+  const { hits: townFound, pending, settled: townSettled } = useKindHits("place", query, PAGE_MAX, { browse: true });
   const town = townNamed(
     words,
     townFound.map((h) => ({ locality: h.place?.locality ?? null })),
@@ -1169,12 +1175,12 @@ function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab:
   const townWords = new Set((town ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u));
   const areaWords = words.filter((w) => !townWords.has(w)).join(" ");
   // The words' places inside the area, however far down the list they sit.
-  const { hits: areaFound } = useKindHits("place", area ? areaWords : "", area ? PAGE_MAX : 0, {
+  const { hits: areaFound, settled: areaSettled } = useKindHits("place", area ? areaWords : "", area ? PAGE_MAX : 0, {
     browse: true,
     within: area,
   });
   const found = area ? areaFound : townFound;
-  const { rated: hits, lineOf, ratingLine, starsOf } = useRatedPlaces(found);
+  const { rated: hits, lineOf, ratingLine, starsOf } = useRatedPlaces(found, area ? areaSettled : townSettled);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
   const [sort, setSort] = useState<PlaceSort>("best");
   // A filter or a sort frames its places afresh: the area the reader had moved to is gone.
@@ -1702,8 +1708,8 @@ function PlaceCard({
 
 /** GitHub accounts: a card for each — avatar, handle, what they do — and a way to their page. */
 function GitHubPage({ query }: { query: string }) {
-  const { hits: found, pending } = useKindHits("github-account", query, PAGE_MAX, { browse: true });
-  const { ordered: hits, lineOf } = useTrustOrdered(found);
+  const { hits: found, pending, settled } = useKindHits("github-account", query, PAGE_MAX, { browse: true });
+  const { ordered: hits, lineOf } = useTrustOrdered(found, settled);
   if (hits.length === 0) return <PageEmpty pending={pending} label="GitHub accounts" query={query} />;
   return (
     <div className="mx-auto max-w-2xl space-y-3 py-4" data-testid="kind-page-github">

@@ -76,7 +76,7 @@ describe("useConceptItems", () => {
   it("is pending until it has something to show, and reads nothing when off", async () => {
     io.conceptItems.mockClear();
     const off = renderHook(() => useConceptItems(entry(`39998:${"c".repeat(64)}:none`), false));
-    expect(off.result.current).toEqual({ data: undefined, isPending: true });
+    expect(off.result.current).toEqual({ data: undefined, isPending: true, settled: false });
     await new Promise((r) => setTimeout(r, 10));
     expect(io.conceptItems).not.toHaveBeenCalled();
   });

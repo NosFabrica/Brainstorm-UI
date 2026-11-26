@@ -27,10 +27,15 @@ export { MAX_REF_HINTS };
  * The profile page and the search page render notes through the same cards;
  * this is the one recipe both feed them with (plain effects, like
  * useProfileMap — no query client needed wherever a note card renders).
+ *
+ * `ready`: false while `events` are still streaming in. The quoted events and
+ * articles are then shown from the store but not asked for, and are asked once,
+ * together, when they settle (CODING_STANDARDS, "settled before dependents"),
+ * not once per arriving note.
  */
 export function useNoteRefs(
   events: MinimalEvent[],
-  opts: { relays?: string[]; extraPubkeys?: string[] } = {},
+  opts: { relays?: string[]; extraPubkeys?: string[]; ready?: boolean } = {},
 ): {
   profiles: Map<string, ProfileLite>;
   eventsById: Map<string, MinimalEvent>;
@@ -49,8 +54,9 @@ export function useNoteRefs(
   // Notes stream in, and each one changes the set: every reference is shown
   // from the store (the filter), but only the ones this mount hasn't asked
   // for yet are asked — the earlier notes' ask is still out, or done.
+  const ready = opts.ready ?? true;
   const askedIds = useRef(new Set<string>());
-  const quoted = useStoreEvents(idsKey ? `note-refs:${idsKey}:${idHintsKey}` : null, idFilters, () => {
+  const quoted = useStoreEvents(ready && idsKey ? `note-refs:${idsKey}:${idHintsKey}` : null, idFilters, () => {
     const fresh = notYetAsked(askedIds.current, idsKey.split(","));
     return fresh.length
       ? fetchEventsByIds(fresh, Array.from(new Set([...relays, ...(idHintsKey ? idHintsKey.split(",") : [])])))
@@ -72,7 +78,7 @@ export function useNoteRefs(
   const heldAddrs = useHeldReplaceables(addrs);
   // Held copies render through `heldAddrs`; this asks the relays for newer ones.
   const askedCoords = useRef(new Set<string>());
-  const askedAddrs = useStoreEvents(addrs.length ? `note-addrs:${addrsKey}` : null, null, async () => {
+  const askedAddrs = useStoreEvents(ready && addrs.length ? `note-addrs:${addrsKey}` : null, null, async () => {
     const fresh = new Set(notYetAsked(askedCoords.current, addrs.map(addrCoord)));
     if (!fresh.size) return undefined;
     const asking = addrs.filter((a) => fresh.has(addrCoord(a)));

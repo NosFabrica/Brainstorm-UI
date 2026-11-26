@@ -48,7 +48,7 @@ function useFiledItems(prefix: string, headers: string[], enabled: boolean, ask:
 export function useConceptItems(entry: DictionaryEntry | undefined, enabled = true) {
   const headers = entry ? listHeaders(entry.communityCoordinate, entry.resolved) : [];
   const read = useFiledItems("concept-items", headers, enabled, () => loadConceptItems(headers));
-  return { data: read.data, isPending: read.isPending };
+  return { data: read.data, isPending: read.isPending, settled: read.settled };
 }
 
 /**

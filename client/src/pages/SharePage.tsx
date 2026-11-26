@@ -716,7 +716,7 @@ export default function SharePage() {
     profiles: noteProfiles,
     eventsById,
     addrByCoord,
-  } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions });
+  } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions, ready: notesQuery.settled });
 
   /**
    * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:

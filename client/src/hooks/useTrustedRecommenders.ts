@@ -16,11 +16,19 @@ const NONE = new Map<string, Endorser[]>();
  * counts them (services/endorsements: people the reader follows, then
  * accounts above the verified line). Signed out, "people you trust" are the
  * verified ones, and the words say so.
+ *
+ * `settled`: false while `items` are still streaming in. The reactions are
+ * asked once they have (CODING_STANDARDS, "settled before dependents"): keyed
+ * on a list that grows per arriving item, the ask would re-key and send a REQ
+ * each time. What the store already holds counts meanwhile.
  */
-export function useTrustedRecommenders(items: readonly { id: string; address: string | null }[]) {
+export function useTrustedRecommenders(
+  items: readonly { id: string; address: string | null }[],
+  { settled = true }: { settled?: boolean } = {},
+) {
   const ids = items.map((i) => i.id);
   // On the Top page, after the search's own results: this only orders rows (hooks/useSearchPriority).
-  const ready = useSearchPriority();
+  const ready = useSearchPriority() && settled;
   // The ids name the items; the addresses are what the ids are of. From the
   // store while the relays are asked (docs/adr/0005).
   const idsKey = ids.join(",");
