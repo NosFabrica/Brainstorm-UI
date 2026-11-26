@@ -281,7 +281,10 @@ export default function NetworkPage() {
   // per-section UI, not by this top-level flag.
   const isLoading = overviewQuery.isLoading;
 
-  const { trustCache, graphDataCache, trustLoadedCount, fetchTrustScores } = useRowScores(house, networkData);
+  const { trustCache, graphDataCache, trustLoadedCount, fetchTrustScores } = useRowScores(
+    { house, viewer: user?.pubkey, preset: trustPreset },
+    networkData,
+  );
 
   const fetchProfilesCallback = useCallback(
     async (pubkeys: string[]) => {
