@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { allowRelaySockets } from "@/test/relaySockets";
+
+// This suite is about the offline socket itself.
+allowRelaySockets();
 
 // A unit test that reached a real relay crashed a later, unrelated test: the
 // connection landed after its own file had finished, and Node's socket then
