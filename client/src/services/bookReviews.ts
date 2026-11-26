@@ -13,16 +13,16 @@
  * A lens's ranks for the star value are the places' (services/placeReviews
  * fetchLensRanks): the same rule for every mark.
  */
+import type { NostrEvent } from "nostr-tools";
 import { requireActiveAccount, signAs } from "@/accounts/signing";
 import { coordinateOf } from "@/lib/dlistFields";
 import { SEARCH_RELAY } from "@/lib/relays";
 import { bookReviewTemplate, standingBookReviews, type BookReview } from "@/lib/bookReviews";
-import { PLACE_REVIEW_KIND as REVIEW_KIND, removalTemplate } from "@/lib/placeReviews";
-import { readListEvents } from "@/services/listReads";
+import { removalTemplate } from "@/lib/placeReviews";
+import { readReviewEvents } from "@/services/placeReviews";
 import { publishToOutbox } from "@/services/tags";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
-const TIMEOUT_MS = 6000;
 /** Where Unbnd publishes reviews beside the index (the books contract's relays). */
 const UNBND_RELAYS = ["wss://nos.lol", "wss://relay.primal.net"];
 const nowS = () => Math.floor(Date.now() / 1000);
@@ -30,28 +30,12 @@ const nowS = () => Math.floor(Date.now() / 1000);
 export async function fetchBookReviews(item: Item): Promise<BookReview[]> {
   const address = coordinateOf(item);
   if (!address) return [];
-  const records = await readListEvents(
-    [
-      { kinds: [REVIEW_KIND], "#a": [address], limit: 500 },
-      { kinds: [REVIEW_KIND], "#d": [address, `book:${address}`], limit: 500 },
-    ],
-    TIMEOUT_MS,
-    UNBND_RELAYS,
-  );
-  if (records.length === 0) return [];
-  const ids = [...new Set(records.map((e) => e.id))];
-  const addresses = [
-    ...new Set(records.map((e) => `${REVIEW_KIND}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`)),
-  ];
-  const removals = await readListEvents(
-    [
-      { kinds: [5], "#e": ids },
-      { kinds: [5], "#a": addresses },
-    ],
-    TIMEOUT_MS,
-    UNBND_RELAYS,
-  );
-  return standingBookReviews([...records, ...removals], address, nowS());
+  return standingBookReviews(await readBookReviewEvents(address), address, nowS());
+}
+
+/** The records and removals of a book's reviews (services/placeReviews readReviewEvents), from Unbnd's relays. */
+export function readBookReviewEvents(address: string): Promise<NostrEvent[]> {
+  return readReviewEvents([address], { mark: "book", limit: 500, relays: UNBND_RELAYS });
 }
 
 /**

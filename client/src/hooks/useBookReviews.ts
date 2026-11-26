@@ -1,25 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
-import { coordinateOf } from "@/lib/dlistFields";
-import { fetchBookReviews, publishBookReview, removeBookReview } from "@/services/bookReviews";
+import { publishBookReview, readBookReviewEvents, removeBookReview } from "@/services/bookReviews";
 import type { BookReview } from "@/lib/bookReviews";
-import { usePlaceRating } from "@/hooks/usePlaceReviews";
+import { usePlaceRating, useStandingReviews } from "@/hooks/usePlaceReviews";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 
-/** Reviews are kept by the book's address, as a place's are: an item's id changes when it's signed again. */
-const keyOf = (item: Item) => ["book-reviews", coordinateOf(item) ?? item.id];
-
-/** The reviews of a book that stand, for its page: a relay read, cached for the visit. */
+/**
+ * The reviews of a book that stand, for its page: the places' read
+ * (usePlaceReviews `useStandingReviews`) marked `book`, from the store while
+ * the relays Unbnd reads are asked. Kept by the book's address, as a place's
+ * are: an item's id changes when it's signed again.
+ */
 export function useBookReviews(item: Item) {
-  const query = useQuery<BookReview[]>({
-    queryKey: keyOf(item),
-    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): reviews derive from records and their kind-5 removals together (lib/bookReviews standingBookReviews); not yet on the store
-    queryFn: () => fetchBookReviews(item),
-    staleTime: 60_000,
-  });
-  return { reviews: query.data ?? [], pending: query.isPending };
+  return useStandingReviews(item, "book", readBookReviewEvents);
 }
 
 /**
@@ -30,21 +25,14 @@ export function useBookReviews(item: Item) {
  * cancelled signature silently.
  */
 export function usePostBookReview(item: Item, title: string) {
-  const qc = useQueryClient();
   const { toast } = useToast();
   return useMutation({
+    // The signed record lands in the store once a relay takes it, and takes the reader's place there.
     mutationFn: ({ draft, previous }: { draft: { text: string; rating: number | null }; previous?: BookReview }) =>
       publishBookReview(item, draft, {
         title,
         previous: previous?.tags ? { tags: previous.tags, created_at: previous.at } : undefined,
       }),
-    onSuccess: (mine) => {
-      if (!mine) return;
-      qc.setQueryData<BookReview[]>(keyOf(item), (prev) => [
-        mine,
-        ...(prev ?? []).filter((r) => r.pubkey !== mine.pubkey),
-      ]);
-    },
     onError: (error) => {
       const description = signingProblem(error, "Check your connection and try again.");
       if (description) toast({ title: "Couldn't post the review", description, variant: "destructive" });
@@ -53,14 +41,11 @@ export function usePostBookReview(item: Item, title: string) {
 }
 
 /** Removing the reader's review of a book: a signed removal, and the review gone from screen at once. */
-export function useRemoveBookReview(item: Item) {
-  const qc = useQueryClient();
+export function useRemoveBookReview(_item: Item) {
   const { toast } = useToast();
   return useMutation({
+    // The signed removal lands in the store (services/tags publishToOutbox), which drops the record.
     mutationFn: (review: BookReview) => removeBookReview(review),
-    onSuccess: (_, review) => {
-      qc.setQueryData<BookReview[]>(keyOf(item), (prev) => (prev ?? []).filter((r) => r.id !== review.id));
-    },
     onError: (error) => {
       const description = signingProblem(error, "Check your connection and try again.");
       if (description) toast({ title: "Couldn't remove the review", description, variant: "destructive" });
