@@ -369,6 +369,18 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [], take: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
+  /**
+   * Two callers at once — the post-score poll and the app-load self-heal
+   * (AutoActivateBrainstorm) — each read "none" and each signed: two kind
+   * 10040s, signed without the user, for one activation.
+   */
+  it("signs once when two callers ask at the same time", async () => {
+    await Promise.all([ensureBrainstormTrustAnchor(ME, TA), ensureBrainstormTrustAnchor(ME, TA)]);
+
+    expect(signNip85).toHaveBeenCalledTimes(1);
+    expect(publishToRelays).toHaveBeenCalledTimes(1);
+  });
+
   // Nobody is present to retry, and "found nothing" is also what a missed read
   // looks like. Started from nothing, our rows would replace their whole Map.
   it("does nothing when the Map can't be read", async () => {
