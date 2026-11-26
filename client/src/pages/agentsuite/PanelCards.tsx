@@ -266,9 +266,12 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
     }
   };
 
-  const handleCopyInviteLink = () => {
-    copyToClipboard(publicOrigin());
-    toast({ title: "Invite link copied!", description: "Share this link to grow the network." });
+  const handleCopyInviteLink = async () => {
+    if (await copyToClipboard(publicOrigin())) {
+      toast({ title: "Invite link copied!", description: "Share this link to grow the network." });
+    } else {
+      toast({ variant: "destructive", title: "Couldn't copy the invite link", description: publicOrigin() });
+    }
   };
 
   return (
@@ -309,7 +312,7 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
             <Button
               size="sm"
               variant="outline"
-              onClick={handleCopyInviteLink}
+              onClick={() => void handleCopyInviteLink()}
               className="shrink-0 gap-1.5"
               data-testid="button-copy-invite-link"
             >
