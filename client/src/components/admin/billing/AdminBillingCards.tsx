@@ -12,13 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient, type AdminBillingSubscription } from "@/services/api";
-import {
-  DIVERGENCE_META,
-  orderedSections,
-  subscriptionIdsByEventId,
-  type OrderedSection,
-  groupSignups,
-} from "./divergenceSections";
+import { orderedSections, subscriptionIdsByEventId, type OrderedSection } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { sourceLabel, statusLabel } from "./billingEventCopy";
@@ -37,6 +31,7 @@ import { FLASH_DASHBOARD_URL, shortNpub, th, thLast } from "./rosterShared";
 import { useRosterProfiles } from "./useRosterProfiles";
 import { PAGE_SIZE, useBillingRoster } from "./useBillingRoster";
 import { useRosterActions } from "./useRosterActions";
+import { rosterStats, dismissDeliveryCount } from "./rosterStats";
 
 /**
  * The admin Billing tab: the server's subscriber roster (pubkey-keyed — every
@@ -168,37 +163,11 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const record = sections.filter((x) => x.tier === "record");
   // An exhausted event borrows the Flash id its signup row carries.
   const handlesByEventId = subscriptionIdsByEventId(divergence);
-  // Numbers first. Entitled = active or trial; ending = a cancellation is
-  // scheduled but the paid period still runs; faults = the fault tier's counts
-  // (the record tier is for knowing, not a number to worry about).
-  const stats = {
-    active: items.filter((x) => x.flash_status === "active" || x.flash_status === "trial").length,
-    past_due: items.filter((x) => x.flash_status === "past_due").length,
-    pending: items.filter((x) => x.flash_status === "pending").length,
-    ending: items.filter(
-      (x) => !!x.cancel_effective_date && (x.flash_status === "active" || x.flash_status === "trial"),
-    ).length,
-    // Fault-tier counts, minus the exhausted events that are the same signups
-    // already counted above — the sections overlap on purpose; the tile mustn't.
-    faults:
-      Object.entries(divergence).reduce(
-        (n, [kind, section]) =>
-          n +
-          (section && kind in DIVERGENCE_META && DIVERGENCE_META[kind as keyof typeof DIVERGENCE_META].tier === "fault"
-            ? section.count
-            : 0),
-        0,
-      ) -
-      (divergence.exhausted_events?.rows ?? []).filter(
-        (r) => typeof (r as { id?: unknown }).id === "number" && handlesByEventId.has((r as { id: number }).id),
-      ).length,
-  };
+  // Numbers first.
+  const stats = rosterStats(items, divergence, handlesByEventId);
   // The deliveries the report lists for the signup being dismissed — a floor
   // for the dialog's count.
-  const dismissDeliveries = dismissFor
-    ? (groupSignups(divergence.unresolved_signups?.rows ?? []).find((g) => g.subscriptionId === dismissFor)?.deliveries
-        .length ?? 1)
-    : 1;
+  const dismissDeliveries = dismissDeliveryCount(divergence, dismissFor);
   const signupActions = {
     onViewFlashRecord: (id: string) =>
       setFlashRecordFor({ key: id, label: id, read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id) }),
