@@ -61,7 +61,7 @@ const PROTECTED = /`[^`\n]{1,2048}`|\]\([^)\s]{0,2048}\)|https?:\/\/[^\s)\]]{1,2
 /** Markdown nests a list item four columns in, enough under `- ` and `1. ` alike. */
 const LIST_INDENT = "    ";
 /** Past this, a line is not prose worth reading inline markup in: it passes through as text. */
-const MAX_INLINE_LINE = 20_000;
+export const MAX_INLINE_LINE = 20_000;
 
 /**
  * Private-use characters standing in for what emphasis must not touch while it

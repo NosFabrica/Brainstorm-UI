@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { articleBrief, articleSummary, wikiPlainText, wikiToMarkdown } from "./wiki";
+import { expectLinear } from "@/test/linearTime";
 import { articleTitle } from "./publication";
 
 describe("wikiToMarkdown", () => {
@@ -125,13 +126,13 @@ describe("articleTitle", () => {
 });
 
 describe("hostile pages", () => {
-  it("stays linear on a long line of would-be links", () => {
-    for (const line of ["https://".repeat(40_000), "[[a".repeat(40_000), "image::a" + "[".repeat(100_000)]) {
-      const t = performance.now();
-      wikiToMarkdown(`== Title\n${line}`);
-      wikiPlainText(`== Title\n${line}`);
-      expect(performance.now() - t).toBeLessThan(1500);
-    }
+  it.each([
+    ["https://", 500],
+    ["[[a", 500],
+    ["[", 1500],
+  ])("stays linear on a long line of would-be links (%s)", (unit, n) => {
+    const page = (reps: number) => `== Title\n${unit === "[" ? "image::a" : ""}${unit.repeat(reps)}`;
+    expectLinear(page, (text) => (wikiToMarkdown(text), wikiPlainText(text)), n);
   });
 });
 

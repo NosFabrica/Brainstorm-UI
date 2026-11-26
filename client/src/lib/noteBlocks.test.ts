@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseNoteContent } from "@/lib/noteContent";
 import { toNoteBlocks, parseInlineMarkdown, type NoteBlock } from "@/lib/noteBlocks";
 import type { NoteToken } from "@/lib/noteContent";
+import { expectLinear } from "@/test/linearTime";
 
 const blocks = (s: string) => toNoteBlocks(parseNoteContent(s));
 /** A block's inline tokens; fails the test for a block that has none (a list, code, a rule). */
@@ -207,11 +208,8 @@ describe("review regressions", () => {
     expect(b.every((x) => x.type === "p")).toBe(true);
   });
 
-  it("unclosed emphasis markers stay linear, not quadratic", () => {
-    const t = performance.now();
-    parseInlineMarkdown("**a ".repeat(10000));
-    parseInlineMarkdown("__a ".repeat(10000));
-    expect(performance.now() - t).toBeLessThan(250);
+  it.each(["**a ", "__a "])("unclosed emphasis markers (%s) stay linear, not quadratic", (unit) => {
+    expectLinear((n) => unit.repeat(n), parseInlineMarkdown, 2500);
   });
 });
 
