@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey, nip44, type NostrEvent } from "nostr-tools";
 import {
   DmEngine,
@@ -128,6 +128,12 @@ function clock() {
 }
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
+/**
+ * Until `check` passes: for what the engine reaches through a chain of awaits (signer, cache,
+ * relay) whose length is its own business. A count of ticks broke whenever that chain grew, and
+ * on a loaded machine.
+ */
+const eventually = (check: () => void) => vi.waitFor(check, { timeout: 5000, interval: 5 });
 
 async function wrapFrom(from: ReturnType<typeof person>, to: string, content: string, at: number, wrapAt?: number) {
   const rumor = makeRumor({ pubkey: from.pubkey, kind: CHAT_KIND, tags: [["p", to]], content, created_at: at });
@@ -920,7 +926,7 @@ describe("DmEngine", () => {
     expect(net.pages.length).toBe(asked);
 
     engine.allowDecrypt();
-    for (let i = 0; i < 40 && engine.state().queued; i++) await settle();
+    await eventually(() => expect(engine.state().queued).toBe(0));
     expect(engine.state().history.relays[0].opening ?? 0).toBe(0);
     expect(engine.store.rooms()[0].messages).toHaveLength(60);
     expect(engine.advanceAll()).toBe(true);
@@ -940,8 +946,7 @@ describe("DmEngine", () => {
 
     engine.downloadAll();
     expect(engine.state().downloading).toBe(true);
-    for (let i = 0; i < 100 && engine.state().downloading; i++) await new Promise((r) => setTimeout(r, 20));
-    expect(engine.state().downloading).toBe(false);
+    await eventually(() => expect(engine.state().downloading).toBe(false));
     expect(engine.state().history.relays.map((r) => r.state)).toEqual(["done", "done"]);
     expect(engine.store.rooms()[0].messages).toHaveLength(4);
     engine.stop();
@@ -984,13 +989,13 @@ describe("DmEngine", () => {
     };
     const engine = new DmEngine(me.account(), { ...net, transport: capped, ...clock(), now: () => NOW });
     await engine.start();
-    for (let i = 0; i < 30 && engine.state().queued; i++) await settle();
+    await eventually(() => expect(engine.state().queued).toBe(0));
     expect(engine.store.size).toBe(50);
     expect(engine.advanceAll()).toBe(true);
     // The first page asks from just below the live window's oldest wrap, not from the floor.
     const oldestLive = times[49];
     expect(net.pages.at(-1)!.filter.until).toBe(oldestLive);
-    for (let i = 0; i < 30 && (engine.state().queued || engine.state().history.loading); i++) await settle();
+    await eventually(() => expect(engine.state()).toMatchObject({ queued: 0, history: { loading: false } }));
     expect(engine.store.size).toBe(60);
   });
 
@@ -1069,8 +1074,9 @@ describe("DmEngine", () => {
     await settle();
     expect(engine.state()).toMatchObject({ paused: undefined, queued: 3 });
     time.flush();
-    for (let i = 0; i < 10; i++) await settle();
-    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 0 });
+    await eventually(() =>
+      expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 0 }),
+    );
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0");
   });
 
@@ -1099,14 +1105,12 @@ describe("DmEngine", () => {
       { ...net, ...time, concurrency: 2, dropDetection: true, now: () => NOW },
     );
     await engine.start();
-    for (let i = 0; i < 8; i++) await settle();
-    expect(engine.state().queued).toBe(1);
+    await eventually(() => expect(engine.state().queued).toBe(1));
     time.flush(); // one check later: m2 was answered after m1 was asked, so m1 was dropped
     await settle();
     expect(engine.state().paused).toBeUndefined();
     time.flush(); // the back-off passes; m1 is asked again
-    for (let i = 0; i < 8; i++) await settle();
-    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0 });
+    await eventually(() => expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0 }));
   });
 
   it("keeps waiting on a person who approves each request in order, without asking twice", async () => {
@@ -1142,8 +1146,7 @@ describe("DmEngine", () => {
     for (let i = 0; i < 4; i++) await settle();
     now += 6_000;
     approve.shift()!(); // its seal
-    for (let i = 0; i < 6; i++) await settle();
-    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0");
+    await eventually(() => expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0"));
     // Opened at a person's pace: the next one, waiting on its tap, is still not asked twice.
     time.flush();
     for (let i = 0; i < 4; i++) await settle();
@@ -1186,8 +1189,7 @@ describe("DmEngine", () => {
     time.flush(); // the back-off passes: half as many at once
     await settle();
     expect(peak).toBe(4);
-    for (let i = 0; i < 80; i++) await settle();
-    expect(engine.state()).toMatchObject({ queued: 0, failed: 0 });
+    await eventually(() => expect(engine.state()).toMatchObject({ queued: 0, failed: 0 }));
   });
 
   it("backs off once, at half the pace, for a whole burst a fast signer stopped answering", async () => {
@@ -1571,8 +1573,7 @@ describe("coming back from the device", () => {
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m1419"); // the newest are the ones back
 
     engine.allowDecrypt();
-    for (let i = 0; i < 20 && engine.store.size < 1420; i++) await settle();
-    expect(engine.store.size).toBe(1420);
+    await eventually(() => expect(engine.store.size).toBe(1420));
     expect(read.rows).toBe(1420);
     engine.stop();
   });
@@ -1594,8 +1595,7 @@ describe("coming back from the device", () => {
     await engine.start();
     expect(engine.store.size).toBe(300);
     engine.allowDecrypt();
-    for (let i = 0; i < 10 && engine.store.size < 700; i++) await settle();
-    expect(engine.store.size).toBe(700);
+    await eventually(() => expect(engine.store.size).toBe(700));
     engine.stop();
   });
 
