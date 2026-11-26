@@ -207,7 +207,7 @@ export class SettlingRequests<T extends PromiseLike<unknown>> extends Map<string
     super();
   }
 
-  set(id: string, request: T): this {
+  override set(id: string, request: T): this {
     const at = this.now();
     for (const [old, born] of this.born) if (at - born > this.maxAgeMs) this.delete(old);
     super.set(id, request);
@@ -219,7 +219,7 @@ export class SettlingRequests<T extends PromiseLike<unknown>> extends Map<string
     return this;
   }
 
-  delete(id: string): boolean {
+  override delete(id: string): boolean {
     this.born.delete(id);
     return super.delete(id);
   }
@@ -227,7 +227,7 @@ export class SettlingRequests<T extends PromiseLike<unknown>> extends Map<string
 
 export class RemoteSigner extends NostrConnectSigner {
   readonly requireConnectSecret: boolean;
-  protected requests = new SettlingRequests<Deferred<unknown>>();
+  protected override requests = new SettlingRequests<Deferred<unknown>>();
 
   /**
    * Raised when we turn a pairing answer away for proving itself with a bare
@@ -288,7 +288,7 @@ export class RemoteSigner extends NostrConnectSigner {
    * secret is optional and only SHOULD-level, and the signer named its own pubkey
    * in the URI, so there is nobody to impersonate.
    */
-  async handleEvent(event: NostrEvent): Promise<void> {
+  override async handleEvent(event: NostrEvent): Promise<void> {
     if (this.requireConnectSecret && !this.remote) {
       const response = await this.readResponse(event);
       // The secret is a nanoid, so it is never the literal "ack" — this drops
@@ -315,7 +315,7 @@ export class RemoteSigner extends NostrConnectSigner {
     }
   }
 
-  connect(bunkerSecret?: string, permissions?: string[]): Promise<string> {
+  override connect(bunkerSecret?: string, permissions?: string[]): Promise<string> {
     return withTimeout(
       super.connect(bunkerSecret, permissions ?? NIP46_PERMISSIONS),
       CONNECT_TIMEOUT_MS,
@@ -323,11 +323,11 @@ export class RemoteSigner extends NostrConnectSigner {
     );
   }
 
-  getPublicKey(): Promise<string> {
+  override getPublicKey(): Promise<string> {
     return withTimeout(super.getPublicKey(), REQUEST_TIMEOUT_MS);
   }
 
-  signEvent(template: Parameters<NostrConnectSigner["signEvent"]>[0]) {
+  override signEvent(template: Parameters<NostrConnectSigner["signEvent"]>[0]) {
     return withTimeout(super.signEvent(template), REQUEST_TIMEOUT_MS);
   }
 
@@ -347,7 +347,7 @@ export class RemoteSigner extends NostrConnectSigner {
    * ticket 27. Amber is the one signer that implements this, so it would fire on
    * precisely the signer the feature exists for.
    */
-  async switchRelays(): Promise<string[] | null> {
+  override async switchRelays(): Promise<string[] | null> {
     const result = await withTimeout(super.switchRelays(), REQUEST_TIMEOUT_MS);
     this.isConnected = true;
     return result;
@@ -359,7 +359,7 @@ export class RemoteSigner extends NostrConnectSigner {
    * that has stopped answering it never gets there, and the connection we were
    * trying to end outlives the Account for the rest of the tab.
    */
-  async logout(): Promise<void> {
+  override async logout(): Promise<void> {
     try {
       await withTimeout(super.logout(), REQUEST_TIMEOUT_MS);
     } finally {
@@ -369,16 +369,16 @@ export class RemoteSigner extends NostrConnectSigner {
 
   // The nip04/nip44 objects the base constructor builds bind these through the
   // prototype chain, so overriding here covers both.
-  nip04Encrypt(pubkey: string, plaintext: string): Promise<string> {
+  override nip04Encrypt(pubkey: string, plaintext: string): Promise<string> {
     return withTimeout(super.nip04Encrypt(pubkey, plaintext), REQUEST_TIMEOUT_MS);
   }
-  nip04Decrypt(pubkey: string, ciphertext: string): Promise<string> {
+  override nip04Decrypt(pubkey: string, ciphertext: string): Promise<string> {
     return withTimeout(super.nip04Decrypt(pubkey, ciphertext), REQUEST_TIMEOUT_MS);
   }
-  nip44Encrypt(pubkey: string, plaintext: string): Promise<string> {
+  override nip44Encrypt(pubkey: string, plaintext: string): Promise<string> {
     return withTimeout(super.nip44Encrypt(pubkey, plaintext), REQUEST_TIMEOUT_MS);
   }
-  nip44Decrypt(pubkey: string, ciphertext: string): Promise<string> {
+  override nip44Decrypt(pubkey: string, ciphertext: string): Promise<string> {
     return withTimeout(super.nip44Decrypt(pubkey, ciphertext), REQUEST_TIMEOUT_MS);
   }
 
@@ -407,7 +407,7 @@ export class RemoteSigner extends NostrConnectSigner {
 export class RemoteAccount<Metadata = AccountMetadata> extends NostrConnectAccount<Metadata> {
   declare signer: RemoteSigner;
 
-  static fromJSON<Metadata = AccountMetadata>(
+  static override fromJSON<Metadata = AccountMetadata>(
     json: SerializedAccount<NostrConnectAccountSignerData, Metadata>,
   ): RemoteAccount<Metadata> {
     const signer = new RemoteSigner({

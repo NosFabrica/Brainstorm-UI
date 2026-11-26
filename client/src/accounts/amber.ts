@@ -59,22 +59,22 @@ export class TimedAmberSigner extends AmberClipboardSigner {
       throw error;
     });
   }
-  getPublicKey(): Promise<string> {
+  override getPublicKey(): Promise<string> {
     return this.timed(super.getPublicKey());
   }
-  signEvent(template: Parameters<AmberClipboardSigner["signEvent"]>[0]) {
+  override signEvent(template: Parameters<AmberClipboardSigner["signEvent"]>[0]) {
     return this.timed(super.signEvent(template));
   }
-  nip04Encrypt(pubkey: string, plaintext: string): Promise<string> {
+  override nip04Encrypt(pubkey: string, plaintext: string): Promise<string> {
     return this.timed(super.nip04Encrypt(pubkey, plaintext));
   }
-  nip04Decrypt(pubkey: string, ciphertext: string): Promise<string> {
+  override nip04Decrypt(pubkey: string, ciphertext: string): Promise<string> {
     return this.timed(super.nip04Decrypt(pubkey, ciphertext));
   }
-  nip44Encrypt(pubkey: string, plaintext: string): Promise<string> {
+  override nip44Encrypt(pubkey: string, plaintext: string): Promise<string> {
     return this.timed(super.nip44Encrypt(pubkey, plaintext));
   }
-  nip44Decrypt(pubkey: string, ciphertext: string): Promise<string> {
+  override nip44Decrypt(pubkey: string, ciphertext: string): Promise<string> {
     return this.timed(super.nip44Decrypt(pubkey, ciphertext));
   }
 }
@@ -86,7 +86,9 @@ export class TimedAmberSigner extends AmberClipboardSigner {
  * the library's own, exactly as `RemoteAccount` keeps `"nostr-connect"`.
  */
 export class AmberAccount<Metadata = AccountMetadata> extends AmberClipboardAccount<Metadata> {
-  static fromJSON<Metadata = AccountMetadata>(json: SerializedAccount<void, Metadata>): AmberAccount<Metadata> {
+  static override fromJSON<Metadata = AccountMetadata>(
+    json: SerializedAccount<void, Metadata>,
+  ): AmberAccount<Metadata> {
     const account = new AmberAccount<Metadata>(json.pubkey, new TimedAmberSigner());
     return super.loadCommonFields(account, json) as AmberAccount<Metadata>;
   }

@@ -202,7 +202,7 @@ class ReadFirstRelay extends Relay {
    * One-shot reads never wait for a login; live ones do, and are asked again
    * by [liveReq]'s rules rather than the library's.
    */
-  req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+  override req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
     if (normalizeURL(this.url) === PROFILE_INDEX) {
       const answerable = forProfileIndex(filters);
       // Nothing it can answer: done at once, as an EOSE, so a read waiting on
@@ -224,7 +224,7 @@ class ReadFirstRelay extends Relay {
     );
   }
 
-  subscription(
+  override subscription(
     filters: Parameters<Relay["subscription"]>[0],
     opts?: Parameters<Relay["subscription"]>[1],
   ): ReturnType<Relay["subscription"]> {
@@ -334,7 +334,7 @@ class ReadFirstRelay extends Relay {
  * whichever socket it rides.
  */
 class AskedOnlyRelay extends Relay {
-  req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+  override req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
     return onlyWhatWasAsked(super.req(filters, opts));
   }
 }
@@ -416,7 +416,7 @@ function reachableMap(relays: FilterMapInput): FilterMapInput {
 
 class ReadFirstPool extends RelayPool {
   /** Every one-shot read gets the app's completion rule unless the caller brings its own. */
-  request(
+  override request(
     relays: Parameters<RelayPool["request"]>[0],
     filters: Parameters<RelayPool["request"]>[1],
     opts?: Parameters<RelayPool["request"]>[2],
@@ -430,7 +430,7 @@ class ReadFirstPool extends RelayPool {
    * a publish waits seconds for a socket that is never going to open before it
    * counts the relay as failed.
    */
-  publish(
+  override publish(
     relays: Parameters<RelayPool["publish"]>[0],
     event: Parameters<RelayPool["publish"]>[1],
     opts?: Parameters<RelayPool["publish"]>[2],
@@ -452,7 +452,7 @@ class ReadFirstPool extends RelayPool {
    * waits on nothing, and a refused socket in it would be retried with backoff
    * for the rest of the session.
    */
-  subscription(
+  override subscription(
     relays: Parameters<RelayPool["subscription"]>[0],
     filters: Parameters<RelayPool["subscription"]>[1],
     options?: Parameters<RelayPool["subscription"]>[2],
@@ -461,7 +461,7 @@ class ReadFirstPool extends RelayPool {
   }
 
   /** The same for per-relay filters, which `outboxSubscription` rides on too. */
-  subscriptionMap(
+  override subscriptionMap(
     relays: Parameters<RelayPool["subscriptionMap"]>[0],
     options?: Parameters<RelayPool["subscriptionMap"]>[1],
   ): ReturnType<RelayPool["subscriptionMap"]> {
@@ -469,7 +469,7 @@ class ReadFirstPool extends RelayPool {
   }
 
   /** The library's `relay()`, minting ReadFirstRelay — it takes no factory. */
-  relay(url: string): Relay {
+  override relay(url: string): Relay {
     url = normalizeURL(url);
     const existing = this.relays.get(url);
     if (existing) return existing;

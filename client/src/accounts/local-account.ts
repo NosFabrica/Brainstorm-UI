@@ -56,12 +56,12 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     return this.operation(() => this.signer.setRecoveryPassword(password, logn));
   }
 
-  protected async operation<T>(operation: () => Promise<T>): Promise<T> {
+  protected override async operation<T>(operation: () => Promise<T>): Promise<T> {
     if (!this.signer.unlocked) await this.unlock();
     return super.operation(operation);
   }
 
-  toJSON(): SerializedAccount<LocalSignerData, AccountMetadata> {
+  override toJSON(): SerializedAccount<LocalSignerData, AccountMetadata> {
     // a copy: a later cache write must not mutate a blob already handed out
     return this.saveCommonFields({ signer: { ...this.signer.data } });
   }

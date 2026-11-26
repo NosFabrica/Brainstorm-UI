@@ -44,7 +44,7 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
  * so a new one can't forget it.
  */
 class AppQueryClient extends QueryClient {
-  clear(): void {
+  override clear(): void {
     super.clear();
     dropPersistedQueries();
   }

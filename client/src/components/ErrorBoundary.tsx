@@ -17,22 +17,22 @@ interface State {
  * console to read it in (the team, 2026-10-28).
  */
 export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, State> {
-  state: State = { crashed: false };
+  override state: State = { crashed: false };
 
   static getDerivedStateFromError(error: Error): State {
     return { crashed: true, error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo): void {
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error("[app] a page crashed while rendering", error, info.componentStack);
   }
 
-  componentDidUpdate(prev: { resetKey?: string }): void {
+  override componentDidUpdate(prev: { resetKey?: string }): void {
     if (this.state.crashed && prev.resetKey !== this.props.resetKey)
       this.setState({ crashed: false, error: undefined });
   }
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (!this.state.crashed) return this.props.children;
     const { error } = this.state;
     return (
