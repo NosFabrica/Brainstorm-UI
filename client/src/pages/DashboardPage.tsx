@@ -486,6 +486,8 @@ export default function DashboardPage() {
         case "help":
           setShowShortcuts((prev) => !prev);
           break;
+        case null:
+          break;
       }
     };
 

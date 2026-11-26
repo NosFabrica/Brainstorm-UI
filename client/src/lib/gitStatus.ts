@@ -20,6 +20,7 @@ export function gitStateOf(statusKind: number | undefined, itemKind: number): Gi
       return "closed";
     case 1633:
       return "draft";
+    case undefined:
     default:
       return "open";
   }

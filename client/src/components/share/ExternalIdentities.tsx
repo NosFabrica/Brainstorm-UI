@@ -43,6 +43,7 @@ function Glyph({ icon }: { icon: IdentityIcon }) {
       return <SiTiktok className={cls} aria-hidden="true" />;
     case "instagram":
       return <SiInstagram className={cls} aria-hidden="true" />;
+    case "link":
     default:
       return <LinkIcon className={cls} aria-hidden="true" />;
   }

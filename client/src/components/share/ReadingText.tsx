@@ -335,6 +335,7 @@ export function ReadingText({
           </button>
         );
       }
+      case "text":
       default:
         return null;
     }

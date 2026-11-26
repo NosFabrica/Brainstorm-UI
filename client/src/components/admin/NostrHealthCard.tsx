@@ -1023,6 +1023,7 @@ function Kind0Panel({
 export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | null }) {
   const nip85Query = useQuery<Nip85HealthCheck>({
     queryKey: ["admin/nip85-health", pubkey, taPubkey ?? ""],
+    // eslint-disable-next-line no-restricted-syntax -- relay probe: what the NIP-85 relay holds for them now
     queryFn: () => checkNip85Health(pubkey, taPubkey, STAFF_TIMEOUT_MS),
     staleTime: 0,
     gcTime: 0,

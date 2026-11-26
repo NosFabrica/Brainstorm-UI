@@ -215,17 +215,36 @@ export default tseslint.config(
       "prefer-const": ["error", { ignoreReadBeforeAssign: true }],
     },
   },
+  // Type-aware rules: promises nobody waits on or that land where a void
+  // callback is expected, a `switch` that misses a case of its union, and
+  // `await` on something that isn't a promise. Sources only: the tests are
+  // outside tsconfig.json's project.
+  {
+    files: ["client/src/**/*.{ts,tsx}"],
+    ignores: ["client/src/**/*.test.{ts,tsx}", "client/src/test/**"],
+    languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "warn",
+      "@typescript-eslint/no-misused-promises": "warn",
+      "@typescript-eslint/switch-exhaustiveness-check": ["error", {}],
+      "@typescript-eslint/await-thenable": "error",
+    },
+  },
   // Tags (deferred): docs/adr/0005 keeps hooks/useTags' relay reads in react-query for now.
   { files: ["client/src/hooks/useTags.ts"], rules: { "no-restricted-syntax": "off" } },
-  // Relay reads in a queryFn that the wrapper-aware list above found in code
-  // other fixes own (2026-11-25): warned, not failed, until each moves onto
-  // the store — or, for a relay probe, says so with a disable comment.
+  // Relay reads in a queryFn that the wrapper-aware list above found
+  // (2026-11-25), warned rather than failed until each has a store-backed
+  // read to move onto. Not a small move for any of them:
+  // - growth/GrowthCard: fetchAuthorRanks, which resolves the house
+  //   observer's kind 10040 first (services/trustSource), as hooks/useWotItems
+  //   does; ranks aren't on the store yet.
+  // - dictionary/useUserDictionary and dev/RendererPlayground's quick picks:
+  //   loadDictionary, which assembles concept headers, copies and items from
+  //   several reads (services/dictionary); the Settings tab reads it the same way.
   {
     files: [
-      "client/src/components/admin/NostrHealthCard.tsx",
       "client/src/components/admin/growth/GrowthCard.tsx",
       "client/src/components/admin/dictionary/useUserDictionary.ts",
-      "client/src/components/items/ListKindSearch.tsx",
       "client/src/pages/dev/RendererPlayground.tsx",
     ],
     rules: {

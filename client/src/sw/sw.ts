@@ -471,6 +471,10 @@ function startWorker(scope: WorkerScope): void {
         }
         event.waitUntil(fill(__SW_ROUTES__.map(asPath)));
         break;
+      case undefined:
+      default:
+        // Not a message this worker answers.
+        break;
     }
   });
 

@@ -591,13 +591,15 @@ async function revalidate(events: NostrEvent[]): Promise<void> {
         // list's wipe guard reads its own evidence fresh (services/socialActions),
         // so sharing this ask can only spare it a REQ, never feed it a stale copy.
         const key = replaceableAskKey(event.kind, event.pubkey);
-        return askOnce(key, REPLACEABLE_ASK_WINDOW, async () =>
-          requestNewest(
-            await outboxRelays(event.pubkey, PROFILE_RELAYS),
-            { kinds: [event.kind], authors: [event.pubkey], limit: 5 },
-            10_000,
-          ),
-        )?.catch(() => undefined);
+        return (
+          askOnce(key, REPLACEABLE_ASK_WINDOW, async () =>
+            requestNewest(
+              await outboxRelays(event.pubkey, PROFILE_RELAYS),
+              { kinds: [event.kind], authors: [event.pubkey], limit: 5 },
+              10_000,
+            ),
+          )?.catch(() => undefined) ?? Promise.resolve()
+        );
       }
       const identifier = event.tags.find((tag) => tag[0] === "d")?.[1];
       return loadReplaceable(event.kind, event.pubkey, {
