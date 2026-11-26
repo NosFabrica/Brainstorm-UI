@@ -6,7 +6,7 @@
  *
  * A header with URL templates drafted for it goes through lib/listPublish,
  * which publishes them first; each is then known by id at once, and the link
- * picker's choices are read again to include it.
+ * picker's choices, which read the store (hooks/useLinkTemplates), include it.
  */
 import type { NostrEvent } from "nostr-tools";
 import { requireActiveAccount, signAs } from "@/accounts/signing";
@@ -15,7 +15,6 @@ import { rememberTemplate } from "@/services/linkTemplates";
 import type { EventTemplate } from "@/lib/conceptCopy";
 import { URL_TEMPLATE_FIELD } from "@/lib/linkTemplates";
 import type { PublishSteps } from "@/lib/listPublish";
-import { queryClient } from "@/lib/queryClient";
 
 export async function publishListEvent(template: EventTemplate): Promise<NostrEvent> {
   const signed = await signAs(requireActiveAccount(), template);
@@ -30,7 +29,6 @@ export const listPublishSteps: PublishSteps = {
     await publishTagEvent(event as never);
     if (event.tags.some((t) => t[0] === URL_TEMPLATE_FIELD)) {
       rememberTemplate(event);
-      void queryClient.invalidateQueries({ queryKey: ["link-templates", "available"] });
     }
   },
 };

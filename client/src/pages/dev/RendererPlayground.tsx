@@ -11,7 +11,6 @@
  */
 import { useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { ExternalLink, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,16 @@ import { DListItemCard } from "@/components/dictionary/DListItemCard";
 import { DListSuggestionRow } from "@/components/dictionary/DListSuggestionRow";
 import { dictionaryRelays } from "@/config/dictionary";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
-import { dictionaryConceptOf, loadDictionary } from "@/services/dictionary";
+import {
+  dictionaryConceptOf,
+  entryItems,
+  listHeaders,
+  type DictionaryEntry,
+  type DictionaryItem,
+} from "@/services/dictionary";
+import { useDictionaryEntries } from "@/hooks/useDictionaryEntries";
+import { useListItems } from "@/hooks/useConceptItems";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { pageWidth } from "@/lib/pageWidth";
 import { eventPath } from "@/lib/shareId";
@@ -58,6 +66,17 @@ function parseRef(raw: string): Ref | null {
   return null;
 }
 
+const NO_READER = { pubkey: null, taPubkey: null };
+const NO_ENTRIES: DictionaryEntry[] = [];
+const NO_ITEMS: DictionaryItem[] = [];
+
+/** What the store holds the event under. */
+function filtersOf(ref: Ref | null) {
+  if (!ref) return null;
+  if (ref.type === "event") return [{ ids: [ref.id] }];
+  return [{ kinds: [ref.kind], authors: [ref.pubkey], "#d": [ref.identifier] }];
+}
+
 async function fetchRef(ref: Ref): Promise<NostrEvent | null> {
   const relays = [...new Set([...ref.relays, ...dictionaryRelays()])];
   if (ref.type === "event") return (await fetchEventsByIds([ref.id], relays))[0] ?? null;
@@ -77,22 +96,20 @@ export default function RendererPlayground() {
   };
 
   const ref = parseRef(id);
-  const event = useQuery({
-    queryKey: ["playground-event", id],
-    // Parsed from the key's own `id`, so the key names everything the fetch reads.
-    queryFn: () => fetchRef(parseRef(id)!),
-    enabled: !!ref,
-    staleTime: 60_000,
+  // The event from the store while its relays are asked (docs/adr/0005).
+  const found = useStoreEvents(ref ? `playground-event:${id}` : null, filtersOf(ref), () => fetchRef(ref!), {
+    minMs: 60_000,
   });
-  // Quick picks: the Dictionary's items, so there's always something to try.
+  const eventData = found.events[0] ?? (found.settled ? null : undefined);
+  const event = { data: eventData, isPending: eventData === undefined };
+  // Quick picks: the Dictionary's items, so there's always something to try — Brainstorm's
+  // definitions (no reader), then every list's items, both from the store.
   const { shown } = useDictionaryConcepts();
-  const picks = useQuery({
-    queryKey: ["playground-picks", shown],
-    queryFn: () => loadDictionary({ pubkey: null, taPubkey: null }, shown),
-    enabled: shown.length > 0,
-    staleTime: 5 * 60_000,
-  });
-  const pickItems = (picks.data ?? []).flatMap((e) => e.items).slice(0, 12);
+  const dictionary = useDictionaryEntries(NO_READER, shown, { prefix: "playground-picks" });
+  const entries = dictionary.entries ?? NO_ENTRIES;
+  const headers = [...new Set(entries.flatMap((e) => listHeaders(e.communityCoordinate, e.resolved)))];
+  const items = useListItems(headers).data?.items ?? NO_ITEMS;
+  const pickItems = entries.flatMap((e) => entryItems(e, items)).slice(0, 12);
 
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950" data-testid="page-renderer-playground">
