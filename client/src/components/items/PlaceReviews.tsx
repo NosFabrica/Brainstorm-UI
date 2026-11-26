@@ -35,6 +35,8 @@ import { rankEndorsers } from "@/services/endorsements";
 import { uploadToBlossom } from "@/services/blossom";
 import { LinkedText } from "@/components/LinkedText";
 import { StarPicker, Stars } from "@/components/items/Stars";
+import { ToggleChip } from "@/components/ui/toggle-chip";
+import { cn } from "@/lib/utils";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 const MAX_LENGTH = 1200;
@@ -320,12 +322,8 @@ function Composer({
     post.mutate({ draft: { text: text.trim(), rating, price, paid, photos }, previous: own }, { onSuccess: onClose });
   };
 
-  const chip = (active: boolean) =>
-    `rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
-      active
-        ? "border-brand-primary bg-brand-primary text-white"
-        : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-    }`;
+  // Tighter and bolder than a filter pill, and an idle one lets the composer's ground show through.
+  const chip = (on: boolean) => cn("px-2.5 font-semibold", !on && "bg-transparent dark:bg-transparent");
 
   return (
     <div
@@ -348,29 +346,27 @@ function Composer({
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs text-slate-500 dark:text-slate-400">Price</span>
         {PRICES.map((p) => (
-          <button
+          <ToggleChip
             key={p}
-            type="button"
+            pressed={price === p}
             className={chip(price === p)}
             onClick={() => setPrice(price === p ? null : p)}
-            aria-pressed={price === p}
           >
             {"$".repeat(p)}
-          </button>
+          </ToggleChip>
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs text-slate-500 dark:text-slate-400">Paid with</span>
         {(Object.keys(PAID_LABELS) as Paid[]).map((p) => (
-          <button
+          <ToggleChip
             key={p}
-            type="button"
+            pressed={paid === p}
             className={chip(paid === p)}
             onClick={() => setPaid(paid === p ? null : p)}
-            aria-pressed={paid === p}
           >
             {PAID_LABELS[p]}
-          </button>
+          </ToggleChip>
         ))}
       </div>
       {photos.length > 0 && (

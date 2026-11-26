@@ -86,6 +86,33 @@ Tag chips on people rows in search (`components/search/PersonTagChips.tsx`): eve
 <Chip tone="success" size="sm">Saved</Chip>
 ```
 
+## ToggleChip — `components/ui/toggle-chip.tsx`
+
+The pill that is pressed: a filter, a sort or a choice that is on or off (Open now, a
+category, Newest / Top, a price). A `button` with `aria-pressed` and a keyboard focus
+ring; Chip stays the span for tags and badges that do nothing when pressed. Never
+hand-roll `rounded-full border … aria-pressed` again.
+
+| Variant           | On                    | For                                                          |
+| ----------------- | --------------------- | ------------------------------------------------------------ |
+| `solid` (default) | filled Aurora Purple  | filters over a map or a list of places, a composer's choices |
+| `soft`            | purple tint, bordered | the facet rows over search results                           |
+| `ghost`           | filled, no border     | a short row of sorts, or a split beside a heading            |
+
+`count` goes after the label, dimmed, and is read with it ("Open now 3"). Layout is the
+caller's: `className` merges over the defaults, so a pill holding an icon adds
+`inline-flex items-center gap-1.5`, and a tighter one `px-2.5`.
+
+```tsx
+<ToggleChip pressed={openNow} onClick={toggle} count={3}>Open now</ToggleChip>
+<ToggleChip variant="soft" pressed={when === "today"} onClick={…}>Today</ToggleChip>
+<ToggleChip variant="ghost" pressed={sort === "top"} onClick={…}>Top</ToggleChip>
+```
+
+A segmented control (one choice of two or three, on a shared track: the perspective
+toggles, the hashtag page's options) is not a row of ToggleChips, and neither is an
+action that remembers its state (Follow, RSVP, agree, a reaction).
+
 ## Result rows — `components/search/SerpRow.tsx`, `sections.tsx`
 
 The rows on the Top page and the home feed follow Google's result proportions (the team, 2026-09-29: "do I need glasses?"). Reading text on a result row is never below 14px, meta never below 12px; pills are the exception.

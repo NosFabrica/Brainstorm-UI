@@ -1113,6 +1113,8 @@ describe("the Places page's filters", () => {
       () => {
         page("places", "");
         expect(screen.getByRole("button", { name: "Open now 1" })).toBeInTheDocument();
+        // A filter pill is the design system's ToggleChip, with a focus ring for the keyboard.
+        expect(screen.getByRole("button", { name: "Open now 1" })).toHaveClass("focus-visible:ring-2");
       },
     );
     cleanup();

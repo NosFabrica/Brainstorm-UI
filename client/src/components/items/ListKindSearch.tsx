@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { LocationExplainer } from "@/components/search/LocationExplainer";
 import { locate, LocateError, nearestArea, type Position } from "@/lib/nearMe";
 import { distanceKm, distanceWords } from "@/lib/placeDistance";
@@ -1254,25 +1255,9 @@ function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab:
   const towns = new Set(hits.map((h) => h.place?.locality).filter(Boolean)).size;
   if (hits.length === 0 && !area) return <PageEmpty pending={pending} label="Places" query={query} />;
   const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
-    <button
-      key={label}
-      type="button"
-      aria-pressed={on}
-      onClick={toggle}
-      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-        on
-          ? "border-brand-primary bg-brand-primary text-white"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-      }`}
-    >
+    <ToggleChip key={label} pressed={on} onClick={toggle} count={count}>
       {label}
-      {count != null && (
-        <>
-          {" "}
-          <span className={on ? "text-white/80" : "text-slate-400"}>{count}</span>
-        </>
-      )}
-    </button>
+    </ToggleChip>
   );
   const filtering = filter.openNow || filter.category != null;
   const clearFilters = () => {
