@@ -31,11 +31,11 @@ export const SESSION_SIGN_TIMEOUT_MS = 90_000;
  * The one kind-22242 builder. Every login and re-auth signs exactly this.
  *
  * A NIP-42 relay login is kind 22242 with a `challenge` tag too, so this one
- * must stay told apart from it: it carries `["t", "brainstorm_login"]` and never
- * a `relay` tag, which every NIP-42 login carries. The backend should accept
- * only that shape (services/relayAuth has the attack it closes). Signed through
- * signAs, which leaves 22242 without the client tag: an auth proof is never
- * published.
+ * carries `["t", "brainstorm_login"]`: brainstorm_server's /verify refuses a
+ * 22242 without it (app/services/auth_service.py), which is what keeps a relay
+ * login, signed by services/relayAuth for any relay, from passing as a
+ * Brainstorm sign-in. Signed through signAs, which leaves 22242 without the
+ * client tag: an auth proof is never published.
  */
 export function loginTemplate(challenge: string): EventTemplate {
   return {
