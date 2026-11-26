@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue, Fragment } from "react";
-import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -33,7 +32,6 @@ import {
   BarChart3,
   ChevronUp,
   ChevronDown,
-  ChevronsUpDown,
   AlertTriangle,
   CheckCircle2,
   XCircle,
@@ -44,7 +42,6 @@ import {
   WifiOff,
   FileText,
   UserCheck,
-  Copy,
   Globe,
   RefreshCw,
   Eye,
@@ -56,8 +53,6 @@ import {
   Square,
   CheckSquare,
   MinusSquare,
-  Minus,
-  Maximize2,
   Sparkles,
   CalendarClock,
   LifeBuoy,
@@ -80,7 +75,7 @@ import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsC
 import { CompromisedCard } from "@/components/admin/compromised/CompromisedCard";
 import { GrowthCard } from "@/components/admin/growth/GrowthCard";
 import { ALL_USERS_DAYS, readEveryPage, useAdminHeaderMetrics } from "@/components/admin/useAdminHeaderMetrics";
-import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { FEATURES } from "@/config/featureFlags";
 import { searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
@@ -89,7 +84,6 @@ import { LookupQueryInput } from "@/components/admin/users/LookupQueryInput";
 import { matchUsersByName } from "@/components/admin/users/matchUsersByName";
 import { useUserLookup } from "@/components/admin/users/useUserLookup";
 import { useInFlightTriggers } from "@/components/admin/users/useInFlightTriggers";
-import { PROFILE_RELAYS } from "@/lib/relays";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
@@ -97,7 +91,6 @@ import { useActiveAccount } from "applesauce-react/hooks";
 import { hasSession } from "@/accounts/session";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { useToast } from "@/hooks/use-toast";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
@@ -122,14 +115,7 @@ import {
   PRIMARY_RELAY,
   NONE,
 } from "./admin/constants";
-import {
-  formatTimestamp,
-  formatRelativeAge,
-  formatNumber,
-  timeAgo,
-  truncateError,
-  formatLatencyMs,
-} from "./admin/format";
+import { formatTimestamp, formatNumber, timeAgo, truncateError, formatLatencyMs } from "./admin/format";
 import {
   computePipelineMetrics,
   computeTrends,
@@ -152,459 +138,15 @@ import {
   extractErrorMessage,
   normalizeErrorKey,
 } from "./admin/failures";
-
-function LiveBadge({
-  updatedAt,
-  boosting,
-  isFetching,
-}: {
-  updatedAt: number;
-  boosting: boolean;
-  isFetching?: boolean;
-}) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const label = formatRelativeAge(updatedAt, now);
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-        boosting
-          ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
-          : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
-      }`}
-      title={boosting ? "Refreshing more frequently after a recent trigger" : "Auto-refresh enabled"}
-      data-testid="badge-live-updated"
-    >
-      <span className="relative flex h-1.5 w-1.5">
-        <span
-          className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${isFetching || boosting ? "animate-ping" : ""} ${boosting ? "bg-amber-400" : "bg-emerald-400"}`}
-        />
-        <span
-          className={`relative inline-flex h-1.5 w-1.5 rounded-full ${boosting ? "bg-amber-500" : "bg-emerald-500"}`}
-        />
-      </span>
-      <span className="text-[10px] font-medium normal-case tracking-normal">
-        {boosting ? "Boosted • " : "Live • "}
-        {label}
-      </span>
-    </span>
-  );
-}
-
-function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnected" }) {
-  const config = {
-    connected: { tone: "emerald" as const, label: "Connected" },
-    degraded: { tone: "amber" as const, label: "Degraded" },
-    disconnected: { tone: "red" as const, label: "Not Connected" },
-  }[status];
-
-  return (
-    <Chip
-      tone={config.tone}
-      size="sm"
-      dot
-      className="font-semibold uppercase tracking-wider"
-      data-testid={`badge-status-${status}`}
-    >
-      {config.label}
-    </Chip>
-  );
-}
-
-function MiniSparkline({
-  data,
-  timestamps,
-  color = "#13d2e5",
-  height = 22,
-  width = 64,
-  className,
-  valueSuffix = "",
-  valueLabel = "value",
-}: {
-  data: number[];
-  timestamps?: number[];
-  color?: string;
-  height?: number;
-  width?: number;
-  className?: string;
-  valueSuffix?: string;
-  valueLabel?: string;
-}) {
-  if (!data || data.length < 2) {
-    return (
-      <div
-        className={`inline-flex items-center justify-center text-[10px] text-slate-300 dark:text-slate-600 ${className ?? ""}`}
-        style={{ height, width }}
-        title="No trend data available yet"
-        data-testid="mini-sparkline-empty"
-      >
-        <svg width={width - 4} height={4} viewBox={`0 0 ${width - 4} 4`} aria-hidden="true">
-          <line x1="0" y1="2" x2={width - 4} y2="2" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="2 2" />
-        </svg>
-      </div>
-    );
-  }
-  const chartData = data.map((v, i) => ({
-    i,
-    v,
-    ts: timestamps?.[i],
-  }));
-  return (
-    <div style={{ width, height }} className={`inline-block ${className ?? ""}`} data-testid="mini-sparkline">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-          <RcTooltip
-            cursor={{ stroke: color, strokeOpacity: 0.3, strokeWidth: 1 }}
-            contentStyle={{
-              fontSize: 10,
-              borderRadius: 6,
-              border: "1px solid #e2e8f0",
-              padding: "4px 6px",
-              lineHeight: 1.3,
-              boxShadow: "0 4px 12px rgba(15, 23, 42, 0.12)",
-              whiteSpace: "nowrap",
-            }}
-            wrapperStyle={{ outline: "none", zIndex: 9999, pointerEvents: "none" }}
-            allowEscapeViewBox={{ x: true, y: true }}
-            offset={12}
-            labelFormatter={(_, items) => {
-              const ts = items?.[0]?.payload?.ts as number | undefined;
-              return ts
-                ? new Date(ts).toLocaleString([], {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "";
-            }}
-            formatter={(val: number | string) => [`${val}${valueSuffix}`, valueLabel]}
-          />
-          <Line
-            type="monotone"
-            dataKey="v"
-            stroke={color}
-            strokeWidth={1.5}
-            dot={false}
-            activeDot={{ r: 2.5, fill: color }}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-function SparklineDetailsDialog({
-  open,
-  onOpenChange,
-  label,
-  data,
-  timestamps,
-  color = "#13d2e5",
-  valueLabel = "value",
-  valueSuffix = "",
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  label: string;
-  data: number[];
-  timestamps?: number[];
-  color?: string;
-  valueLabel?: string;
-  valueSuffix?: string;
-}) {
-  const chartData = (data ?? []).map((v, i) => ({ i, v, ts: timestamps?.[i] }));
-  const formatTs = (ts: number | undefined) =>
-    ts ? new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
-  const rows = [...chartData].reverse();
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" data-testid="dialog-sparkline-details">
-        <DialogHeader>
-          <DialogTitle data-testid="text-sparkline-title">{label} trend</DialogTitle>
-          <DialogDescription>Per-bucket values and timestamps from the recent trend.</DialogDescription>
-        </DialogHeader>
-        {chartData.length >= 2 ? (
-          <>
-            <div className="h-40 w-full" data-testid="chart-sparkline-details">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
-                  <RcTooltip
-                    cursor={{ stroke: color, strokeOpacity: 0.3, strokeWidth: 1 }}
-                    contentStyle={{
-                      fontSize: 11,
-                      borderRadius: 6,
-                      border: "1px solid #e2e8f0",
-                      padding: "4px 6px",
-                      lineHeight: 1.3,
-                    }}
-                    labelFormatter={(_, items) => formatTs(items?.[0]?.payload?.ts as number | undefined)}
-                    formatter={(val: number | string) => [`${val}${valueSuffix}`, valueLabel]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="v"
-                    stroke={color}
-                    strokeWidth={1.5}
-                    dot={{ r: 2, fill: color }}
-                    activeDot={{ r: 3.5, fill: color }}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="max-h-56 overflow-auto rounded-md border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                  <tr>
-                    <th className="px-2 py-1.5 text-left font-medium">Time</th>
-                    <th className="px-2 py-1.5 text-right font-medium capitalize">{valueLabel}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, idx) => (
-                    <tr
-                      key={idx}
-                      className="border-t border-slate-100 dark:border-slate-800/60"
-                      data-testid={`row-sparkline-bucket-${idx}`}
-                    >
-                      <td className="px-2 py-1 text-slate-600 dark:text-slate-300">{formatTs(r.ts)}</td>
-                      <td className="px-2 py-1 text-right font-medium tabular-nums text-slate-900 dark:text-slate-100">
-                        {r.v}
-                        {valueSuffix}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="text-sparkline-empty">
-            No trend data available yet.
-          </p>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DeltaIndicator({
-  delta,
-  suffix = "",
-  inverted = false,
-  label = "vs 24h ago",
-  insufficient,
-  insufficientLabel,
-}: {
-  delta: number | null;
-  suffix?: string;
-  inverted?: boolean;
-  label?: string;
-  insufficient?: boolean;
-  insufficientLabel?: string;
-}) {
-  if (insufficient || delta === null || delta === undefined || Number.isNaN(delta)) {
-    return (
-      <span
-        className="inline-flex items-center gap-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
-        title={insufficientLabel ?? "Not enough historical data yet to compute a trend"}
-      >
-        <Minus className="h-3 w-3" /> {insufficientLabel ?? "—"}
-      </span>
-    );
-  }
-  const flat = delta === 0;
-  const goodWhenUp = !inverted;
-  const isGood = flat ? false : delta > 0 ? goodWhenUp : !goodWhenUp;
-  const colorCls = flat ? "text-slate-400 dark:text-slate-500" : isGood ? "text-emerald-600" : "text-red-500";
-  const Icon = flat ? Minus : delta > 0 ? ChevronUp : ChevronDown;
-  const sign = delta > 0 ? "+" : "";
-  return (
-    <span className={`inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold ${colorCls}`}>
-      <Icon className="h-3 w-3" />
-      {sign}
-      {delta}
-      {suffix} <span className="ml-0.5 font-normal text-slate-400 dark:text-slate-500">{label}</span>
-    </span>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  trend,
-  subtitle,
-  unsupported,
-  tooltip,
-  onClick,
-  sparklineData,
-  sparklineTimestamps,
-  sparklineColor,
-  sparklineValueLabel,
-  sparklineValueSuffix,
-  deltaSlot,
-}: {
-  label: string;
-  value: string;
-  icon: React.ComponentType<{ className?: string }>;
-  trend?: { value: string; up: boolean };
-  subtitle?: string;
-  unsupported?: boolean;
-  tooltip?: string;
-  onClick?: () => void;
-  sparklineData?: number[];
-  sparklineTimestamps?: number[];
-  sparklineColor?: string;
-  sparklineValueLabel?: string;
-  sparklineValueSuffix?: string;
-  deltaSlot?: React.ReactNode;
-}) {
-  const [trendOpen, setTrendOpen] = useState(false);
-  const hasSparkline = !unsupported && Array.isArray(sparklineData) && sparklineData.length >= 2;
-  const testIdSlug = label.toLowerCase().replace(/\s+/g, "-");
-  return (
-    <>
-      <div
-        className={`group relative z-0 flex min-h-[120px] flex-col rounded-xl border border-border bg-card px-3 py-3 text-card-foreground shadow-sm transition-all duration-300 hover:z-30 hover:-translate-y-0.5 hover:border-brand-accent/40 hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] dark:shadow-none ${onClick ? "cursor-pointer" : ""}`}
-        data-testid={`kpi-${testIdSlug}`}
-        title={tooltip}
-        onClick={onClick}
-      >
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-        </div>
-        <div className="relative mb-2 flex items-start justify-between">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand-accent/15 bg-gradient-to-br from-brand-accent/10 to-brand-deep/10">
-            <Icon className="h-4 w-4 text-brand-deep" />
-          </div>
-          {trend && (
-            <span
-              className={`flex items-center gap-0.5 text-[10px] font-semibold ${trend.up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}
-            >
-              {trend.up ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              {trend.value}
-            </span>
-          )}
-        </div>
-        <div className="relative flex items-end justify-between gap-2">
-          <p
-            className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300 dark:text-slate-600" : "text-slate-900 dark:text-slate-100"}`}
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {value}
-          </p>
-          {!unsupported && hasSparkline && (
-            <div className="flex items-center gap-1">
-              <MiniSparkline
-                data={sparklineData ?? []}
-                timestamps={sparklineTimestamps}
-                color={sparklineColor ?? "#13d2e5"}
-                height={22}
-                width={64}
-                valueLabel={sparklineValueLabel ?? "value"}
-                valueSuffix={sparklineValueSuffix ?? ""}
-              />
-              {hasSparkline && (
-                <button
-                  type="button"
-                  aria-label={`View ${label} trend details`}
-                  title="View trend details"
-                  className="touch-manipulation rounded-md p-1 text-slate-400 transition-colors hover:bg-brand-accent/10 hover:text-brand-deep active:bg-brand-accent/20 dark:text-slate-500"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setTrendOpen(true);
-                  }}
-                  data-testid={`button-sparkline-expand-${testIdSlug}`}
-                >
-                  <Maximize2 className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        <p className="relative mt-0.5 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{label}</p>
-        {subtitle && <p className="relative mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
-        {deltaSlot && (
-          <div className="relative mt-1" data-testid={`kpi-delta-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-            {deltaSlot}
-          </div>
-        )}
-        {unsupported && (
-          <div className="relative mt-auto pt-1.5">
-            <StatusBadge status="disconnected" />
-          </div>
-        )}
-      </div>
-      {hasSparkline && (
-        <SparklineDetailsDialog
-          open={trendOpen}
-          onOpenChange={setTrendOpen}
-          label={label}
-          data={sparklineData ?? []}
-          timestamps={sparklineTimestamps}
-          color={sparklineColor}
-          valueLabel={sparklineValueLabel}
-          valueSuffix={sparklineValueSuffix}
-        />
-      )}
-    </>
-  );
-}
-
-function SortHeader({
-  label,
-  sortKey,
-  currentSort,
-  onSort,
-}: {
-  label: string;
-  sortKey: AdminSortKey;
-  currentSort: SortState;
-  onSort: (key: AdminSortKey) => void;
-}) {
-  const active = currentSort.key === sortKey;
-  return (
-    <button
-      className="flex items-center gap-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-      onClick={() => onSort(sortKey)}
-      data-testid={`sort-${sortKey}`}
-    >
-      {label}
-      {active ? (
-        currentSort.dir === "asc" ? (
-          <ChevronUp className="h-3 w-3" />
-        ) : (
-          <ChevronDown className="h-3 w-3" />
-        )
-      ) : (
-        <ChevronsUpDown className="h-3 w-3 opacity-40" />
-      )}
-    </button>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const { toast } = useToast();
-  return (
-    <button
-      className="rounded p-1 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
-      onClick={(e) => {
-        e.stopPropagation();
-        copyToClipboard(text);
-        toast({ title: "Copied", description: text.slice(0, 20) + "...", duration: 1500 });
-      }}
-      data-testid="button-copy-npub"
-    >
-      <Copy className="h-3 w-3 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" />
-    </button>
-  );
-}
+import { ConfirmRetriggerButton } from "./admin/ConfirmRetriggerButton";
+import { CopyButton } from "./admin/CopyButton";
+import { DeltaIndicator } from "./admin/DeltaIndicator";
+import { KpiCard } from "./admin/KpiCard";
+import { LiveBadge } from "./admin/LiveBadge";
+import { SortHeader } from "./admin/SortHeader";
+import { StatusBadge } from "./admin/StatusBadge";
+import { PROFILE_RELAYS } from "@/lib/relays";
+import { grapeRankResultOptions } from "@/services/queries/graperank";
 
 /**
  * Groups the activity feed's failed requests by stage + normalized error
@@ -1214,85 +756,6 @@ function TriggerSourceBadge({ value }: { value: string | null }) {
     >
       {value}
     </span>
-  );
-}
-
-function ConfirmRetriggerButton({
-  pubkey,
-  onConfirm,
-  className = "",
-  testId,
-}: {
-  pubkey: string;
-  onConfirm: (pubkey: string) => Promise<void>;
-  className?: string;
-  testId?: string;
-}) {
-  const [state, setState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (state === "running") return;
-    if (state === "idle" || state === "done" || state === "error") {
-      setState("confirming");
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setState("idle"), 3000);
-      return;
-    }
-    if (state === "confirming") {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setState("running");
-      try {
-        await onConfirm(pubkey);
-        setState("done");
-        setTimeout(() => setState("idle"), 2000);
-      } catch {
-        setState("error");
-        setTimeout(() => setState("idle"), 2500);
-      }
-    }
-  };
-  return (
-    <button
-      onClick={handleClick}
-      disabled={state === "running"}
-      className={`inline-flex items-center gap-1 text-[10px] font-semibold transition-colors ${
-        state === "confirming"
-          ? "animate-pulse text-amber-700 dark:text-amber-300"
-          : state === "done"
-            ? "text-emerald-700 dark:text-emerald-300"
-            : state === "error"
-              ? "text-red-700 dark:text-red-300"
-              : state === "running"
-                ? "text-slate-400 dark:text-slate-500"
-                : "text-red-700 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200"
-      } ${className}`}
-      data-testid={testId}
-    >
-      {state === "running" ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : state === "confirming" ? (
-        <>
-          <RefreshCw className="h-3 w-3" />
-          <span>Confirm re-trigger?</span>
-        </>
-      ) : state === "done" ? (
-        <>
-          <CheckCircle2 className="h-3 w-3" />
-          <span>Re-triggered</span>
-        </>
-      ) : state === "error" ? (
-        <>
-          <XCircle className="h-3 w-3" />
-          <span>Failed</span>
-        </>
-      ) : (
-        <>
-          <RefreshCw className="h-3 w-3" />
-          <span>Re-trigger</span>
-        </>
-      )}
-    </button>
   );
 }
 
