@@ -233,25 +233,6 @@ export default tseslint.config(
   },
   // Tags (deferred): docs/adr/0005 keeps hooks/useTags' relay reads in react-query for now.
   { files: ["client/src/hooks/useTags.ts"], rules: { "no-restricted-syntax": "off" } },
-  // Relay reads in a queryFn that the wrapper-aware list above found
-  // (2026-11-25), warned rather than failed until each has a store-backed
-  // read to move onto. Not a small move for any of them:
-  // - growth/GrowthCard: fetchAuthorRanks, which resolves the house
-  //   observer's kind 10040 first (services/trustSource), as hooks/useWotItems
-  //   does; ranks aren't on the store yet.
-  // - dictionary/useUserDictionary and dev/RendererPlayground's quick picks:
-  //   loadDictionary, which assembles concept headers, copies and items from
-  //   several reads (services/dictionary); the Settings tab reads it the same way.
-  {
-    files: [
-      "client/src/components/admin/growth/GrowthCard.tsx",
-      "client/src/components/admin/dictionary/useUserDictionary.ts",
-      "client/src/pages/dev/RendererPlayground.tsx",
-    ],
-    rules: {
-      "no-restricted-syntax": ["warn", relayReadInQuery("callee.name"), relayReadInQuery("callee.property.name")],
-    },
-  },
   {
     files: ["client/src/**/*.{ts,tsx}"],
     ignores: ["client/src/components/items/**"],
