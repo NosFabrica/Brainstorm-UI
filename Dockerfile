@@ -13,6 +13,12 @@ RUN npm ci --no-audit --no-fund
 # Copy source
 COPY . .
 
+# This build's id (BUILD_ID in vite.config.ts), which the page and its service
+# worker compare to tell a new deploy: the commit CI passes in (build.yml).
+# Without one, vite falls back to the time of the build.
+ARG GIT_SHA=""
+ENV BUILD_ID=$GIT_SHA
+
 # Build Vite project
 RUN npm run build
 

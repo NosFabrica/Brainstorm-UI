@@ -61,7 +61,7 @@ New UI uses the shared primitives (`Chip`, `StatTile`, `Card`, `SectionHeader`, 
 
 ## E2E smoke (`e2e/`)
 
-Playwright happy-path checks against **live staging**, not local — CI runs them on PRs into `main` and manual dispatch (`.github/workflows/e2e.yml`).
+Playwright happy-path checks against **live staging**, not local — CI runs them on PRs into `main`, after each merge into `staging` once staging serves it, and on manual dispatch (`.github/workflows/e2e.yml`).
 
 - Run: `E2E_TEST_NSEC=nsec1… npm run e2e` (`-- --ui` to watch). Signed-in specs skip without the key.
 - Locally, any staging account with follows and calculated scores works — the shared CI key isn't handed out. Use a throwaway, never your real nsec.
