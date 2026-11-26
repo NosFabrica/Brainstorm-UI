@@ -41,3 +41,33 @@ export function filterUsers({
   if (kpiFilter) list = list.filter((u) => matchesKpiFilter(u, kpiFilter));
   return list;
 }
+
+/**
+ * The page on screen, and what the pager counts. The table, the phone cards,
+ * the bulk bar and the pager all read this one answer: when the tab filters
+ * itself (a name search or a header card's filter: `clientFiltered`), it pages
+ * `list` here; otherwise `list` is already the backend's page and the totals
+ * are the backend's.
+ */
+export function pageOfUsers({
+  list,
+  clientFiltered,
+  page,
+  pageSize,
+  backendTotal,
+  backendPages,
+}: {
+  list: AdminUserListItem[];
+  clientFiltered: boolean;
+  page: number;
+  pageSize: number;
+  backendTotal: number;
+  backendPages: number;
+}): { rows: AdminUserListItem[]; total: number; totalPages: number } {
+  if (!clientFiltered) return { rows: list, total: backendTotal, totalPages: backendPages };
+  return {
+    rows: list.slice(page * pageSize, (page + 1) * pageSize),
+    total: list.length,
+    totalPages: Math.max(1, Math.ceil(list.length / pageSize)),
+  };
+}

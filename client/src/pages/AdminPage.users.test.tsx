@@ -119,6 +119,31 @@ describe("the Users tab's name search", () => {
   });
 });
 
+describe("a header card's filter", () => {
+  it("pages the phone cards and the pager the same way as the table", async () => {
+    // Every third user's last run failed: 180 of the 271 are scored.
+    api.getAdminUsers.mockImplementation(async ({ page = 1, size = 25, days }: Record<string, unknown>) => {
+      if (days !== 9999) return { items: [], total: 0, pages: 1 };
+      const from = ((page as number) - 1) * (size as number);
+      const items = Array.from({ length: Math.max(0, Math.min(size as number, TOTAL - from)) }, (_, i) => ({
+        ...userRow(from + i),
+        latest_status: (from + i) % 3 === 0 ? "failure" : "success",
+      }));
+      return { items, total: TOTAL, pages: Math.ceil(TOTAL / (size as number)) };
+    });
+    renderPage();
+    fireEvent.click(await screen.findByTestId("kpi-scored-users"));
+    const panel = await screen.findByTestId("panel-users");
+    await waitFor(() => expect(within(panel).getByTestId("pagination-users")).toHaveTextContent("Page 1 of 8"), {
+      timeout: 4000,
+    });
+
+    expect(within(panel).getAllByTestId(/^row-user-\d+$/)).toHaveLength(25);
+    expect(within(panel).getAllByTestId(/^card-user-\d+$/)).toHaveLength(25);
+    expect(within(panel).getByTestId("pagination-users")).toHaveTextContent("(180 total)");
+  });
+});
+
 describe("Lookup by name", () => {
   it("finds a user who is not on the page on screen", async () => {
     window.history.replaceState({}, "", "/admin?tab=users");

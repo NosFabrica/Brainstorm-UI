@@ -16,6 +16,7 @@ export function UserCards({
   bulk,
   triggering: triggeringPubkeys,
   filteredUsersList,
+  pageRows,
   userProfiles,
   schedulingPolicies,
   setTriggerConfirmPubkey,
@@ -23,12 +24,9 @@ export function UserCards({
 }: UserRowsProps) {
   const {
     userSearch,
-    userPage,
-    pageSize,
     highlightedPubkey,
     selectedUserPubkeys,
     setSelectedUserPubkeys,
-    activeNameSearch,
     adminUsersQuery,
     adminUsersList,
   } = directory;
@@ -54,10 +52,7 @@ export function UserCards({
           No users match the current filter
         </div>
       ) : (
-        (activeNameSearch
-          ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
-          : filteredUsersList
-        ).map((u, i) => {
+        pageRows.map((u, i) => {
           const prof = userProfiles.get(u.pubkey);
           let npub: string;
           try {

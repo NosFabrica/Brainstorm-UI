@@ -21,23 +21,17 @@ export function UsersBulkBar({
   bulk,
   filteredUsersList,
   clientFilteredUsers,
+  usersPage,
 }: {
   directory: UsersDirectory;
   bulk: BulkRetrigger;
   filteredUsersList: AdminUserListItem[];
   clientFilteredUsers: boolean;
+  /** The page on screen and the matching total (`pageOfUsers`). */
+  usersPage: { rows: AdminUserListItem[]; total: number };
 }) {
-  const {
-    userSort,
-    userPage,
-    pageSize,
-    kpiFilter,
-    selectedUserPubkeys,
-    setSelectedUserPubkeys,
-    debouncedSearch,
-    activeNameSearch,
-    adminUsersTotal,
-  } = directory;
+  const { userSort, kpiFilter, selectedUserPubkeys, setSelectedUserPubkeys, debouncedSearch, activeNameSearch } =
+    directory;
   const { running: bulkRunning, statuses: bulkStatuses } = bulk;
   const { toast } = useToast();
   const [fetchingMatching, setFetchingMatching] = useState(false);
@@ -52,12 +46,8 @@ export function UsersBulkBar({
           const liveTotal = bulkRunning ? bulkStatuses.size : 0;
           const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter((s) => s === "failed").length : 0;
           const clientFiltered = clientFilteredUsers;
-          const matchingTotal = clientFiltered ? filteredUsersList.length : adminUsersTotal;
-          const visibleCount = (
-            clientFilteredUsers
-              ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
-              : filteredUsersList
-          ).length;
+          const matchingTotal = usersPage.total;
+          const visibleCount = usersPage.rows.length;
           const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter;
           const canSelectAllMatching = filtersActive && matchingTotal > visibleCount;
           const matchingLabelSuffix = kpiFilter && !activeNameSearch ? " in cache" : "";

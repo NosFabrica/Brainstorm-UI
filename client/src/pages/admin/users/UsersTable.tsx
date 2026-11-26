@@ -34,9 +34,10 @@ export type UserRowsProps = {
   bulk: BulkRetrigger;
   /** People with a run in flight, from any control. */
   triggering: ReadonlySet<string>;
-  /** The rows: the backend's page, or every match when the tab filters itself (`clientFilteredUsers`). */
+  /** Every row that matches: the backend's page, or every match when the tab filters itself. */
   filteredUsersList: AdminUserListItem[];
-  clientFilteredUsers: boolean;
+  /** The page on screen (`pageOfUsers`), the same for the table and the phone cards. */
+  pageRows: AdminUserListItem[];
   userProfiles: Map<string, { name?: string; picture?: string }>;
   schedulingPolicies: SchedulingItem[];
   setTriggerConfirmPubkey: (pubkey: string) => void;
@@ -49,7 +50,7 @@ export function UsersTable({
   bulk,
   triggering: triggeringPubkeys,
   filteredUsersList,
-  clientFilteredUsers,
+  pageRows,
   userProfiles,
   schedulingPolicies,
   setTriggerConfirmPubkey,
@@ -58,8 +59,6 @@ export function UsersTable({
   const {
     userSearch,
     userSort,
-    userPage,
-    pageSize,
     expandedRows,
     setExpandedRows,
     highlightedPubkey,
@@ -82,10 +81,7 @@ export function UsersTable({
             <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/80">
               <th className="sticky left-0 z-20 w-8 border-r border-slate-200 bg-slate-50 px-2 py-2.5 align-middle dark:border-slate-800 dark:bg-slate-900">
                 {(() => {
-                  const visible = clientFilteredUsers
-                    ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
-                    : filteredUsersList;
-                  const visiblePks = visible.map((u) => u.pubkey);
+                  const visiblePks = pageRows.map((u) => u.pubkey);
                   const selectedCount = visiblePks.filter((pk) => selectedUserPubkeys.has(pk)).length;
                   const allSelected = visiblePks.length > 0 && selectedCount === visiblePks.length;
                   const someSelected = selectedCount > 0 && !allSelected;
@@ -181,10 +177,7 @@ export function UsersTable({
                 </td>
               </tr>
             ) : (
-              (clientFilteredUsers
-                ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
-                : filteredUsersList
-              ).map((u, i) => {
+              pageRows.map((u, i) => {
                 const isExpanded = expandedRows.has(u.pubkey);
                 const prof = userProfiles.get(u.pubkey);
                 let npub: string;

@@ -8,7 +8,7 @@ import { AdminSearchInput } from "@/components/admin/users/AdminSearchInput";
 import { type BulkRetrigger } from "@/components/admin/users/useBulkRetrigger";
 import { type AdminUserListItem } from "../types";
 import { LookupOnboardDialog } from "./LookupOnboardDialog";
-import { filterUsers } from "./filterUsers";
+import { filterUsers, pageOfUsers } from "./filterUsers";
 import { type UsersDirectory } from "./useUsersDirectory";
 import { KpiFilterBadge } from "./KpiFilterBadge";
 import { TriggerConfirmDialog } from "./TriggerConfirmDialog";
@@ -84,9 +84,15 @@ export function UsersTab({
       }),
     [adminUsersList, allUsers, kpiFilter, deferredUserSearch, userProfiles],
   );
-  const totalPages = clientFilteredUsers
-    ? Math.max(1, Math.ceil(filteredUsersList.length / pageSize))
-    : adminUsersTotalPages;
+  const usersPage = pageOfUsers({
+    list: filteredUsersList,
+    clientFiltered: clientFilteredUsers,
+    page: userPage,
+    pageSize,
+    backendTotal: adminUsersTotal,
+    backendPages: adminUsersTotalPages,
+  });
+  const totalPages = usersPage.totalPages;
 
   const jumpToUser = useCallback(
     (pubkey: string, displayName?: string) => {
@@ -117,7 +123,7 @@ export function UsersTab({
     bulk,
     triggering: triggeringPubkeys,
     filteredUsersList,
-    clientFilteredUsers,
+    pageRows: usersPage.rows,
     userProfiles,
     schedulingPolicies,
     setTriggerConfirmPubkey,
@@ -140,7 +146,7 @@ export function UsersTab({
             </h3>
             <div className="mt-1 flex items-center gap-3">
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                {(clientFilteredUsers ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users
+                {usersPage.total.toLocaleString()} users
                 {activeNameSearch && userSearch.trim() ? " (filtered)" : ""}
               </span>
               <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
@@ -199,6 +205,7 @@ export function UsersTab({
             bulk={bulk}
             filteredUsersList={filteredUsersList}
             clientFilteredUsers={clientFilteredUsers}
+            usersPage={usersPage}
           />
         )}
 
@@ -224,8 +231,7 @@ export function UsersTab({
             data-testid="pagination-users"
           >
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Page {userPage + 1} of {totalPages} (
-              {(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} total)
+              Page {userPage + 1} of {totalPages} ({usersPage.total.toLocaleString()} total)
             </span>
             <div className="flex items-center gap-1">
               <Button

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdminUserListItem } from "../types";
-import { filterUsers, matchesKpiFilter } from "./filterUsers";
+import { filterUsers, matchesKpiFilter, pageOfUsers } from "./filterUsers";
 import { isNameSearch } from "./useUsersDirectory";
 
 const pk = (i: number) => String(i).padStart(64, "0");
@@ -65,5 +65,42 @@ describe("filterUsers", () => {
   it("narrows every user by a header card's filter", () => {
     const rows = filterUsers({ search: "", kpiFilter: "failed", allUsers, pageUsers, profiles });
     expect(rows.map((u) => u.pubkey)).toEqual([pk(4)]);
+  });
+});
+
+describe("pageOfUsers", () => {
+  const list = Array.from({ length: 60 }, (_, i) => user(i));
+
+  it("pages a list the tab filtered itself, and counts it", () => {
+    const page = pageOfUsers({
+      list,
+      clientFiltered: true,
+      page: 2,
+      pageSize: 25,
+      backendTotal: 999,
+      backendPages: 40,
+    });
+    expect(page.rows.map((u) => u.pubkey)).toEqual(list.slice(50).map((u) => u.pubkey));
+    expect(page.total).toBe(60);
+    expect(page.totalPages).toBe(3);
+  });
+
+  it("hands the backend's page through with the backend's totals", () => {
+    const page = pageOfUsers({
+      list: list.slice(0, 25),
+      clientFiltered: false,
+      page: 2,
+      pageSize: 25,
+      backendTotal: 999,
+      backendPages: 40,
+    });
+    expect(page.rows).toHaveLength(25);
+    expect(page).toMatchObject({ total: 999, totalPages: 40 });
+  });
+
+  it("is one page when nothing matches", () => {
+    expect(
+      pageOfUsers({ list: [], clientFiltered: true, page: 0, pageSize: 25, backendTotal: 0, backendPages: 0 }),
+    ).toEqual({ rows: [], total: 0, totalPages: 1 });
   });
 });
