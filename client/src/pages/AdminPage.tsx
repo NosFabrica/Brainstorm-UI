@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { ADMIN_SUPPORT_QUERY_KEY, adminListTickets } from "@/services/support";
@@ -14,11 +14,7 @@ import {
   Server,
   BarChart3,
   ChevronDown,
-  AlertTriangle,
   CheckCircle2,
-  XCircle,
-  Eye,
-  Loader2,
   Sparkles,
   CalendarClock,
   LifeBuoy,
@@ -38,7 +34,6 @@ import {
   type AdminRange,
 } from "./adminRange";
 import { readEveryPage, useAdminHeaderMetrics } from "@/components/admin/useAdminHeaderMetrics";
-import { Area, AreaChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { FEATURES } from "@/config/featureFlags";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useInFlightTriggers } from "@/components/admin/users/useInFlightTriggers";
@@ -49,29 +44,16 @@ import { useActiveAccount } from "applesauce-react/hooks";
 import { hasSession } from "@/accounts/session";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { useToast } from "@/hooks/use-toast";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 import {
   type GrapeRankData,
   type GrapeRankApiResponse,
   type AdminUsersPage,
-  type BrainstormRequestInstance,
   type AdminUserHistoryPage,
 } from "./admin/types";
 import { POLL_OVERVIEW_MS, POLL_STATS_MS, BOOST_INTERVAL_MS, NONE } from "./admin/constants";
-import { formatTimestamp, timeAgo, truncateError } from "./admin/format";
 import { computePipelineMetrics, computeTrends, countQueued, getWindowConfig, parseActivityTs } from "./admin/metrics";
-import {
-  isFailedActivity,
-  isItemFailed,
-  getFailureStage,
-  extractErrorMessage,
-  normalizeErrorKey,
-} from "./admin/failures";
-import { ConfirmRetriggerButton } from "./admin/ConfirmRetriggerButton";
-import { DeltaIndicator } from "./admin/DeltaIndicator";
-import { StatusBadge } from "./admin/StatusBadge";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { type BulkSource, useBulkRetrigger } from "@/components/admin/users/useBulkRetrigger";
 import { BulkConfirmDialog } from "./admin/BulkConfirmDialog";
@@ -93,10 +75,10 @@ import { UsersTab } from "./admin/users/UsersTab";
 import { KpiStrip, KpiCompact } from "./admin/HeaderKpis";
 import { computeHeaderFigures } from "./admin/metrics";
 import { type KpiFilter } from "./admin/types";
+import { OverviewTab } from "./admin/overview/OverviewTab";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
-  const { toast } = useToast();
   const user = useActiveAccountDisplay();
   const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
 
@@ -155,7 +137,6 @@ export default function AdminPage() {
     adminUsersQuery,
     adminUsersList,
   } = directory;
-  const queryClient = useQueryClient();
 
   // The claim rides on the Account's Session, so "no Session" is undecided, not
   // "not an admin" — a background re-auth clears it for the length of one
@@ -675,490 +656,18 @@ export default function AdminPage() {
           </div>
 
           {activeTab === "overview" && (
-            <div className="space-y-6" data-testid="panel-overview">
-              <p className="text-[11px] text-slate-400 dark:text-slate-500" data-testid="trend-window-caption">
-                <span className="font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  {trends.cfg.longLabel}
-                </span>
-                {activityCoverage.count > 0 && ` · ${activityCoverage.count} records`}
-                {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
-                {activityCoverage.loading
-                  ? ` · loading ${activityCoverage.loaded.toLocaleString()} of ${activityCoverage.total.toLocaleString()}…`
-                  : ""}
-              </p>
-
-              {(() => {
-                const actSummaryActivity = overviewAllActivity;
-                const actSummaryUsers = overviewAllUsers;
-                const actSummaryLoading = overviewLoading;
-                // Already cut to the dashboard's range.
-                const filteredItems = actSummaryActivity;
-                const rangeLong = trends.cfg.longLabel;
-                const rangeShort = trends.cfg.shortLabel;
-                const filteredSuccess = filteredItems.filter((a) => a.status?.toLowerCase() === "success").length;
-                const filteredFailed = filteredItems.filter(isFailedActivity).length;
-                const filteredTotal = filteredItems.length;
-                const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
-                  const ta = new Date(a.last_updated || "").getTime() || 0;
-                  const tb = new Date(b.last_updated || "").getTime() || 0;
-                  return tb - ta;
-                });
-                const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
-                const uniquePubkeys = new Set(filteredItems.map((a) => a.pubkey).filter(Boolean)).size;
-
-                return (
-                  <div
-                    className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                    data-testid="card-activity-summary"
-                  >
-                    <div className="border-b border-brand-accent/10 px-4 py-4 sm:px-5">
-                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <div>
-                            <h3
-                              className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                              style={{ fontFamily: "var(--font-display)" }}
-                            >
-                              Activity Summary
-                            </h3>
-                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                              Platform-wide throughput —{" "}
-                              <span className="font-semibold text-brand-deep">{rangeLong}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge
-                            status={
-                              overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess
-                                ? "connected"
-                                : overviewActivityQuery.isError || overviewUsersQuery.isError
-                                  ? "disconnected"
-                                  : "degraded"
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-4 sm:p-5">
-                      {actSummaryLoading ? (
-                        <div className="grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                          {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-total"
-                          >
-                            <Activity className="mx-auto mb-1 h-4 w-4 text-brand-deep" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {filteredTotal.toLocaleString()}
-                            </p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Requests</p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-success"
-                          >
-                            <CheckCircle2 className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
-                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                              {filteredSuccess.toLocaleString()}
-                            </p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Succeeded</p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-failed"
-                          >
-                            <XCircle className="mx-auto mb-1 h-4 w-4 text-red-400" />
-                            <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Failed</p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-unique-users"
-                          >
-                            <Users className="mx-auto mb-1 h-4 w-4 text-blue-500" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {uniquePubkeys.toLocaleString()}
-                            </p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Active Users</p>
-                          </div>
-                        </div>
-                      )}
-                      {lastActivityTs && !actSummaryLoading && (
-                        <p className="mt-3 text-[11px] text-slate-400 dark:text-slate-500">
-                          Last platform activity:{" "}
-                          {(() => {
-                            try {
-                              const d = new Date(lastActivityTs.endsWith("Z") ? lastActivityTs : lastActivityTs + "Z");
-                              return d.toLocaleString();
-                            } catch {
-                              return lastActivityTs;
-                            }
-                          })()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div
-                className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                data-testid="card-trend-strip"
-              >
-                <div className="flex items-center justify-between gap-3 border-b border-brand-accent/10 px-5 py-3">
-                  <div>
-                    <h3
-                      className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                      style={{ fontFamily: "var(--font-display)" }}
-                      data-testid="text-trend-strip-title"
-                    >
-                      {trends.cfg.longLabel}
-                    </h3>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
-                      <span>
-                        {trends.cmp.curTotal.toLocaleString()} calc{trends.cmp.curTotal === 1 ? "" : "s"}
-                        {trends.cmp.curSR !== null ? `, ${trends.cmp.curSR}% succeeded` : ""}
-                        {!trends.dataCoversWindow && trends.hasAnyActivity ? " · data may be partial" : ""}
-                      </span>
-                      <DeltaIndicator
-                        delta={trends.hasPriorWindow ? trends.cmp.curTotal - trends.cmp.prevTotal : null}
-                        insufficient={!trends.hasPriorWindow}
-                        label={trends.cfg.priorLabel}
-                      />
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand-accent" /> {trends.cfg.bucketUnitLabel}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-400" /> Failure rate
-                    </span>
-                  </div>
-                </div>
-                <div className="px-3 py-3" style={{ height: 140 }}>
-                  {overviewActivityQuery.isLoading && !trends.hasAnyActivity ? (
-                    <div className="flex h-full items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  ) : !trends.hasAnyActivity ? (
-                    <div className="flex h-full items-center justify-center text-[11px] text-slate-400 dark:text-slate-500">
-                      No activity in the {trends.cfg.longLabel.toLowerCase()}
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={trends.buckets.map((b) => ({
-                          bucket: trends.cfg.bucketLabelFn(b.t),
-                          ts: b.t,
-                          total: b.total,
-                          failureRate:
-                            b.success + b.failed === 0 ? 0 : Math.round((b.failed / (b.success + b.failed)) * 100),
-                        }))}
-                        margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
-                      >
-                        <defs>
-                          <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#13d2e5" stopOpacity={0.5} />
-                            <stop offset="100%" stopColor="#13d2e5" stopOpacity={0.05} />
-                          </linearGradient>
-                          <linearGradient id="failRateGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#f87171" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="#f87171" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis
-                          dataKey="bucket"
-                          tick={{ fontSize: 9, fill: "#94a3b8" }}
-                          interval={trends.cfg.xAxisInterval}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          yAxisId="left"
-                          tick={{ fontSize: 9, fill: "#94a3b8" }}
-                          axisLine={false}
-                          tickLine={false}
-                          width={28}
-                        />
-                        <YAxis
-                          yAxisId="right"
-                          orientation="right"
-                          tick={{ fontSize: 9, fill: "#fca5a5" }}
-                          axisLine={false}
-                          tickLine={false}
-                          width={28}
-                          domain={[0, 100]}
-                          unit="%"
-                        />
-                        <RcTooltip
-                          contentStyle={{
-                            fontSize: 11,
-                            borderRadius: 8,
-                            border: "1px solid #e2e8f0",
-                            padding: "6px 8px",
-                          }}
-                          labelFormatter={(_, items) => {
-                            const ts = items?.[0]?.payload?.ts as number | undefined;
-                            return ts ? trends.cfg.bucketTooltipFn(ts) : "";
-                          }}
-                          formatter={(v: number, name: string) =>
-                            name === "Failure rate" ? [`${v}%`, name] : [v, name]
-                          }
-                        />
-                        <Area
-                          yAxisId="left"
-                          type="monotone"
-                          dataKey="total"
-                          name={trends.cfg.bucketUnitLabel}
-                          stroke="#13d2e5"
-                          strokeWidth={1.5}
-                          fill="url(#totalGrad)"
-                        />
-                        <Area
-                          yAxisId="right"
-                          type="monotone"
-                          dataKey="failureRate"
-                          name="Failure rate"
-                          stroke="#f87171"
-                          strokeWidth={1}
-                          fill="url(#failRateGrad)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {(() => {
-                  const failureWindowMs = trends.cfg.windowMs;
-                  const failureNow = Date.now();
-                  const failedItems = overviewAllActivity.filter((item) => {
-                    if (!isItemFailed(item)) return false;
-                    const t = parseActivityTs(item.updated_at);
-                    if (!t) return false;
-                    const age = failureNow - t;
-                    return age >= 0 && age < failureWindowMs;
-                  });
-                  const groups = new Map<
-                    string,
-                    { count: number; latest: BrainstormRequestInstance; pubkeys: Set<string> }
-                  >();
-                  for (const item of failedItems) {
-                    const key = normalizeErrorKey(extractErrorMessage(item)) + "|" + (getFailureStage(item) ?? "");
-                    const existing = groups.get(key);
-                    if (existing) {
-                      existing.count += 1;
-                      if (item.pubkey) existing.pubkeys.add(item.pubkey);
-                      const latestT = new Date(
-                        existing.latest.updated_at.endsWith("Z")
-                          ? existing.latest.updated_at
-                          : existing.latest.updated_at + "Z",
-                      ).getTime();
-                      const itemT = new Date(
-                        item.updated_at.endsWith("Z") ? item.updated_at : item.updated_at + "Z",
-                      ).getTime();
-                      if (itemT > latestT) existing.latest = item;
-                    } else {
-                      groups.set(key, { count: 1, latest: item, pubkeys: new Set(item.pubkey ? [item.pubkey] : []) });
-                    }
-                  }
-                  const sortedGroups = Array.from(groups.values())
-                    .sort((a, b) => {
-                      const at = new Date(
-                        a.latest.updated_at.endsWith("Z") ? a.latest.updated_at : a.latest.updated_at + "Z",
-                      ).getTime();
-                      const bt = new Date(
-                        b.latest.updated_at.endsWith("Z") ? b.latest.updated_at : b.latest.updated_at + "Z",
-                      ).getTime();
-                      if (bt !== at) return bt - at;
-                      return b.count - a.count;
-                    })
-                    .slice(0, 8);
-                  const totalFailures = failedItems.length;
-                  const dataUnavailable =
-                    overviewActivityQuery.isError ||
-                    (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
-                  // Nothing to act on: one line, not a block of empty space.
-                  const quiet = !dataUnavailable && !overviewLoading && totalFailures === 0;
-                  return (
-                    <div
-                      className={`overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm dark:shadow-none lg:col-span-2 ${quiet ? "border-border" : "border-red-200/70 dark:border-red-500/25"}`}
-                      data-testid="card-recent-failures"
-                    >
-                      <div className={quiet ? "px-5 py-3" : "border-b border-red-100 px-5 py-4 dark:border-red-500/20"}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3
-                              className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100"
-                              style={{ fontFamily: "var(--font-display)" }}
-                            >
-                              {quiet ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                              ) : (
-                                <AlertTriangle className="h-4 w-4 text-red-500" />
-                              )}
-                              Recent Failures
-                            </h3>
-                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                              {totalFailures === 0
-                                ? `No failures in ${trends.cfg.windowPhrase}.`
-                                : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} in ${trends.cfg.windowPhrase}, grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
-                            </p>
-                          </div>
-                          <Chip
-                            tone={totalFailures === 0 ? "emerald" : "red"}
-                            className="px-2 py-1 font-bold tabular-nums"
-                            data-testid="badge-failure-count"
-                          >
-                            {totalFailures}
-                          </Chip>
-                        </div>
-                      </div>
-                      {quiet ? null : (
-                        <div className="p-5">
-                          {overviewActivityQuery.isError ? (
-                            <div
-                              className="flex flex-col items-center justify-center py-6 text-center"
-                              data-testid="failures-error-state"
-                            >
-                              <XCircle className="mb-2 h-8 w-8 text-red-400" />
-                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                Couldn't load failure data
-                              </p>
-                              <p className="mt-1 max-w-md text-[11px] text-slate-500 dark:text-slate-400">
-                                {overviewActivityQuery.error instanceof Error
-                                  ? overviewActivityQuery.error.message
-                                  : "The /admin/activity endpoint did not respond. Failure status is unknown."}
-                              </p>
-                            </div>
-                          ) : overviewLoading && totalFailures === 0 ? (
-                            <div className="flex items-center justify-center py-6">
-                              <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                            </div>
-                          ) : dataUnavailable ? (
-                            <div
-                              className="flex flex-col items-center justify-center py-6 text-center"
-                              data-testid="failures-unknown-state"
-                            >
-                              <AlertTriangle className="mb-2 h-8 w-8 text-amber-400" />
-                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                Failure status unavailable
-                              </p>
-                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                                Activity data has not loaded yet.
-                              </p>
-                            </div>
-                          ) : totalFailures === 0 ? (
-                            <div
-                              className="flex flex-col items-center justify-center py-6 text-center"
-                              data-testid="failures-empty-state"
-                            >
-                              <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
-                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                All recent requests succeeded
-                              </p>
-                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                                No errors found in the latest activity feed.
-                              </p>
-                            </div>
-                          ) : (
-                            <ul className="space-y-2.5" data-testid="list-recent-failures">
-                              {sortedGroups.map((g, idx) => {
-                                const stage = getFailureStage(g.latest) ?? "Pipeline";
-                                const errMsg = extractErrorMessage(g.latest);
-                                const userCount = g.pubkeys.size;
-                                return (
-                                  <li
-                                    key={idx}
-                                    className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
-                                    data-testid={`failure-group-${idx}`}
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                                      <div className="min-w-0 flex-1">
-                                        <div className="mb-1 flex flex-wrap items-center gap-2">
-                                          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
-                                            {stage}
-                                          </span>
-                                          {g.count > 1 && (
-                                            <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
-                                              {g.count}× occurrences
-                                            </span>
-                                          )}
-                                          {userCount > 0 && (
-                                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                                              {userCount} user{userCount === 1 ? "" : "s"} affected
-                                            </span>
-                                          )}
-                                          <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">
-                                            {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
-                                          </span>
-                                        </div>
-                                        <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
-                                          {truncateError(errMsg, 220)}
-                                        </p>
-                                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                                          {g.latest.pubkey && (
-                                            <button
-                                              onClick={() => {
-                                                const pk = g.latest.pubkey!;
-                                                openInUsers(pk);
-                                              }}
-                                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-deep hover:text-brand-accent"
-                                              data-testid={`failure-group-view-user-${idx}`}
-                                            >
-                                              <Eye className="h-3 w-3" /> View latest affected user
-                                            </button>
-                                          )}
-                                          {g.latest.pubkey && (
-                                            <ConfirmRetriggerButton
-                                              pubkey={g.latest.pubkey}
-                                              testId={`failure-group-retrigger-${idx}`}
-                                              onConfirm={async (pk) => {
-                                                try {
-                                                  await retriggerOne(pk);
-                                                  toast({
-                                                    title: "Request Queued",
-                                                    description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...`,
-                                                  });
-                                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
-                                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-                                                  triggerRefreshBoost();
-                                                } catch (err: unknown) {
-                                                  const msg = err instanceof Error ? err.message : "Unknown error";
-                                                  toast({
-                                                    title: "Re-trigger Failed",
-                                                    description: msg,
-                                                    variant: "destructive",
-                                                  });
-                                                  throw err;
-                                                }
-                                              }}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
+            <OverviewTab
+              trends={trends}
+              activityCoverage={activityCoverage}
+              overviewAllActivity={overviewAllActivity}
+              overviewAllUsers={overviewAllUsers}
+              overviewLoading={overviewLoading}
+              overviewActivityQuery={overviewActivityQuery}
+              overviewUsersQuery={overviewUsersQuery}
+              retriggerOne={retriggerOne}
+              onTriggered={triggerRefreshBoost}
+              onOpenUser={openInUsers}
+            />
           )}
 
           {activeTab === "users" && (
