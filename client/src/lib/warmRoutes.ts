@@ -5,6 +5,7 @@
  * page instead of the loading screen. Not on Data Saver or a slow connection
  * (lib/connection): the reader's data is theirs.
  */
+import type { Observable } from "rxjs";
 import { connectionSpeed, type ConnectionSpeed } from "@/lib/connection";
 
 interface Warmable {
@@ -30,4 +31,53 @@ export function warmRoutes(
   whenIdle(() => {
     void pages.reduce<Promise<void>>((done, p) => done.then(() => p.preload()), Promise.resolve());
   });
+}
+
+/** What a reader starts using the app with: a tap, a key, a scroll. */
+const INTERACTIONS = ["pointerdown", "keydown", "scroll"] as const;
+
+/**
+ * The app's warm-up, by who is visiting. `always` for everyone; `signedIn`
+ * once an account is active (the dashboard is theirs alone); `onInteraction`
+ * once an anonymous reader starts using the page, rather than for every
+ * one-off visitor who reads the landing and leaves. Each set at most once, and
+ * none on a slow connection (warmRoutes). Returns a stop.
+ */
+export function warmAppRoutes(
+  pages: { always: readonly Warmable[]; signedIn: readonly Warmable[]; onInteraction: readonly Warmable[] },
+  {
+    active$,
+    target = window,
+    whenIdle = afterIdle,
+    speed = connectionSpeed,
+  }: {
+    active$: Observable<unknown>;
+    target?: EventTarget;
+    whenIdle?: (run: () => void) => void;
+    speed?: () => ConnectionSpeed;
+  },
+): () => void {
+  const warm = (set: readonly Warmable[]) => warmRoutes(set, { whenIdle, speed });
+  warm(pages.always);
+
+  let signedIn = false;
+  const sub = active$.subscribe((account) => {
+    if (!account || signedIn) return;
+    signedIn = true;
+    warm(pages.signedIn);
+  });
+
+  const onInteraction = () => {
+    stopListening();
+    warm(pages.onInteraction);
+  };
+  const stopListening = () => {
+    for (const type of INTERACTIONS) target.removeEventListener(type, onInteraction);
+  };
+  for (const type of INTERACTIONS) target.addEventListener(type, onInteraction, { passive: true, once: true });
+
+  return () => {
+    sub.unsubscribe();
+    stopListening();
+  };
 }

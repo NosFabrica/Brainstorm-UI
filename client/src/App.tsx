@@ -25,7 +25,7 @@ import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import { AdminProfileRoute, AdminRoute } from "@/pages/AdminRoute";
 import { lazyWithReload } from "@/lib/lazyWithReload";
 import { RouteFallback } from "@/components/RouteFallback";
-import { warmRoutes } from "@/lib/warmRoutes";
+import { warmAppRoutes } from "@/lib/warmRoutes";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -296,12 +296,21 @@ function Router() {
   );
 }
 
-/** The pages most reached from search and the header, warmed once the app is idle (lib/warmRoutes). */
-const WARM_PAGES = [EventPage, HashtagPage, LoginPage, DashboardPage];
+/**
+ * The pages most reached from search and the header, warmed once the app is
+ * idle (lib/warmRoutes), by who is visiting: the light ones for everyone; the
+ * post page (the markdown stack) once a reader starts using the app, or at once
+ * when signed in; the dashboard only for someone signed in, whose page it is.
+ */
+const WARM_PAGES = {
+  always: [HashtagPage, LoginPage],
+  signedIn: [EventPage, DashboardPage],
+  onInteraction: [EventPage],
+};
 
 function App() {
   // Their code arrives before the reader moves to them: the page, not the loading screen.
-  useEffect(() => warmRoutes(WARM_PAGES), []);
+  useEffect(() => warmAppRoutes(WARM_PAGES, { active$: accountManager.active$ }), []);
   return (
     <AccountsProvider manager={accountManager}>
       <EventStoreProvider eventStore={eventStore}>
