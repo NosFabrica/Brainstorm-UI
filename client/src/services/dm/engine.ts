@@ -39,7 +39,7 @@ import {
   type SealSigner,
 } from "@/lib/dm/giftWrap";
 import { Heap } from "@/lib/dm/heap";
-import { DmStore, messageFromRumor, type Delivery, type DmMessage, type OutgoingStatus } from "@/lib/dm/store";
+import { messageFromRumor, type DmStore, type Delivery, type DmMessage, type OutgoingStatus } from "@/lib/dm/store";
 import { chatTags } from "@/lib/dm/rooms";
 import { onAppResume } from "@/lib/appResume";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
@@ -53,6 +53,8 @@ import {
   type Sealer,
   type StoredWrap,
 } from "@/lib/dm/cache";
+import { makeClock, type Clock } from "./clock";
+import { DmCore } from "./core";
 
 /** A week of live tail at most; older is history. */
 export const LIVE_TAIL_SECONDS = 7 * 24 * 3600;
@@ -219,7 +221,9 @@ const EMPTY_HISTORY: PagerSnapshot = { floor: 0, relays: [], loading: false, exh
 export class DmEngine {
   readonly store: DmStore;
   private readonly me: string;
-  private readonly now: () => number;
+  /** What the parts share, the one `stopped` flag among it. */
+  private readonly core: DmCore;
+  private readonly clock: Clock;
   private readonly cache: DmCacheBackend | null;
   /**
    * The ceiling, and how many may be open right now: one until the first opens (a
@@ -255,7 +259,7 @@ export class DmEngine {
   private lastSeen?: number;
 
   /** Wrap ids already opened (or given up on). */
-  private readonly seen = new Set<string>();
+  private readonly seen: Set<string>;
   /** Wraps the device holds (by its keys) whose rows aren't read back yet — see `restore`. */
   private readonly unhydrated = new Set<string>();
   /** Copies of those that came from a relay meanwhile, with the relays they came from. */
@@ -274,7 +278,7 @@ export class DmEngine {
   /** Messages is open: the rest of the device's messages are read and opened. */
   private restNow = false;
   /** wrap id → message id, to merge relays when the same wrap arrives again. */
-  private readonly wrapToMessage = new Map<string, string>();
+  private readonly wrapToMessage: Map<string, string>;
   private readonly queue = new Map<string, Queued>();
   /** The queue in opening order; entries no longer in `queue` are skipped. */
   private readonly order = new Heap<Queued>(openFirst);
@@ -329,7 +333,6 @@ export class DmEngine {
   private ticker: unknown;
   private readonly listeners = new Set<() => void>();
   private snap: DmEngineState | null = null;
-  private stopped = false;
   /**
    * Whether the device cache is still this engine's to write: taken once, when the
    * engine starts, so a clear (sign-out) after that ends every write it would make —
@@ -342,11 +345,22 @@ export class DmEngine {
     private readonly deps: DmEngineDeps,
   ) {
     this.me = account.pubkey;
-    this.store = new DmStore(this.me);
-    this.now = deps.now ?? (() => Math.floor(Date.now() / 1000));
+    this.clock = makeClock(deps);
+    this.core = new DmCore(this.me, this.clock, deps.online ?? onlineNow, () => this.changed());
+    this.store = this.core.store;
+    this.seen = this.core.seen;
+    this.wrapToMessage = this.core.wrapToMessage;
     this.cache = deps.cache ?? null;
     this.cacheLive = this.cache?.guard?.() ?? (() => true);
     this.maxConcurrency = deps.concurrency ?? 2;
+  }
+
+  private get stopped(): boolean {
+    return this.core.stopped;
+  }
+
+  private now(): number {
+    return this.clock.now();
   }
 
   get pubkey(): string {
@@ -394,29 +408,25 @@ export class DmEngine {
       stopOnline();
       stopResume();
     };
-    const repeat = this.deps.setRepeating ?? ((fn, ms) => setInterval(fn, ms));
-    this.ticker = repeat(() => this.tick(), 60_000);
+    this.ticker = this.clock.repeat(() => this.tick(), 60_000);
   }
 
   stop(): void {
-    this.stopped = true;
+    this.core.stopped = true;
     this.status = "stopped";
     this.disconnect();
     for (const stop of this.sendAuthWaits.values()) stop();
     this.sendAuthWaits.clear();
     this.stopOnline?.();
-    if (this.resumeTimer !== undefined)
-      (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.resumeTimer);
+    if (this.resumeTimer !== undefined) this.clock.clear(this.resumeTimer);
     this.clearPace();
     this.sealOf.clear();
     this.pendingRows = [];
-    const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
-    if (this.stateTimer !== undefined) clearTimer(this.stateTimer);
+    if (this.stateTimer !== undefined) this.clock.clear(this.stateTimer);
     this.stateTimer = undefined;
     this.queue.clear();
     this.order.clear();
-    const clearRepeat = this.deps.clearRepeating ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
-    if (this.ticker !== undefined) clearRepeat(this.ticker);
+    if (this.ticker !== undefined) this.clock.clearRepeat(this.ticker);
     this.flushWrites();
     this.persistState({ final: true });
     this.changed();
@@ -456,7 +466,7 @@ export class DmEngine {
       // Not found may be not found *yet* (relays slow at sign-in): look again, twice, before believing it.
       if (this.noInboxRetries < NO_INBOX_RETRY_MS.length) {
         const wait = NO_INBOX_RETRY_MS[this.noInboxRetries++];
-        (this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms)))(() => {
+        this.clock.set(() => {
           if (!this.stopped && this.status === "no-inbox") void this.refreshInbox();
         }, wait);
       }
@@ -488,8 +498,8 @@ export class DmEngine {
           h,
         ),
       onWrap: (wrap, relay) => this.ingest(wrap, relay),
-      setTimer: this.deps.setTimer,
-      clearTimer: this.deps.clearTimer,
+      setTimer: this.clock.set,
+      clearTimer: this.clock.clear,
     });
     this.pager.setRelays(this.inbox);
     this.pager.subscribe(() => {
@@ -504,7 +514,7 @@ export class DmEngine {
     this.liveWaitOver = false;
     const generation = ++this.liveGeneration;
     // History waits for each relay's live answer (canPage); after a while, not any more.
-    (this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms)))(() => {
+    this.clock.set(() => {
       if (generation !== this.liveGeneration) return;
       this.liveWaitOver = true;
       this.changed();
@@ -870,13 +880,12 @@ export class DmEngine {
     if (!this.cache || this.stopped) return;
     this.writes.push(row);
     if (this.writeTimer !== undefined) return;
-    const set = this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
-    this.writeTimer = set(() => this.flushWrites(), 1000);
+    this.writeTimer = this.clock.set(() => this.flushWrites(), 1000);
   }
 
   private flushWrites() {
     if (this.writeTimer !== undefined) {
-      (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.writeTimer);
+      this.clock.clear(this.writeTimer);
       this.writeTimer = undefined;
     }
     const rows = this.writes;
@@ -908,8 +917,7 @@ export class DmEngine {
 
   private scheduleState() {
     if (!this.cache || this.stopped || this.stateTimer !== undefined) return;
-    const set = this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
-    this.stateTimer = set(() => {
+    this.stateTimer = this.clock.set(() => {
       this.stateTimer = undefined;
       this.persistState();
     }, 1500);
@@ -942,7 +950,7 @@ export class DmEngine {
   // ─── the outbox ─────────────────────────────────────────────────────────
 
   private get online(): boolean {
-    return (this.deps.online ?? onlineNow)();
+    return this.core.online();
   }
 
   /** The outbox, sealed like opened messages. Nothing kept where the device can't seal. */
@@ -1142,7 +1150,7 @@ export class DmEngine {
     const { wrap } = item;
     const seq = ++this.asked;
     const epoch = this.paceEpoch;
-    const askedAt = this.clockMs();
+    const askedAt = this.clock.ms();
     let over = false;
     // Past its deadline a wrap asks nothing more: a late "yes" to its first step must
     // not bring a second prompt (Amber, one approval per request) or spend the budget.
@@ -1162,7 +1170,7 @@ export class DmEngine {
       this.seen.add(wrap.id);
       this.openedCount++;
       this.answeredUpTo = Math.max(this.answeredUpTo, seq);
-      this.lastOpenMs = this.clockMs() - askedAt;
+      this.lastOpenMs = this.clock.ms() - askedAt;
       this.paceUp();
       const now = this.now();
       // NIP-17: a message to the reader names them. One that doesn't would make
@@ -1268,8 +1276,6 @@ export class DmEngine {
    */
   private withDeadline<T>(work: Promise<T>, seq: number, onOver: () => void): Promise<T> {
     const limit = this.deps.decryptTimeoutMs ?? DECRYPT_TIMEOUT_MS;
-    const set = this.deps.setTimer ?? ((fn, wait) => setTimeout(fn, wait));
-    const clear = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     return new Promise<T>((resolve, reject) => {
       let waited = 0;
       let timer: unknown;
@@ -1279,7 +1285,7 @@ export class DmEngine {
       };
       const arm = () => {
         const step = Math.min(ANSWERING_TIMEOUT_MS, limit - waited);
-        timer = set(() => {
+        timer = this.clock.set(() => {
           waited += step;
           if (this.deps.dropDetection && (this.answeredUpTo > seq || this.lastOpenMs < FAST_OPEN_MS)) giveUp(true);
           else if (waited >= limit) giveUp(false);
@@ -1289,11 +1295,11 @@ export class DmEngine {
       arm();
       work.then(
         (v) => {
-          clear(timer);
+          this.clock.clear(timer);
           resolve(v);
         },
         (e) => {
-          clear(timer);
+          this.clock.clear(timer);
           reject(e);
         },
       );
@@ -1316,7 +1322,7 @@ export class DmEngine {
     if (!wait || this.paceTimer !== undefined) return true;
     if (this.paceTries >= RATE_LIMIT_WAIT_MS.length) return false;
     const ms = RATE_LIMIT_WAIT_MS[this.paceTries++];
-    this.paceTimer = (this.deps.setTimer ?? ((fn, t) => setTimeout(fn, t)))(() => {
+    this.paceTimer = this.clock.set(() => {
       this.paceTimer = undefined;
       if (this.stopped) return;
       this.changed();
@@ -1325,13 +1331,9 @@ export class DmEngine {
     return true;
   }
 
-  private clockMs(): number {
-    return (this.deps.clockMs ?? Date.now)();
-  }
-
   private clearPace() {
     if (this.paceTimer === undefined) return;
-    (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.paceTimer);
+    this.clock.clear(this.paceTimer);
     this.paceTimer = undefined;
   }
 
@@ -1359,7 +1361,7 @@ export class DmEngine {
   private scheduleResume() {
     if (this.resumeTimer !== undefined || this.resumeTries >= RESUME_AFTER_MS.length) return;
     const wait = RESUME_AFTER_MS[this.resumeTries++];
-    this.resumeTimer = (this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms)))(() => {
+    this.resumeTimer = this.clock.set(() => {
       this.resumeTimer = undefined;
       if (!this.stopped && this.paused === "unreachable") this.permitDecrypt();
     }, wait);
