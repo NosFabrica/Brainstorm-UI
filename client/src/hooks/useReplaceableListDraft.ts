@@ -72,8 +72,9 @@ export interface ReplaceableListDraft<T> {
   retry: () => void;
   /**
    * Publish the draft through `send`, on top of the newest version. Refused,
-   * with nothing sent, while the list isn't read or a newer version arrived.
-   * On success the draft is dropped: the store's new version is the value.
+   * with nothing sent, while the list isn't read or a newer version arrived
+   * (with `replaceWith` too), and answered `cancelled` while another publish
+   * is out. On success the draft is dropped: the store's new version is the value.
    */
   publish: <R extends ListPublishResult>(
     send: (value: T, ctx: ListPublishContext) => Promise<R & { event?: NostrEvent }>,
@@ -168,20 +169,27 @@ export function useReplaceableListDraft<T>(
   const discard = useCallback(() => setDraft(null), []);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
+  // Set before the first await, so a second click in the same tick finds it.
+  const publishingRef = useRef(false);
   const publish = useCallback(
     async <R extends ListPublishResult>(
       send: (value: T, ctx: ListPublishContext) => Promise<R & { event?: NostrEvent }>,
       replaceWith?: T,
     ): Promise<R | ListPublishResult> => {
       if (!pubkey || statusRef.current !== "ready") return { success: false, error: LIST_NOT_READ };
+      if (publishingRef.current) return { success: false, cancelled: true };
+      // A whole list chosen at once replaces the draft's value, not the check:
+      // it was chosen over the version on screen, and a newer one is refused
+      // for it as for an edit.
       const replacing = replaceWith !== undefined;
-      if (stale && !replacing) return { success: false, error: NEWER_VERSION_ARRIVED };
+      if (stale) return { success: false, error: NEWER_VERSION_ARRIVED };
+      publishingRef.current = true;
       setPublishing(true);
       try {
         // Once more from the relays: a version published elsewhere since the read.
         const now = await probeReplaceable(kind, pubkey, d, { relays, also });
         const newest = newestVersion([latestRef.current, now.event], kind, pubkey, d);
-        if (!replacing && newest && newest.id !== base?.id && beats(newest, base ?? undefined)) {
+        if (newest && newest.id !== base?.id && beats(newest, base ?? undefined)) {
           // Into the store: an untouched draft moves onto it, a touched one shows as stale.
           if (now.event) eventStore.add(now.event);
           return { success: false, error: NEWER_VERSION_ARRIVED };
@@ -204,6 +212,7 @@ export function useReplaceableListDraft<T>(
         }
         return res;
       } finally {
+        publishingRef.current = false;
         setPublishing(false);
       }
     },

@@ -195,4 +195,80 @@ describe("useReplaceableListDraft", () => {
     expect(result.current.latest).toBeNull();
     expect(result.current.value).toEqual([]);
   });
+
+  describe("a whole list chosen at once (replaceWith)", () => {
+    it("is refused over a newer version that arrived, like an edit", async () => {
+      const first = version(["wss://a"], 100);
+      eventStore.add(first);
+      probes.next = [answered(first)];
+      const { result } = draftOf();
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      act(() => result.current.edit((v) => [...v, "wss://mine"]));
+      act(() => {
+        eventStore.add(version(["wss://a", "wss://theirs"], 200));
+      });
+      await waitFor(() => expect(result.current.stale).toBe(true));
+
+      const send = vi.fn(async () => ({ success: true }));
+      expect(await act(() => result.current.publish(send, ["wss://suggested"]))).toEqual({
+        success: false,
+        error: NEWER_VERSION_ARRIVED,
+      });
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it("reads once more first, and is refused when a newer version is out there", async () => {
+      const first = version(["wss://a"], 100);
+      eventStore.add(first);
+      const newer = version(["wss://a", "wss://theirs"], 200);
+      probes.next = [answered(first), answered(newer)];
+      const { result } = draftOf();
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      const send = vi.fn(async () => ({ success: true }));
+      expect(await act(() => result.current.publish(send, ["wss://suggested"]))).toEqual({
+        success: false,
+        error: NEWER_VERSION_ARRIVED,
+      });
+      expect(send).not.toHaveBeenCalled();
+      // Untouched, the draft moves onto what the read found.
+      await waitFor(() => expect(result.current.value).toEqual(["wss://a", "wss://theirs"]));
+    });
+
+    it("publishes the chosen list, not the draft, past the newest version", async () => {
+      const first = version(["wss://a"], 2_000_000_000);
+      eventStore.add(first);
+      probes.next = [answered(first)];
+      const { result } = draftOf();
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      act(() => result.current.edit((v) => [...v, "wss://mine"]));
+
+      const send = vi.fn(async (value: string[], ctx: { createdAt: number }) => ({
+        success: true,
+        event: version(value, ctx.createdAt),
+      }));
+      await act(() => result.current.publish(send, ["wss://suggested"]));
+      expect(send).toHaveBeenCalledWith(["wss://suggested"], { base: first, createdAt: 2_000_000_001 });
+      expect(result.current.value).toEqual(["wss://suggested"]);
+    });
+  });
+
+  it("publishes once for two clicks in the same tick", async () => {
+    const first = version(["wss://a"], 100);
+    eventStore.add(first);
+    probes.next = [answered(first)];
+    const { result } = draftOf();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    act(() => result.current.edit((v) => [...v, "wss://mine"]));
+
+    const send = vi.fn(async (value: string[], ctx: { createdAt: number }) => ({
+      success: true,
+      event: version(value, ctx.createdAt),
+    }));
+    const { publish } = result.current;
+    const [a, b] = await act(() => Promise.all([publish(send), publish(send)]));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(a.success).toBe(true);
+    expect(b).toEqual({ success: false, cancelled: true });
+  });
 });

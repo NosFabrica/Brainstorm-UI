@@ -198,6 +198,8 @@ export function ListEditor({
           return { success: false, error: e instanceof Error ? e.message : String(e) };
         }
       });
+      // A second click while the first is out: the first one answers.
+      if ("cancelled" in res && res.cancelled) return;
       if (!res.success) {
         setError(
           !inPlace && res.error === NEWER_VERSION_ARRIVED
