@@ -22,6 +22,9 @@ function tag(authorPubkey: string, slug: string, applications: string[], dispute
     slug,
     applications: new Set(applications),
     disputes: new Set(disputes),
+    selfApplied: false,
+    selfDisputed: false,
+    addedAt: 0,
   };
 }
 

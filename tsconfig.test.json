@@ -1,0 +1,12 @@
+{
+  // The test suite's type-check (`npm run check:tests`). tsconfig.json leaves the
+  // tests out, and vitest strips types without checking them, so a mock could
+  // drift from the signature it stands in for and nothing would say so.
+  "extends": "./tsconfig.json",
+  "include": ["client/src/**/*", "vitest.config.ts"],
+  "exclude": ["node_modules", "build", "dist"],
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo.test",
+    "types": ["node", "vite/client", "@testing-library/jest-dom/vitest"]
+  }
+}

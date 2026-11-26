@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe("the API's health", () => {
   it("two failures on different routes within the window earn one probe, and a probe that fails marks the API down", async () => {
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
       throw new TypeError("Failed to fetch");
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -51,7 +51,7 @@ describe("the API's health", () => {
   });
 
   it("a probe that answers — even with a 404 — keeps the API up and forgets the failures", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 404 }));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("", { status: 404 }));
     vi.stubGlobal("fetch", fetchMock);
     reportApiFailure("/user/aaa/overview");
     reportApiFailure("/user/aaa/stats");
@@ -65,7 +65,7 @@ describe("the API's health", () => {
   });
 
   it("one route failing twice — a slow endpoint timing out — earns no probe; only a second route does", async () => {
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
       throw new TypeError("Failed to fetch");
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -89,7 +89,7 @@ describe("the API's health", () => {
   // Down is not forever: the store keeps asking, and the pages refill the
   // moment the server answers — without a reload.
   it("while down it probes at 10, 20, then every 30 seconds, and the first answer brings it back and tells the app once", async () => {
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
       throw new TypeError("Failed to fetch");
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -119,7 +119,7 @@ describe("the API's health", () => {
   // Offline is the reader's network, not our server: no probe, no verdict —
   // and the moment they are back online, one probe settles it.
   it("offline earns no verdict; coming back online probes once", async () => {
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
       throw new TypeError("Failed to fetch");
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -139,7 +139,7 @@ describe("the API's health", () => {
   // A preview for design review, the `?demo=display` precedent — in memory
   // only, never persisted, and the probe loop leaves it alone.
   it("?sorry=api forces the API down for this page load, without a probe, and a probe cannot clear it", async () => {
-    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     window.history.replaceState({}, "", "/dashboard?sorry=api");
     __resetServerStatus();

@@ -14,7 +14,7 @@ const HZRD = "266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5";
 const COPYCAT = "e48465b08afc" + "0".repeat(52);
 
 function stubNames(names: Record<string, string>) {
-  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ names }), { status: 200 }));
+  const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ names }), { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -71,14 +71,14 @@ describe("verifyNip05", () => {
   it("an unreachable domain is unknown, not verified", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn<typeof fetch>(async () => {
         throw new TypeError("Failed to fetch");
       }),
     );
     expect(await verifyNip05("_@down.example", HZRD)).toBe("unknown");
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("nope", { status: 404 })),
+      vi.fn<typeof fetch>(async () => new Response("nope", { status: 404 })),
     );
     expect(await verifyNip05("_@missing.example", HZRD)).toBe("unknown");
   });
@@ -120,7 +120,7 @@ describe("verifyNip05", () => {
     const release: Array<() => void> = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn<typeof fetch>(async () => {
         open++;
         peak = Math.max(peak, open);
         await new Promise<void>((r) => release.push(r));
@@ -158,7 +158,7 @@ describe("handleOwner", () => {
     expect(await handleOwner("not a handle", COPYCAT)).toBeNull();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn<typeof fetch>(async () => {
         throw new TypeError("Failed to fetch");
       }),
     );
@@ -183,15 +183,15 @@ describe("resolveNip05", () => {
   beforeEach(() => __resetNip05());
 
   it("asks the domain's well-known for the name, and answers the pubkey", async () => {
-    const fetchMock = vi.fn(async () => ok({ names: { whitenoise: PK } }));
+    const fetchMock = vi.fn<typeof fetch>(async () => ok({ names: { whitenoise: PK } }));
     vi.stubGlobal("fetch", fetchMock);
     expect(await resolveNip05("whitenoise@primal.net")).toBe(PK);
     expect(fetchMock.mock.calls[0][0]).toBe("https://primal.net/.well-known/nostr.json?name=whitenoise");
-    expect((fetchMock.mock.calls[0][1] as { signal?: AbortSignal })?.signal).toBeInstanceOf(AbortSignal);
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("normalises the handle: case, and a bare domain is its `_` name", async () => {
-    const fetchMock = vi.fn(async () => ok({ names: { alice: PK, _: PK } }));
+    const fetchMock = vi.fn<typeof fetch>(async () => ok({ names: { alice: PK, _: PK } }));
     vi.stubGlobal("fetch", fetchMock);
     expect(await resolveNip05("Alice@Primal.net")).toBe(PK);
     expect(fetchMock.mock.calls[0][0]).toBe("https://primal.net/.well-known/nostr.json?name=alice");
@@ -202,13 +202,13 @@ describe("resolveNip05", () => {
   it("answers null, never throws: non-2xx, a dead network, bad JSON, a missing name, a bad key", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("", { status: 404 })),
+      vi.fn<typeof fetch>(async () => new Response("", { status: 404 })),
     );
     expect(await resolveNip05("a@x.org")).toBeNull();
     __resetNip05();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn<typeof fetch>(async () => {
         throw new TypeError("blocked");
       }),
     );
@@ -216,25 +216,25 @@ describe("resolveNip05", () => {
     __resetNip05();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("<html>", { status: 200 })),
+      vi.fn<typeof fetch>(async () => new Response("<html>", { status: 200 })),
     );
     expect(await resolveNip05("a@x.org")).toBeNull();
     __resetNip05();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ok({ names: { someone: PK } })),
+      vi.fn<typeof fetch>(async () => ok({ names: { someone: PK } })),
     );
     expect(await resolveNip05("a@x.org")).toBeNull();
     __resetNip05();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ok({ names: { a: "not-a-key" } })),
+      vi.fn<typeof fetch>(async () => ok({ names: { a: "not-a-key" } })),
     );
     expect(await resolveNip05("a@x.org")).toBeNull();
   });
 
   it("asks once per handle for the session", async () => {
-    const fetchMock = vi.fn(async () => ok({ names: { alice: PK } }));
+    const fetchMock = vi.fn<typeof fetch>(async () => ok({ names: { alice: PK } }));
     vi.stubGlobal("fetch", fetchMock);
     await Promise.all([resolveNip05("alice@primal.net"), resolveNip05("ALICE@primal.net")]);
     expect(await resolveNip05("alice@primal.net")).toBe(PK);

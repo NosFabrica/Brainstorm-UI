@@ -6,12 +6,13 @@
  * tracks on Nostr, or their other songs on Wavlake.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { searchWavlake, WavlakeArtist } from "@/lib/wavlake";
 
 const recentMock = vi.fn<(pk: string, kinds: number[], limit: number) => Promise<unknown[]>>(async () => []);
 vi.mock("@/services/nostr", () => ({
   fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit),
 }));
-const catalogueMock = vi.fn(async () => ({ artists: [], albums: [], songs: [] as unknown[] }));
+const catalogueMock = vi.fn<typeof searchWavlake>(async () => ({ artists: [], albums: [], songs: [] }));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlake: (term: string) => catalogueMock(term),
@@ -139,21 +140,19 @@ describe("in-app destinations for Wavlake", () => {
     expect(wavlakeSongHref(song(""))).toBe("/?q=Ainsley%20Costello&t=music");
   });
   it("an artist likewise — never the Wavlake site", () => {
-    expect(
-      wavlakeArtistHref({
-        id: "a1",
-        name: "NOVA Sound System",
-        url: "https://wavlake.com/nova-sound-system",
-        artistNpub: "",
-      }),
-    ).toBe("/?q=NOVA%20Sound%20System&t=music");
-    expect(
-      wavlakeArtistHref({
-        id: "a2",
-        name: "X",
-        url: "https://wavlake.com/x",
-        artistNpub: "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy",
-      }),
-    ).toMatch(/^\/p\/npub1/);
+    const unlinked: WavlakeArtist = {
+      id: "a1",
+      name: "NOVA Sound System",
+      url: "https://wavlake.com/nova-sound-system",
+      artistNpub: "",
+    };
+    expect(wavlakeArtistHref(unlinked)).toBe("/?q=NOVA%20Sound%20System&t=music");
+    const linked: WavlakeArtist = {
+      id: "a2",
+      name: "X",
+      url: "https://wavlake.com/x",
+      artistNpub: "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy",
+    };
+    expect(wavlakeArtistHref(linked)).toMatch(/^\/p\/npub1/);
   });
 });

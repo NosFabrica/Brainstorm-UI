@@ -61,7 +61,7 @@ afterEach(() => {
 
 /** Whatever `fetch` should answer, in order. */
 function stubFetch(...responses: Response[]) {
-  const fetchMock = vi.fn(async () => responses.shift() ?? new Response("{}", { status: 200 }));
+  const fetchMock = vi.fn<typeof fetch>(async () => responses.shift() ?? new Response("{}", { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -283,7 +283,7 @@ describe("resuming a deferred session", () => {
 describe("several requests meeting the same expired token", () => {
   it("adopts the token a sibling just minted rather than asking the signer again", async () => {
     holdsSession("stale");
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
       if (fetchMock.mock.calls.length === 1) {
         // a sibling request's re-auth lands while this one is in flight
         holdsSession("fresh");

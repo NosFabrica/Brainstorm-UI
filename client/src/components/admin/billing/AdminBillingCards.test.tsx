@@ -783,9 +783,11 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     });
     dismissAdminBillingUnresolved.mockResolvedValue({
       subscription_id: "sub_14",
+      resolution: "dismissed",
+      pubkey: null,
       applied: false,
-      reason: "dismissed",
-    } as AdminBillingResolution);
+      events_settled: 0,
+    });
     renderCards();
     // The exhausted event a signup already lists folds into that signup: its
     // attempts ride the delivery line, and the one menu sits on the signup.
@@ -1214,7 +1216,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(within(header).getByTestId("select-billing-status")).toBeInTheDocument();
     const table = screen.getByTestId("table-billing-subscribers");
     expect(table.className).toMatch(/border-collapse/);
-    const firstTh = table.querterySelector ? null : table.querySelector("thead th");
+    const firstTh = table.querySelector("thead th");
     expect(firstTh?.className).toMatch(/border-r/);
     expect(table.querySelector("thead tr")?.className).toMatch(/bg-slate-50/);
   });

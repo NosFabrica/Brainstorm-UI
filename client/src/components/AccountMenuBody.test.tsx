@@ -7,7 +7,7 @@ import type { BrainstormAccount } from "@/accounts/metadata";
 import type { PickerIdentity } from "@/accounts/picker";
 import { AccountMenuBody, useAccountMenu } from "./AccountMenuBody";
 
-const removeAccountFromDevice = vi.fn(() => false);
+const removeAccountFromDevice = vi.fn((_account: BrainstormAccount) => false);
 const navigate = vi.fn();
 /** The dialog turns on whether a copy of the key exists off this device. */
 const losesKey = vi.fn(() => false);

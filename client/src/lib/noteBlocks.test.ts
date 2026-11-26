@@ -4,20 +4,25 @@ import { toNoteBlocks, parseInlineMarkdown, type NoteBlock } from "@/lib/noteBlo
 import type { NoteToken } from "@/lib/noteContent";
 
 const blocks = (s: string) => toNoteBlocks(parseNoteContent(s));
+/** A block's inline tokens; fails the test for a block that has none (a list, code, a rule). */
+const tokensOf = (b: NoteBlock | undefined): NoteToken[] => {
+  if (!b || !("tokens" in b)) throw new Error(`no tokens in ${JSON.stringify(b)}`);
+  return b.tokens;
+};
 const texts = (ts: { type: string; value?: string }[]) => ts.map((t) => t.value ?? `<${t.type}>`).join("");
 
 describe("toNoteBlocks", () => {
   it("splits paragraphs on blank lines and keeps single breaks inside one", () => {
     const b = blocks("First line\nsame paragraph\n\n\nSecond paragraph");
     expect(b.map((x) => x.type)).toEqual(["p", "p"]);
-    expect(texts((b[0] as { tokens: never[] }).tokens)).toBe("First line\nsame paragraph");
+    expect(texts(tokensOf(b[0]))).toBe("First line\nsame paragraph");
   });
 
   it("reads headings, rules, quotes and fenced code", () => {
     const b = blocks("## Title\nBody\n\n---\n> quoted\n> more\n\n```\nconst x = 1;\n```");
     expect(b.map((x) => x.type)).toEqual(["h", "p", "hr", "quote", "code"]);
     expect(b[0]).toMatchObject({ level: 2 });
-    expect(texts((b[3] as { tokens: never[] }).tokens)).toBe("quoted\nmore");
+    expect(texts(tokensOf(b[3]))).toBe("quoted\nmore");
     expect(b[4]).toEqual({ type: "code", text: "const x = 1;" });
   });
 
@@ -68,7 +73,7 @@ describe("prose pass (unmarked articles, e.g. RSS bridges)", () => {
       "p",
     ]);
     // Caption and credit read as one caption; the indent doesn't survive.
-    expect(texts((b[2] as { tokens: never[] }).tokens).trim()).toBe("Caption of the photo, no period\nPhoto credit");
+    expect(texts(tokensOf(b[2])).trim()).toBe("Caption of the photo, no period\nPhoto credit");
   });
 
   it("leaves short chatty notes alone", () => {
@@ -123,7 +128,7 @@ describe("layouts that are not prose (from real events)", () => {
       "A long line of prose that goes on well past the hundred character mark, as descriptions often do, yes.";
     const b = blocks([long + " More.", "(00:00) Intro", "(02:43) Part two", "(05:45) Part three", long].join("\n"));
     expect(b.map((x) => x.type)).toEqual(["p", "p", "p"]);
-    expect(texts((b[1] as { tokens: never[] }).tokens)).toBe("(00:00) Intro\n(02:43) Part two\n(05:45) Part three");
+    expect(texts(tokensOf(b[1]))).toBe("(00:00) Intro\n(02:43) Part two\n(05:45) Part three");
   });
 
   it("reads an emoji-marked short line as a section head in a long text", () => {
@@ -293,7 +298,7 @@ describe("refactor review regressions", () => {
 
   it("a quote's trailing spacer lines are dropped", () => {
     const b = blocks("> a\n>\n>");
-    expect(texts((b[0] as { tokens: never[] }).tokens)).toBe("a");
+    expect(texts(tokensOf(b[0]))).toBe("a");
   });
 });
 
@@ -306,7 +311,7 @@ describe("audit of #97 (blocks)", () => {
     for (const t of ["- item\n=====", "> quoted\n=====", "# Title\n====="]) {
       const b = blocks(t);
       expect(
-        b.some((x) => x.type === "h" && texts((x as { tokens: never[] }).tokens).match(/^[-#>]/)),
+        b.some((x) => x.type === "h" && texts(x.tokens).match(/^[-#>]/)),
         t,
       ).toBe(false);
     }

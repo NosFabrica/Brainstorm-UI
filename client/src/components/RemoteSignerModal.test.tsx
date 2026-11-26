@@ -7,13 +7,20 @@ import { appMetadata } from "@/accounts/remote-signer";
 import { renderWithProviders } from "@/test/utils";
 import { RemoteSignerModal } from "./RemoteSignerModal";
 
+/** The real metadata's fields: appMetadata sets each, though its type leaves them optional. */
+function metadata() {
+  const { name, url, image } = appMetadata();
+  if (!name || !url || !image) throw new Error("appMetadata() left a field out");
+  return { name, url: String(url), image };
+}
+
 // Built from the real metadata, so a test comparing what we render against what
 // we send is comparing two things that can actually disagree.
 const PAIRING_URI =
   "nostrconnect://abc?secret=s&relay=wss%3A%2F%2Fours" +
-  `&name=${encodeURIComponent(appMetadata().name)}` +
-  `&url=${encodeURIComponent(appMetadata().url)}` +
-  `&image=${encodeURIComponent(appMetadata().image)}`;
+  `&name=${encodeURIComponent(metadata().name)}` +
+  `&url=${encodeURIComponent(metadata().url)}` +
+  `&image=${encodeURIComponent(metadata().image)}`;
 
 /**
  * One `cancel` per pairing, not one shared spy. A shared one can only count
@@ -97,9 +104,9 @@ describe("what the signer is about to be told about us", () => {
     open();
     const shown = screen.getByTestId("remote-signer-identity");
 
-    expect(shown).toHaveTextContent(appMetadata().name);
-    expect(shown).toHaveTextContent(new URL(appMetadata().url).host);
-    expect(screen.getByTestId("img-remote-signer-icon")).toHaveAttribute("src", appMetadata().image);
+    expect(shown).toHaveTextContent(metadata().name);
+    expect(shown).toHaveTextContent(new URL(metadata().url).host);
+    expect(screen.getByTestId("img-remote-signer-icon")).toHaveAttribute("src", metadata().image);
   });
 
   // The whole point is that the user can compare the two screens, which is

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
+import type { EventRsvps, fetchEventRsvps } from "@/services/search";
 
-const fetchMock = vi.fn(async (addresses: string[]) => new Map(addresses.map((a) => [a, { going: 1, faces: [] }])));
+const fetchMock = vi.fn<typeof fetchEventRsvps>(
+  async (addresses) => new Map(addresses.map((a) => [a, { going: 1, faces: [], people: [] }])),
+);
 vi.mock("@/services/search", () => ({ fetchEventRsvps: (addresses: string[]) => fetchMock(addresses) }));
 
 import { RSVP_SETTLE_MS, useEventRsvps } from "./useEventRsvps";
@@ -58,7 +61,7 @@ describe("useEventRsvps", () => {
   });
 
   it("drops an answer for a list it has moved on from", async () => {
-    let resolveOld: (m: Map<string, { going: number; faces: string[] }>) => void = () => {};
+    let resolveOld: (m: Map<string, EventRsvps>) => void = () => {};
     fetchMock.mockImplementationOnce(() => new Promise((r) => (resolveOld = r)));
     const { result, rerender } = renderHook(({ addrs }) => useEventRsvps(addrs), {
       initialProps: { addrs: ["31923:old:1"] },
@@ -68,7 +71,7 @@ describe("useEventRsvps", () => {
     });
     rerender({ addrs: [] });
     await act(async () => {
-      resolveOld(new Map([["31923:old:1", { going: 9, faces: [] }]]));
+      resolveOld(new Map([["31923:old:1", { going: 9, faces: [], people: [] }]]));
     });
     expect(result.current.size).toBe(0);
   });

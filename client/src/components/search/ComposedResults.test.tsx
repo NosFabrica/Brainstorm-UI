@@ -10,7 +10,7 @@ import { setTechnicalView } from "@/lib/technicalView";
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
-import type { SearchSnapshot, SearchParams } from "@/services/search";
+import type { SearchHit, SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetHeadStart } from "@/lib/headStart";
 
 // The store verifies signatures; these events are fixtures, not signed ones.
@@ -138,9 +138,10 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
 }));
 
-const hitOf = (event: NostrEvent, name = "someone") => ({
+/** `name` null: a hit whose author is not known yet. */
+const hitOf = (event: NostrEvent, name: string | null = "someone"): SearchHit => ({
   event,
-  author: author(event.pubkey, name),
+  author: name === null ? null : author(event.pubkey, name),
   rank: null,
 });
 

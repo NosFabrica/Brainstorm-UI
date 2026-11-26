@@ -18,6 +18,7 @@ const carrier = (over: Partial<TagCarrier> = {}): TagCarrier => ({
   asserters: ["b".repeat(64)],
   selfDeclared: false,
   subjectDisagreed: false,
+  addedAt: 0,
   ...over,
 });
 

@@ -10,7 +10,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("getShortestPath", () => {
   it("asks for the Path network and reads layers and links back", async () => {
-    const fetchMock = vi.fn(
+    const fetchMock = vi.fn<typeof fetch>(
       async () =>
         new Response(
           JSON.stringify({
@@ -53,7 +53,7 @@ describe("getShortestPath", () => {
 
 describe("getShortestHops", () => {
   it("asks for hops only and reads reachable/hops back", async () => {
-    const fetchMock = vi.fn(
+    const fetchMock = vi.fn<typeof fetch>(
       async () =>
         new Response(
           JSON.stringify({

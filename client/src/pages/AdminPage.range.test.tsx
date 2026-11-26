@@ -6,16 +6,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { apiClient } from "@/services/api";
 
+type Api = typeof apiClient;
 const api = vi.hoisted(() => ({
-  getAdminStats: vi.fn(async () => ({ scoredUsers: 0, spAdopters: 0, queueDepth: 0, totalUsers: 0 })),
-  getAdminUsers: vi.fn(async () => ({ items: [], total: 0, pages: 1 })),
-  getAdminActivity: vi.fn(async () => ({ items: [], total: 0, pages: 1 })),
-  getSchedulingPolicies: vi.fn(async () => []),
-  getGrapeRankResult: vi.fn(async () => null),
-  getAdminUserHistory: vi.fn(async () => ({ items: [] })),
-  getBrainstormPubkey: vi.fn(async () => null),
-  triggerUserGraperank: vi.fn(),
+  getAdminStats: vi.fn<Api["getAdminStats"]>(async () => ({
+    scoredUsers: 0,
+    spAdopters: 0,
+    queueDepth: 0,
+    totalUsers: 0,
+    totalReports: 0,
+  })),
+  getAdminUsers: vi.fn<Api["getAdminUsers"]>(async () => ({ items: [], total: 0, pages: 1 })),
+  getAdminActivity: vi.fn<Api["getAdminActivity"]>(async () => ({ items: [], total: 0, pages: 1 })),
+  getSchedulingPolicies: vi.fn<Api["getSchedulingPolicies"]>(async () => []),
+  getGrapeRankResult: vi.fn<Api["getGrapeRankResult"]>(async () => null),
+  getAdminUserHistory: vi.fn<Api["getAdminUserHistory"]>(async () => ({ items: [] })),
+  getBrainstormPubkey: vi.fn<Api["getBrainstormPubkey"]>(async () => null),
+  triggerUserGraperank: vi.fn<Api["triggerUserGraperank"]>(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: api, isAuthRedirecting: () => false }));
 vi.mock("@/services/support", () => ({ ADMIN_SUPPORT_QUERY_KEY: ["support"], adminListTickets: async () => [] }));
@@ -94,7 +102,7 @@ describe("the admin dashboard's time range", () => {
     });
     // The backend pages at 100 rows: 4,856 records in the last 7 days span 49 pages.
     const TOTAL = 4856;
-    api.getAdminActivity.mockImplementation(async ({ page = 1 }: { page?: number }) => {
+    api.getAdminActivity.mockImplementation(async ({ page = 1 } = {}) => {
       const from = (page - 1) * 100;
       const items = Array.from({ length: Math.max(0, Math.min(100, TOTAL - from)) }, (_, i) => record(from + i));
       return { items, total: TOTAL, pages: 49 };
@@ -129,7 +137,7 @@ describe("the admin dashboard's time range", () => {
   it("shows the header cards' state now, from every user, whatever the range", async () => {
     // 271 users, all scored, over three backend pages; the range is one hour.
     const TOTAL = 271;
-    api.getAdminUsers.mockImplementation(async ({ page = 1, days }: { page?: number; days?: number }) => {
+    api.getAdminUsers.mockImplementation(async ({ page = 1, days } = {}) => {
       if (days !== 9999) return { items: [], total: 0, pages: 1 };
       const from = (page - 1) * 100;
       const items = Array.from({ length: Math.max(0, Math.min(100, TOTAL - from)) }, (_, i) => ({
@@ -154,7 +162,7 @@ describe("the admin dashboard's time range", () => {
   it("reads success rate, failed count and queue depth off every user's latest run", async () => {
     // Ten users: eight succeeded, one failed, one still waiting.
     const statuses = [...Array(8).fill("success"), "failed", "waiting"];
-    api.getAdminUsers.mockImplementation(async ({ days }: { days?: number }) => {
+    api.getAdminUsers.mockImplementation(async ({ days } = {}) => {
       if (days !== 9999) return { items: [], total: 0, pages: 1 };
       const items = statuses.map((latest_status, i) => ({
         pubkey: String(i).padStart(64, "0"),
@@ -225,7 +233,7 @@ describe("the admin dashboard's time range", () => {
       times_calculated: 1,
       last_updated: new Date().toISOString(),
     });
-    api.getAdminUsers.mockImplementation(async ({ page = 1, size = 25 }: { page?: number; size?: number }) => {
+    api.getAdminUsers.mockImplementation(async ({ page = 1, size = 25 } = {}) => {
       const from = (page - 1) * size;
       const items = Array.from({ length: Math.max(0, Math.min(size, TOTAL - from)) }, (_, i) => user(from + i));
       return { items, total: TOTAL, pages: Math.ceil(TOTAL / size) };
@@ -256,7 +264,7 @@ describe("the admin dashboard's time range", () => {
   });
 
   it("keeps the header cards for the Overview and folds them to one line elsewhere, badges gone", async () => {
-    api.getAdminUsers.mockImplementation(async ({ days }: { days?: number }) => {
+    api.getAdminUsers.mockImplementation(async ({ days } = {}) => {
       if (days !== 9999) return { items: [], total: 0, pages: 1 };
       const items = Array.from({ length: 3 }, (_, i) => ({
         pubkey: String(i).padStart(64, "0"),

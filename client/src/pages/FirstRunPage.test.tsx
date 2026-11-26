@@ -295,7 +295,7 @@ describe("FirstRunPage", () => {
       await waitFor(() =>
         expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Your follows weren't saved" })),
       );
-      expect(h.toast.mock.calls.at(-1)[0].action).toBeTruthy();
+      expect(h.toast.mock.calls.at(-1)?.[0].action).toBeTruthy();
       expect(h.trigger).not.toHaveBeenCalled();
     });
   });

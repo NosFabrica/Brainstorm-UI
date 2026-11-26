@@ -6,6 +6,7 @@
  * itself still opens the in-app event page.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { fetchUnfurl, Unfurled } from "@/services/unfurl";
 import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
@@ -40,14 +41,7 @@ vi.mock("@/lib/eventStore", async () => ({
 import { nip19 } from "nostr-tools";
 // Link metadata comes from the link-preview service — faked so the row can
 // prove it turns a plain link into a card when the answer exists.
-const unfurlMock = vi.fn<
-  (url: string) => Promise<{
-    title: string | null;
-    description: string | null;
-    image: string | null;
-    siteName: string | null;
-  } | null>
->(() => Promise.resolve(null));
+const unfurlMock = vi.fn<typeof fetchUnfurl>(() => Promise.resolve(null));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
 // A Primal link's resolution, controlled per test — the same seam the note card uses.
 const clientLink = vi.hoisted(() => ({
@@ -391,6 +385,7 @@ describe("SerpRow — link metadata", () => {
 
   it("a short share is a link result: source line, the page's title, the sharer's words, the page's picture", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "Liverpool F.C.",
       description: "Professional football club based in Liverpool.",
       image: "https://img/lfc.jpg",
@@ -429,7 +424,13 @@ describe("SerpRow — link metadata", () => {
   // person who shared it; a plain note's source is the person, said in a small
   // muted line. The post page and the Notes tab keep the full author line.
   it("content first: a link row has no author line, only the site; a note keeps a small one", async () => {
-    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Club.", image: null, siteName: "Wikipedia" });
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "Liverpool F.C.",
+      description: "Club.",
+      image: null,
+      siteName: "Wikipedia",
+    });
     const { unmount } = render(
       <SerpRow
         event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")}
@@ -459,13 +460,15 @@ describe("SerpRow — link metadata", () => {
   });
 
   it("a bare link with nothing known yet shows the source line alone, and the page's description once it answers", async () => {
-    let answer!: (m: { title: string; description: string; image: null; siteName: null }) => void;
+    let answer!: (m: Unfurled) => void;
     unfurlMock.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
     render(<SerpRow event={note("https://example.com/post")} author={author} score={0.7} query="x" />);
     expect(await screen.findByTestId("news-source")).toHaveTextContent("example.com");
     expect(screen.queryByTestId("news-headline")).toBeNull();
     expect(screen.queryByTestId("link-chip")).toBeNull();
-    await act(async () => answer({ title: "A post", description: "What it says.", image: null, siteName: null }));
+    await act(async () =>
+      answer({ kind: "page", title: "A post", description: "What it says.", image: null, siteName: null }),
+    );
     expect(screen.getByTestId("news-headline")).toHaveTextContent("A post");
     expect(screen.getByText("What it says.")).toBeInTheDocument();
   });
@@ -485,7 +488,7 @@ describe("SerpRow — link metadata", () => {
   });
 
   it("asks about the same link a feed would — the last one", async () => {
-    unfurlMock.mockResolvedValue({ title: "Second", description: null, image: null, siteName: null });
+    unfurlMock.mockResolvedValue({ kind: "page", title: "Second", description: null, image: null, siteName: null });
     render(
       <SerpRow
         event={note("One https://a.example/first two https://b.example/second")}
@@ -665,6 +668,7 @@ describe("SerpRow — a picture marked sensitive", () => {
   // Audit: a flagged note's link card still drew the page's own picture.
   it("a flagged note's link card says the page's words without its picture", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "The story",
       description: "What happened.",
       image: "https://img.test/og-nsfw.jpg",
@@ -681,6 +685,7 @@ describe("SerpRow — a picture marked sensitive", () => {
 
   it("a flagged share's page picture is the placeholder", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "Liverpool F.C.",
       description: "Club",
       image: "https://img.test/og-nsfw.jpg",
@@ -716,6 +721,7 @@ describe("SerpRow", () => {
 
   it("a news-shaped note asks the page too: its title leads, the note's own picture stays the thumbnail", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "Everton fan group 'standing down' – Liverpool Echo",
       description: "Full story.",
       image: "https://img/echo-og.jpg",
@@ -1015,6 +1021,7 @@ describe("SerpRow — a NIP-84 highlight", () => {
 
   it("draws the passage marked, the highlighter's comment above it, and the page it is from", async () => {
     unfurlMock.mockResolvedValueOnce({
+      kind: "page",
       title: "The Amino Age",
       description: null,
       image: "https://cdn.example/amino.jpg",
@@ -1116,6 +1123,7 @@ describe("SerpRow — a web bookmark marked sensitive", () => {
   it("shows the placeholder in place of the page's picture", async () => {
     stubVisibleIntersectionObserver();
     unfurlMock.mockResolvedValueOnce({
+      kind: "page",
       title: "Page",
       description: "Words",
       image: "https://img.example/nsfw.jpg",

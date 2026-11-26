@@ -127,7 +127,7 @@ describe("the row's readings a fix put right", () => {
 
   it("an `naddr` in a note's words is a way to it (NIP-27), never its key", () => {
     const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "guide" });
-    const note = { ...fixture("1 "), tags: [], content: `Read this nostr:${naddr}` };
+    const note: MinimalEvent = { ...fixture("1 "), tags: [], content: `Read this nostr:${naddr}` };
     renderWithProviders(<SerpRow event={note as NostrEvent} author={null} query="" />);
     expect(document.body.textContent).not.toContain("naddr1");
     const link = screen.getByTestId("serp-address-link");

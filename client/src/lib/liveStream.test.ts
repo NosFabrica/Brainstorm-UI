@@ -292,6 +292,9 @@ describe("a stream nothing can play is not a broadcast", () => {
   // ftp://example.com/not-a-web-url, 99999 viewers — led the Live grid.
   const now = 1_760_000_000;
   const live = (tags: string[][]) => ({
+    id: "x",
+    pubkey: "a".repeat(64),
+    content: "",
     kind: 30311,
     created_at: now - 3600,
     tags: [["d", "s"], ["title", "QA: non-web streaming scheme"], ["status", "live"], ...tags],

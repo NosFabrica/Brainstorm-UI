@@ -12,6 +12,7 @@ import {
   fieldsSeenOnItems,
   initialDraft,
   withdrawnTemplate,
+  type DraftField,
 } from "./conceptCopy";
 
 const CURATOR = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
@@ -179,7 +180,7 @@ describe("draftProblems", () => {
   });
 
   it("catches unnamed, malformed, reserved and repeated fields", () => {
-    const add = (name: string) => ({ name, enabled: true, requirement: "optional", origin: "custom" as const });
+    const add = (name: string): DraftField => ({ name, enabled: true, requirement: "optional", origin: "custom" });
     expect(draftProblems({ ...draft, fields: [...draft.fields, add("")] })).toEqual(["Every field needs a name."]);
     expect(draftProblems({ ...draft, fields: [...draft.fields, add("two words"), add("z")] })[0]).toMatch(
       /two words, z/,
@@ -190,7 +191,7 @@ describe("draftProblems", () => {
   });
 
   it("a disabled row can be anything", () => {
-    const add = { name: "", enabled: false, requirement: "optional", origin: "custom" as const };
+    const add: DraftField = { name: "", enabled: false, requirement: "optional", origin: "custom" };
     expect(draftProblems({ ...draft, fields: [...draft.fields, add] })).toEqual([]);
   });
 
@@ -288,6 +289,9 @@ describe("display hints in the copy (provisional)", () => {
       title: "description",
       summary: null,
       image: null,
+      link: null,
+      media: null,
+      location: null,
       facts: [],
       listImage: " https://x.example/gh.svg ",
     };
@@ -301,7 +305,16 @@ describe("display hints in the copy (provisional)", () => {
 
   it("drops a role whose field this version doesn't include", () => {
     const draft = initialDraft(community, null, items);
-    draft.display = { title: "description", summary: null, image: null, facts: [], listImage: "" };
+    draft.display = {
+      title: "description",
+      summary: null,
+      image: null,
+      link: null,
+      media: null,
+      location: null,
+      facts: [],
+      listImage: "",
+    };
     expect(copyTemplate(community, draft).tags.some((t) => t[0] === "display")).toBe(false);
   });
 

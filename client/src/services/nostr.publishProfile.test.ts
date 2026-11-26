@@ -64,7 +64,7 @@ const profilePublishes = () => ofKind(publish.mock.calls, 0);
 const profileSignings = () => ofKind(signAs.mock.calls, 0);
 
 /** Run the publish out, letting the backoff timers fire. */
-async function settle(pending: Promise<unknown>) {
+async function settle<T>(pending: Promise<T>): Promise<T> {
   await vi.runAllTimersAsync();
   return pending;
 }

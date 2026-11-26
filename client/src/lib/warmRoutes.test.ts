@@ -26,7 +26,8 @@ describe("warmRoutes", () => {
   it("fetches nothing on Data Saver or a slow connection", async () => {
     const log: string[] = [];
     for (const speed of ["slow", "very-slow"] as const) {
-      let idle: (() => void) | null = null;
+      // Assigned in the callback, which narrowing cannot see: typed by a cast so `idle` stays callable.
+      let idle = null as (() => void) | null;
       warmRoutes([page(log, "post")], { whenIdle: (run) => (idle = run), speed: () => speed });
       idle?.();
     }

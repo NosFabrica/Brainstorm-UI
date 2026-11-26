@@ -88,7 +88,7 @@ describe("pickTopicPeople", () => {
       topic: "news",
       listed: null,
       curated: [pk("a"), pk("b")],
-      profiles: new Map([
+      profiles: new Map<string, { name: string; picture?: string }>([
         [pk("a"), { name: "Faceless" }],
         [pk("b"), face("AP News")],
       ]),

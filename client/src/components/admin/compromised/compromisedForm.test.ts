@@ -65,9 +65,10 @@ describe("buildMarkRequest", () => {
     if (req.error !== undefined) return;
     expect(req.body.successor_event_id).toBe(NEVENT);
     expect(req.body.compromised_since).toBe(new Date(2026, 10, 16, 0, 0).toISOString());
-    expect(buildMarkRequest({ ...EMPTY_FORM, account: PK, proofId: NEVENT }).body).not.toHaveProperty(
-      "compromised_since",
-    );
+    const sinceless = buildMarkRequest({ ...EMPTY_FORM, account: PK, proofId: NEVENT });
+    expect(sinceless.error).toBeUndefined();
+    if (sinceless.error !== undefined) return;
+    expect(sinceless.body).not.toHaveProperty("compromised_since");
   });
 
   it("names the first thing wrong", () => {

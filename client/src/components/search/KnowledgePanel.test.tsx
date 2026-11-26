@@ -7,13 +7,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { nip19, type NostrEvent } from "nostr-tools";
-import type { SearchSnapshot, SearchParams } from "@/services/search";
+import type { fetchPersonSets, SearchHit, SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetConnectionSpeed } from "@/lib/connection";
 import { ListKindsContext, type ListKindSearch } from "@/hooks/useListKinds";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 const nipPageMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
-const personSetsMock = vi.fn<() => Promise<{ title: string; exporters: number }[]>>(() => Promise.resolve([]));
+const personSetsMock = vi.fn<typeof fetchPersonSets>(() => Promise.resolve([]));
 let streamCalls: { query: string; params: SearchParams; emit: (s: Partial<SearchSnapshot>) => void }[] = [];
 
 vi.mock("@/services/search", async (importOriginal) => {
@@ -22,7 +22,7 @@ vi.mock("@/services/search", async (importOriginal) => {
     ...actual,
     suggestProfiles: () => suggestMock(),
     fetchNipPage: (...args: unknown[]) => nipPageMock(...(args as [])),
-    fetchPersonSets: (...args: unknown[]) => personSetsMock(...(args as [])),
+    fetchPersonSets: (...args: Parameters<typeof fetchPersonSets>) => personSetsMock(...args),
     searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
       streamCalls.push({
         query,
@@ -231,6 +231,7 @@ describe("the person panel's endorsements", () => {
         { pubkey: BOB, score01: 0.4 },
       ],
       total: 1234,
+      vouches: [],
     });
     profileMapMock.set(ALICE, { name: "alice" });
     profileMapMock.set(BOB, { name: "bob" });
@@ -246,7 +247,7 @@ describe("the person panel's endorsements", () => {
 
   it("speaks as the viewer under My perspective", async () => {
     david();
-    personEndorsementsMock.mockReturnValue({ followedBy: [{ pubkey: ALICE, score01: 0.9 }], total: 12 });
+    personEndorsementsMock.mockReturnValue({ followedBy: [{ pubkey: ALICE, score01: 0.9 }], total: 12, vouches: [] });
     render(<KnowledgePanel query="david" pov="mywot" userPubkey={"e".repeat(64)} />);
     const line = await screen.findByTestId("person-followed-by");
     expect(line).toHaveTextContent("accounts you trust");

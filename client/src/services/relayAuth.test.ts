@@ -9,6 +9,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BehaviorSubject, Subject, of } from "rxjs";
+import type { EventTemplate } from "nostr-tools";
 import {
   askRelayAuthAgain,
   chosenRelays$,
@@ -31,8 +32,8 @@ const PK = "a".repeat(64);
 const PK2 = "b".repeat(64);
 const GATED = "wss://gated.example/";
 const signed = { id: "s".repeat(64), kind: 22242, pubkey: PK, tags: [], content: "", created_at: 1, sig: "x" };
-const account = { pubkey: PK, signEvent: vi.fn(async () => signed) };
-const other = { pubkey: PK2, signEvent: vi.fn(async () => ({ ...signed, pubkey: PK2 })) };
+const account = { pubkey: PK, signEvent: vi.fn(async (_draft: EventTemplate) => signed) };
+const other = { pubkey: PK2, signEvent: vi.fn(async (_draft: EventTemplate) => ({ ...signed, pubkey: PK2 })) };
 type Account = typeof account;
 
 /** A relay as the watcher sees it; `gated` is whether it has refused a read. */

@@ -11,6 +11,7 @@
     "build": "vite build",
     "build:lists": "vite build --config vite.lists.config.ts",
     "check": "tsc",
+    "check:tests": "tsc -p tsconfig.test.json",
     "test": "LC_ALL=en-US vitest run",
     "test:watch": "LC_ALL=en-US vitest",
     "e2e": "playwright test -c e2e/playwright.config.ts",
