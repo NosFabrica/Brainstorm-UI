@@ -1,3 +1,4 @@
+import { useCopied } from "@/hooks/useCopied";
 import { useEffect, useMemo, useState } from "react";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { Link } from "wouter";
@@ -72,6 +73,7 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
   const target = event.tags.find((t) => t[0] === "target-branch")?.[1];
   const commits = event.tags.filter((t) => t[0] === "c").length;
   const clone = event.tags.find((t) => t[0] === "clone")?.[1];
+  const cloneCopy = useCopied();
 
   const repoLabel = repo ? (
     <Link href={eventPath(repo)} className="font-medium text-brand-link hover:underline" data-testid="git-status-repo">
@@ -146,12 +148,14 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
           {clone && (
             <button
               type="button"
-              onClick={() => void navigator.clipboard?.writeText(clone).catch(() => {})}
+              onClick={() => void cloneCopy.copy(clone)}
               title="Copy clone URL"
               className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 font-mono text-[11px] text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
               data-testid="git-pr-clone"
             >
-              <span className="truncate">{clone.replace(/^https?:\/\//, "")}</span>
+              <span className="truncate">
+                {cloneCopy.copied ? "Copied" : cloneCopy.failed ? "Couldn't copy" : clone.replace(/^https?:\/\//, "")}
+              </span>
             </button>
           )}
         </div>

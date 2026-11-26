@@ -6,7 +6,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 const copyToClipboard = vi.fn<(text: string) => Promise<boolean>>();
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyToClipboard(text) }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => copyToClipboard(text) }));
 
 import { CopyButton } from "./CopyButton";
 

@@ -11,7 +11,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ExternalIdentity } from "@/lib/externalIdentity";
 
 const copyMock = vi.fn(async (_text: string) => true);
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => copyMock(text) }));
 
 import { ProfileDetails } from "@/components/share/ProfileDetails";
 

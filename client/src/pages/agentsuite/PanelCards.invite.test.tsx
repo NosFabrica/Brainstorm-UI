@@ -6,7 +6,10 @@ import type { useSocialActions } from "@/hooks/useSocialActions";
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 const copyToClipboard = vi.fn();
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (...a: unknown[]) => copyToClipboard(...a) }));
+vi.mock("@/lib/clipboard", () => ({
+  dialogOf: () => null,
+  copyToClipboard: (...a: unknown[]) => copyToClipboard(...a),
+}));
 vi.mock("@/services/nostr", () => ({ fetchProfiles: vi.fn() }));
 
 import { InviteCard } from "./PanelCards";

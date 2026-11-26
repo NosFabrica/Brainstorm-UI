@@ -33,7 +33,7 @@ export function ProfileDetails({
 }) {
   const links = websiteLinks(website);
   const lightning = lightningTarget(lud16, lud06);
-  const { copied, copy } = useCopied();
+  const { copied, failed, copy } = useCopied();
   if (links.length === 0 && !lightning && identities.length === 0) return null;
   const row = "flex items-center gap-1.5 min-w-0 text-xs text-slate-600 dark:text-slate-300";
   return (
@@ -57,7 +57,7 @@ export function ProfileDetails({
           <button
             type="button"
             onClick={() => void copy(lightning.address)}
-            title="Copy lightning address"
+            title={failed ? "Couldn't copy" : "Copy lightning address"}
             aria-label="Copy lightning address"
             className={`group ${row} rounded text-left transition-colors hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:text-slate-100`}
             data-testid="share-lightning"
@@ -75,7 +75,7 @@ export function ProfileDetails({
               />
             )}
             <span className="sr-only" aria-live="polite" data-testid="share-lightning-copied">
-              {copied ? "Copied" : ""}
+              {copied ? "Copied" : failed ? "Couldn't copy" : ""}
             </span>
           </button>
           {onZap && lightning.zappable && (

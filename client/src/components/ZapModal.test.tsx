@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const copyMock = vi.fn(async (_text: string) => true);
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
+vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text), dialogOf: () => null }));
 vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => null }));
 const verifiedLud16Mock = vi.fn(async () => ({ verified: true, lud16: "joemartinmusic@getalby.com" }));
 vi.mock("@/services/nostr", async () => ({
@@ -71,5 +71,20 @@ describe("ZapModal — the recipient row", () => {
     fireEvent.click(copy);
     expect(copyMock).toHaveBeenCalledWith("joemartinmusic@getalby.com");
     await waitFor(() => expect(screen.getByTestId("zap-copy-recipient")).toHaveAttribute("title", "Copied"));
+  });
+
+  it("says so when the copy was refused", async () => {
+    copyMock.mockResolvedValue(false);
+    render(
+      <ZapModal
+        open
+        onOpenChange={() => {}}
+        recipientPubkey={"b".repeat(64)}
+        lud16="joe@getalby.com"
+        displayName="Joe"
+      />,
+    );
+    fireEvent.click(await screen.findByTestId("zap-copy-recipient"));
+    await waitFor(() => expect(screen.getByTestId("zap-copy-recipient")).toHaveAttribute("title", "Couldn't copy"));
   });
 });

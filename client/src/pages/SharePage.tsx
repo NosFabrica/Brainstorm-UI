@@ -1099,7 +1099,7 @@ export default function SharePage() {
                       type="button"
                       onClick={() => void npubCopy.copy(npub)}
                       className="shrink-0 p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
-                      title="Copy npub"
+                      title={npubCopy.copied ? "Copied" : npubCopy.failed ? "Couldn't copy" : "Copy npub"}
                       data-testid="share-copy-npub"
                     >
                       {npubCopy.copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}

@@ -9,6 +9,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { NostrEvent } from "nostr-tools";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
+const clipboardMock = vi.hoisted(() => vi.fn(async (_text: string) => true));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => clipboardMock(text) }));
 const profileMapMock = vi.fn((_pks: string[]) => Promise.resolve(new Map<string, Record<string, unknown>>()));
 // Open Markets: what a review, a collection or a listing names by address, and a seller's listings filed under a collection.
 const addressedMock = vi.fn((_coords: { kind: number; pubkey: string; identifier: string }[]) =>
@@ -473,6 +475,22 @@ describe("Badge, emoji, playlist pages", () => {
     );
   });
 
+  it("a tapped emoji says copied, or that it couldn't be", async () => {
+    clipboardMock.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    page(
+      ev(30030, [
+        ["d", "p"],
+        ["title", "Pack"],
+        ["emoji", "gm", "https://x.test/gm.png"],
+        ["emoji", "gn", "https://x.test/gn.png"],
+      ]),
+    );
+    fireEvent.click(screen.getByTitle("Copy :gm:"));
+    expect(await screen.findByText("copied")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Copy :gn:"));
+    expect(await screen.findByText("couldn't copy")).toBeInTheDocument();
+  });
+
   it("an emoji pack shows every emoji with its shortcode", () => {
     page(
       ev(30030, [
@@ -630,6 +648,18 @@ describe("App, learning and torrent pages", () => {
     const facts = screen.getByTestId("thing-page-facts");
     expect(facts).toHaveTextContent("CC BY-SA 4.0");
     expect(facts).toHaveTextContent("Free to use");
+  });
+
+  it("a Copy button says when the copy was refused", async () => {
+    clipboardMock.mockResolvedValueOnce(false);
+    page(
+      ev(2003, [
+        ["title", "Ubuntu"],
+        ["x", "f".repeat(40)],
+      ]),
+    );
+    fireEvent.click(screen.getByText("Copy magnet link"));
+    expect(await screen.findByText("Couldn't copy")).toBeInTheDocument();
   });
 
   it("a torrent opens by magnet and folds a long file list", () => {

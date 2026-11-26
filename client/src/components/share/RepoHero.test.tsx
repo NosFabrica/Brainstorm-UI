@@ -47,6 +47,9 @@ vi.mock("@/lib/eventStore", async () => ({
   },
 }));
 
+const clipboardMock = vi.hoisted(() => vi.fn(async (_text: string) => true));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => clipboardMock(text) }));
+
 import { RepoHero } from "./RepoHero";
 import { HOSTILE_URL, HOSTILE_URL_WITH_HOST, expectNoScriptHrefs } from "@/test/hrefs";
 
@@ -116,6 +119,16 @@ describe("RepoHero", () => {
     expect(screen.getByTestId("repo-hero-web").getAttribute("href")).toBe("https://gitworkshop.dev/ngit");
     expect(screen.getByTestId("repo-hero-clone")).toHaveTextContent("relay.ngit.dev");
     expect(screen.getByTestId("repo-hero-publisher")).toHaveTextContent("DanConwayDev");
+  });
+
+  it("copies the clone URL and says whether it did", async () => {
+    render(<RepoHero event={NGIT} />);
+    fireEvent.click(screen.getByTestId("repo-hero-clone"));
+    expect(clipboardMock).toHaveBeenCalledWith("https://relay.ngit.dev/npub1rmz/ngit.git");
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    clipboardMock.mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByTestId("repo-hero-clone"));
+    expect(await screen.findByText("Couldn't copy")).toBeInTheDocument();
   });
 
   it("shows the repo's live issues and patches, labeled and linked", async () => {

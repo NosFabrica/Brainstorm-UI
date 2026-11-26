@@ -3,7 +3,7 @@
  * handle, npub, the X-style counts and an action bar, with the Web of Trust
  * card beside them (inline on a phone).
  */
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { NostrEvent } from "nostr-tools";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { ArrowLeft, Check, Copy } from "lucide-react";
@@ -13,7 +13,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { EmojiText } from "@/components/ui/custom-emoji";
-import { copyToClipboard } from "@/lib/clipboard";
+import { useCopied } from "@/hooks/useCopied";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { nameIn } from "@/lib/displayName";
@@ -74,13 +74,7 @@ export function ProfileIdentity({
   trustBadge: ReactNode;
 }) {
   const tierRing = useTierRing();
-  const [copied, setCopied] = useState(false);
-  const handleCopyNpub = async (text: string) => {
-    if (await copyToClipboard(text)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  const npubCopy = useCopied(2000);
   return (
     <>
       {/* Avatar overlaps the banner on its own line, so the name, npub,
@@ -147,12 +141,15 @@ export function ProfileIdentity({
                 {displayNpub}
               </code>
               <button
-                onClick={() => void handleCopyNpub(displayNpub)}
+                onClick={() => void npubCopy.copy(displayNpub)}
                 className="shrink-0 p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
+                title={npubCopy.copied ? "Copied" : npubCopy.failed ? "Couldn't copy" : "Copy npub"}
+                aria-label="Copy npub"
                 data-testid="button-copy-profile-npub"
               >
-                {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                {npubCopy.copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
               </button>
+              {npubCopy.failed && <span className="text-[11px] text-red-600 dark:text-red-400">Couldn't copy</span>}
             </div>
             {/* Web of Trust — mobile inline; on desktop it renders in the right sidebar. */}
             <div className="mt-3 md:hidden">{trustBadge}</div>

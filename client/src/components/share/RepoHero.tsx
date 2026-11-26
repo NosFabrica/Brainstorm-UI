@@ -4,6 +4,7 @@
  * a publisher row (who maintains this), and the live NIP-34 activity
  * feed — the "is anyone working on this?" signal nostrhub doesn't have.
  */
+import { useCopied } from "@/hooks/useCopied";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
@@ -68,6 +69,8 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   const description = tagVal(event, "description");
   const longDescription = !!description && (description.length > 200 || description.includes("\n"));
   const clone = tagVal(event, "clone");
+  // Copying it says whether it landed (hooks/useCopied).
+  const cloneCopy = useCopied();
   // Links the maintainer wrote: web addresses only (lib/safeHref).
   const web = safeHref(tagVal(event, "web"));
   const source = safeHref(tagVal(event, "source"));
@@ -332,13 +335,15 @@ export function RepoHero({ event }: { event: RepoEvent }) {
         {clone && (
           <button
             type="button"
-            onClick={() => void navigator.clipboard?.writeText(clone).catch(() => {})}
+            onClick={() => void cloneCopy.copy(clone)}
             title="Copy clone URL"
             className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 px-3.5 py-1.5 font-mono text-[11px] text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
             data-testid="repo-hero-clone"
           >
             <GitBranch className="h-3 w-3 shrink-0" />
-            <span className="truncate">{clone.replace(/^https?:\/\//, "")}</span>
+            <span className="truncate">
+              {cloneCopy.copied ? "Copied" : cloneCopy.failed ? "Couldn't copy" : clone.replace(/^https?:\/\//, "")}
+            </span>
           </button>
         )}
       </div>

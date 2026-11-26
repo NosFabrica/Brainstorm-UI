@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useCopied } from "@/hooks/useCopied";
 import { LazyQRCode } from "@/components/LazyQRCode";
 import { qrPayload } from "@/lib/shortLink";
+import { copyToClipboard, dialogOf } from "@/lib/clipboard";
 
 /** Whether this browser has a share sheet of its own (phones; some desktops). */
 export function canNativeShare(): boolean {
@@ -45,7 +46,7 @@ export function ShareModal({
   openLink?: boolean;
   testId?: string;
 }) {
-  const { copied, copy } = useCopied();
+  const { copied, failed, copy } = useCopied();
   const native = canNativeShare();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -88,12 +89,16 @@ export function ShareModal({
             />
             <button
               type="button"
-              onClick={() => void copy(url)}
+              // From inside the dialog, which traps focus: the clipboard's fallback copies there (lib/clipboard).
+              onClick={(e) => {
+                const container = dialogOf(e.currentTarget);
+                void copy(url, (text) => copyToClipboard(text, { container }));
+              }}
               className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
               data-testid="share-copy-link"
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copied" : "Copy"}
+              {copied ? "Copied" : failed ? "Couldn't copy" : "Copy"}
             </button>
           </div>
 

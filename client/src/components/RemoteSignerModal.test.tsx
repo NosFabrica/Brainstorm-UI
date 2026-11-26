@@ -99,6 +99,22 @@ const cancelCount = () => pairings.filter((p) => p.cancel.mock.calls.length > 0)
  * fields is what turns them into something checkable: a lookalike screen can say
  * anything, but it can't match what this side already told you to expect.
  */
+// In-app webviews (Slack, X, Instagram) have no clipboard API: lib/clipboard's fallback copies there.
+describe("copying the link", () => {
+  it("copies where the browser has no clipboard API, as an in-app webview", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    const exec = vi.fn(() => true);
+    Object.defineProperty(document, "execCommand", { value: exec, configurable: true });
+    open();
+
+    fireEvent.click(screen.getByTestId("button-copy-connect-uri"));
+
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    expect(exec).toHaveBeenCalledWith("copy");
+    Object.defineProperty(document, "execCommand", { value: undefined, configurable: true });
+  });
+});
+
 describe("what the signer is about to be told about us", () => {
   it("shows the name, origin and icon we send", () => {
     open();

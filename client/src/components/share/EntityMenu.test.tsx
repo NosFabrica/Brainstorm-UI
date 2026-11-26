@@ -10,7 +10,7 @@ import { nip19 } from "nostr-tools";
 import { EntityMenu } from "./EntityMenu";
 
 const copyMock = vi.fn(async (_text: string) => true);
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => copyMock(text) }));
 
 const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0 Safari/537.36";
 const PIXEL = "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/124.0 Mobile Safari/537.36";

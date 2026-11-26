@@ -16,7 +16,7 @@ import type { SearchResult } from "@/lib/profileSearch";
 import { ThingCard } from "@/components/search/thingCards";
 import { isOver, parseCalendarEvent } from "@/lib/calendarEvent";
 import { parseTrack } from "@/lib/trackEvent";
-import { copyToClipboard } from "@/lib/clipboard";
+import { useCopied } from "@/hooks/useCopied";
 import type { Thing } from "@/lib/thing";
 import type { Detail } from "./types";
 import {
@@ -245,18 +245,12 @@ export function BadgeSections({ event }: { event: PageEvent }) {
 
 /** One emoji: the picture large, its shortcode under it; a tap copies `:shortcode:`. */
 function EmojiTile({ code, url }: { code: string; url: string }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, failed: refused, copy } = useCopied(1400);
   const [failed, setFailed] = useState(false);
   return (
     <button
       type="button"
-      onClick={() => {
-        void copyToClipboard(`:${code}:`).then((ok) => {
-          if (!ok) return;
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1400);
-        });
-      }}
+      onClick={() => void copy(`:${code}:`)}
       title={`Copy :${code}:`}
       className="flex flex-col items-center gap-1 rounded-xl p-2 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:bg-slate-800"
     >
@@ -278,6 +272,8 @@ function EmojiTile({ code, url }: { code: string; url: string }) {
           <>
             <Check className="h-3 w-3" aria-hidden="true" /> copied
           </>
+        ) : refused ? (
+          <span className="text-red-600 dark:text-red-400">couldn't copy</span>
         ) : (
           code
         )}

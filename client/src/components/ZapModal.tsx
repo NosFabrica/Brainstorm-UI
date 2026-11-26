@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FlashIcon } from "@/components/FlashIcon";
-import { copyToClipboard } from "@/lib/clipboard";
+import { copyToClipboard, dialogOf } from "@/lib/clipboard";
 import { useCopied } from "@/hooks/useCopied";
 import { initialsFor } from "@/lib/profileDefaults";
 import { condenseLightning } from "@/lib/profileFacts";
@@ -60,7 +60,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   const [comment, setComment] = useState("");
   const [invoice, setInvoice] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const invoiceCopy = useCopied();
   const [paid, setPaid] = useState(false);
   const [paying, setPaying] = useState(false);
   // The lightning address read from the recipient's CRYPTOGRAPHICALLY VERIFIED
@@ -126,12 +126,10 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   const amountNum = Math.floor(Number(amount));
   const amountValid = Number.isFinite(amountNum) && amountNum >= minSats && amountNum <= maxSats;
 
-  const copyInvoice = async (val: string) => {
-    if (await copyToClipboard(val)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }
-  };
+  // Inside the dialog, which traps focus: the clipboard's fallback copies from within it (lib/clipboard).
+  const copyIn = (e: { currentTarget: Element }) => (text: string) =>
+    copyToClipboard(text, { container: dialogOf(e.currentTarget) });
+  const copyLabel = (idle: string) => (invoiceCopy.copied ? "Copied" : invoiceCopy.failed ? "Couldn't copy" : idle);
 
   const handleContinue = async () => {
     if (!params || !amountValid) return;
@@ -268,8 +266,14 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 {isVerified && (
                   <button
                     type="button"
-                    onClick={() => void recipientCopy.copy(displayAddr)}
-                    title={recipientCopy.copied ? "Copied" : "Copy lightning address"}
+                    onClick={(e) => void recipientCopy.copy(displayAddr, copyIn(e))}
+                    title={
+                      recipientCopy.copied
+                        ? "Copied"
+                        : recipientCopy.failed
+                          ? "Couldn't copy"
+                          : "Copy lightning address"
+                    }
                     aria-label="Copy lightning address"
                     className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:text-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500"
                     data-testid="zap-copy-recipient"
@@ -390,12 +394,16 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => void copyInvoice(invoice)}
+                      onClick={(e) => void invoiceCopy.copy(invoice, copyIn(e))}
                       className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       data-testid="zap-copy-invoice"
                     >
-                      {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
-                      {copied ? "Copied" : "Copy invoice"}
+                      {invoiceCopy.copied ? (
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}{" "}
+                      {copyLabel("Copy invoice")}
                     </button>
                     <a
                       href={lightningUriForInvoice(invoice)}
@@ -437,12 +445,12 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => void copyInvoice(displayAddr)}
+                  onClick={(e) => void invoiceCopy.copy(displayAddr, copyIn(e))}
                   className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   data-testid="zap-copy-address"
                 >
-                  {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
-                  {copied ? "Copied" : "Copy address"}
+                  {invoiceCopy.copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
+                  {copyLabel("Copy address")}
                 </button>
                 <a
                   href={lightningUriForAddress(displayAddr)}

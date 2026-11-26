@@ -4,14 +4,16 @@ import { copyToClipboard } from "@/lib/clipboard";
 /**
  * The copy→check moment: `copy(text)` puts the text on the clipboard and
  * `copied` is true for `ttlMs` — long enough for the glyph to flip to a
- * check and back. The timer dies with the component, and a copy the
- * browser refused never claims success.
+ * check and back. A copy the browser refused never claims success: `failed`
+ * is true for the same moment instead, so the button can say "Couldn't copy"
+ * rather than nothing. The timer dies with the component.
  */
 export function useCopied(ttlMs = 1500): {
   copied: boolean;
+  failed: boolean;
   copy: (text: string, write?: (text: string) => Promise<boolean>) => Promise<boolean>;
 } {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -22,16 +24,15 @@ export function useCopied(ttlMs = 1500): {
   const copy = useCallback(
     async (text: string, write: (text: string) => Promise<boolean> = copyToClipboard) => {
       const ok = await write(text);
-      if (!ok) return false;
-      setCopied(true);
+      setState(ok ? "copied" : "failed");
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
         timer.current = null;
-        setCopied(false);
+        setState("idle");
       }, ttlMs);
-      return true;
+      return ok;
     },
     [ttlMs],
   );
-  return { copied, copy };
+  return { copied: state === "copied", failed: state === "failed", copy };
 }

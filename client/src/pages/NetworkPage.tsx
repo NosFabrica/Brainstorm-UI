@@ -48,6 +48,7 @@ import {
 import { NetworkHeader } from "./network/NetworkHeader";
 import { NetworkFilters } from "./network/NetworkFilters";
 import { NetworkEmpty, NetworkGrid, NetworkPager, NetworkSkeleton } from "./network/NetworkResults";
+import { useToast } from "@/hooks/use-toast";
 
 export default function NetworkPage() {
   const [, navigate] = useLocation();
@@ -88,6 +89,7 @@ export default function NetworkPage() {
     },
     [],
   );
+  const { toast } = useToast();
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const params = new URLSearchParams(window.location.search);
@@ -497,12 +499,18 @@ export default function NetworkPage() {
     navigate("/");
   };
 
-  const handleCopyNpub = useCallback(async (npub: string, pubkey: string) => {
-    // copyToClipboard reports a failure as false; it never rejects.
-    if (!(await copyToClipboard(npub))) return;
-    setCopiedPubkey(pubkey);
-    setTimeout(() => setCopiedPubkey(null), 2000);
-  }, []);
+  const handleCopyNpub = useCallback(
+    async (npub: string, pubkey: string) => {
+      // copyToClipboard reports a failure as false; it never rejects.
+      if (!(await copyToClipboard(npub))) {
+        toast({ title: "Couldn't copy", description: "Copy the npub by hand.", variant: "destructive" });
+        return;
+      }
+      setCopiedPubkey(pubkey);
+      setTimeout(() => setCopiedPubkey(null), 2000);
+    },
+    [toast],
+  );
 
   const handleCloseDetail = useCallback(() => {
     setExpandedPubkey(null);

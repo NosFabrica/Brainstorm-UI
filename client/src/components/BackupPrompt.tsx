@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { tone } from "@/lib/tones";
+import { copyToClipboard, dialogOf } from "@/lib/clipboard";
 
 /**
  * One card, two messages: what the chain says depends only on what the Account is
@@ -103,15 +104,16 @@ export function BackupPrompt({ need, onDelivered }: { need: BackupNeed | null; o
     }
   };
 
-  const copyKey = async () => {
+  // Through lib/clipboard, whose fallback copies where the clipboard API is missing (in-app
+  // webviews); from inside the dialog this may sit in, which traps focus.
+  const copyKey = async (from: Element) => {
     if (!credential) return;
-    try {
-      await navigator.clipboard.writeText(credential.ncryptsec);
+    if (await copyToClipboard(credential.ncryptsec, { container: dialogOf(from) })) {
       toast({
         title: "Recovery key copied",
         description: "Paste it somewhere safe — you'll need your password to open it.",
       });
-    } catch {
+    } else {
       toast({ variant: "destructive", title: "Couldn't copy", description: "Download the file instead." });
     }
   };
@@ -140,7 +142,7 @@ export function BackupPrompt({ need, onDelivered }: { need: BackupNeed | null; o
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => void copyKey()}
+            onClick={(e) => void copyKey(e.currentTarget)}
             data-testid="backup-prompt-copy"
           >
             <Copy className="h-4 w-4" /> Copy recovery key

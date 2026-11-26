@@ -9,7 +9,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ShareModal } from "./ShareModal";
 
 const copyMock = vi.fn(async (_text: string) => true);
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => copyMock(text) }));
 
 const URL = "https://brainstorm.world/e/nevent1abc";
 const base = { open: true, onOpenChange: vi.fn(), url: URL, title: "Joe Martin on Brainstorm" };
@@ -41,6 +41,13 @@ describe("ShareModal", () => {
     fireEvent.click(screen.getByTestId("share-copy-link"));
     expect(copyMock).toHaveBeenCalledWith(URL);
     await waitFor(() => expect(screen.getByTestId("share-copy-link")).toHaveTextContent("Copied"));
+  });
+
+  it("says Couldn't copy when the browser refused", async () => {
+    copyMock.mockResolvedValueOnce(false);
+    render(<ShareModal {...base} />);
+    fireEvent.click(screen.getByTestId("share-copy-link"));
+    await waitFor(() => expect(screen.getByTestId("share-copy-link")).toHaveTextContent("Couldn't copy"));
   });
 
   it("a preview, an extra row, the Open link and custom words all render where asked", () => {

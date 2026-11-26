@@ -15,7 +15,7 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useFaceProfiles, type MemberProfile } from "@/components/search/cards";
-import { copyToClipboard } from "@/lib/clipboard";
+import { useCopied } from "@/hooks/useCopied";
 import { eventPath } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ago } from "@/lib/ago";
@@ -143,20 +143,10 @@ export function ActionButton({
 
 /** Copy a value (a magnet link, an address, a shortcode), and say it was copied. */
 export function CopyButton({ value, label, testId }: { value: string; label: string; testId?: string }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, failed, copy } = useCopied(1600);
   return (
-    <ActionButton
-      icon={copied ? Check : Copy}
-      onClick={() => {
-        void copyToClipboard(value).then((ok) => {
-          if (!ok) return;
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1600);
-        });
-      }}
-      testId={testId}
-    >
-      {copied ? "Copied" : label}
+    <ActionButton icon={copied ? Check : Copy} onClick={() => void copy(value)} testId={testId}>
+      {copied ? "Copied" : failed ? "Couldn't copy" : label}
     </ActionButton>
   );
 }
