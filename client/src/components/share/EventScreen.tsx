@@ -1,22 +1,17 @@
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
 import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
-import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
 import { Link, Redirect } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
-import { useQuery } from "@tanstack/react-query";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { useEventDeleted } from "@/components/share/eventDeletion";
-import { Smartphone, Loader2, MessageSquare } from "lucide-react";
 import { eventStore } from "@/lib/eventStore";
 import { loadEventForPage, seedSearchWithHeld } from "@/services/eventPageLoad";
-import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { tagAddressOf } from "@/lib/tagTarget";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
-import { lookupTrustSignals } from "@/services/trustSignals";
 import { replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { CuratorFooter } from "@/components/search/cards";
@@ -39,7 +34,7 @@ import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { neventFor, npubFromPubkey, nostrUriForEvent, profilePath, readsAsArticle, shareUrlFor } from "@/lib/shareId";
+import { neventFor, nostrUriForEvent, profilePath, readsAsArticle, shareUrlFor } from "@/lib/shareId";
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { eventShortLink, useMintShortLink } from "@/hooks/useShortLink";
@@ -54,16 +49,16 @@ import { DeletedEvent } from "@/components/share/eventPage/DeletedEvent";
 import { EventByline } from "@/components/share/eventPage/EventByline";
 import { EventFunnel } from "@/components/share/eventPage/EventFunnel";
 import { EventMenu } from "@/components/share/eventPage/EventMenu";
+import { EventLinkInvalid, EventLoading, EventNotFound } from "@/components/share/eventPage/EventPageStates";
 import { EventPageHero } from "@/components/share/eventPage/EventPageHero";
 import { EventSetupNudge } from "@/components/share/eventPage/EventSetupNudge";
 import { type EventPointer } from "@/components/share/eventPage/eventPointer";
+import { useEventAuthor } from "@/components/share/eventPage/useEventAuthor";
 import { useEventMedia } from "@/components/share/eventPage/useEventMedia";
 import { useEventRefs } from "@/components/share/eventPage/useEventRefs";
 
 // Where the app's routes have always found them.
 export { decodeEventId, type EventPointer } from "@/components/share/eventPage/eventPointer";
-
-type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 
 /** Addressable kinds (30000–39999) are commented on by coordinate, not id —
  *  a listing's questions tag `30402:<seller>:<d>`, never the event id. */
@@ -176,18 +171,10 @@ function EventView({
   const eventAuthor = note?.pubkey ?? ptr?.author;
   const media = useEventMedia(note);
 
-  // The author's held profile at once; the event's own relay hints are asked
-  // beside their outbox, and a newer profile replaces it as it lands.
-  const authorProfile = useLiveProfile(authorPk || undefined, ptr?.relays ?? []).profile;
-  const compromisedRing = useCompromisedRing(authorPk || undefined);
-  const trustQuery = useQuery({
-    // The ring every author list draws (services/trustSignals): the house
-    // overview's own influence, batched with the page's other authors and
-    // asked once a session, instead of a whole overview for one number.
-    queryKey: ["author-trust-signals", authorPk],
-    queryFn: async () => (authorPk ? (await lookupTrustSignals(authorPk)).influence : null),
-    enabled: !!authorPk,
-  });
+  const { authorProfile, profile, compromisedRing, authorNpub, authorName, score01 } = useEventAuthor(
+    authorPk,
+    ptr?.relays ?? [],
+  );
 
   // An item of a Dictionary concept is drawn from its definition. Until this device knows the
   // concepts (its first visit), a list item waits for them rather than draw its tags and swap.
@@ -206,18 +193,6 @@ function EventView({
     profile: authorProfile,
   });
 
-  const profile = (authorProfile ?? {}) as ProfileLite;
-  const authorNpub = authorPk
-    ? (() => {
-        try {
-          return npubFromPubkey(authorPk);
-        } catch {
-          return "";
-        }
-      })()
-    : "";
-  const authorName = profile.display_name || profile.name || (authorNpub ? authorNpub.slice(0, 12) + "…" : "Someone");
-  const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
   const firstName = authorName.split(" ")[0];
 
   // A list item's page is named for the item — "vitorpamplona · GitHub Account" — not for who listed it.
@@ -303,32 +278,11 @@ function EventView({
 
       <main className={cn(pageWidth("reading"), "py-6 sm:py-8")}>
         {!ptr ? (
-          <div className="py-20 text-center">
-            <MessageSquare className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
-            <p className="mt-3 font-medium text-slate-600 dark:text-slate-300">That note link isn't valid.</p>
-            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">
-              Go to Brainstorm →
-            </Link>
-          </div>
+          <EventLinkInvalid />
         ) : loading ? (
-          <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-500">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
+          <EventLoading />
         ) : !note || !surface ? (
-          <div className="py-20 text-center">
-            <MessageSquare className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
-            <p className="mt-3 font-medium text-slate-600 dark:text-slate-300">
-              We couldn't find this note on the relays.
-            </p>
-            {openInApp && (
-              <a
-                href={openInApp}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:bg-brand-primary-hover"
-              >
-                <Smartphone className="h-4 w-4" /> Try opening in an app
-              </a>
-            )}
-          </div>
+          <EventNotFound openInApp={openInApp} />
         ) : (
           <ShareNavProvider>
             {/* New-account safety + discovery nudge (in-app accounts, not backed up). */}
