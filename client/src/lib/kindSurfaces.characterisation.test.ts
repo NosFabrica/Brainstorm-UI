@@ -29,9 +29,8 @@ import { kindLabel } from "@/lib/kindLabel";
 import { kindFamily } from "@/lib/kindFamily";
 import { readsAsArticle } from "@/lib/shareId";
 import { mediaItemsOf } from "@/lib/mediaKind";
-import { contentShape } from "@/lib/contentShape";
-import { NOTE_KINDS, heroFor } from "@/components/share/heroFor";
-import { dlistOfEvent, DLIST_REGISTRY } from "@/lib/dlists";
+import { pageReadsRoomy, pageSurfaceOf } from "@/lib/kindSurfaces";
+import { DLIST_REGISTRY } from "@/lib/dlists";
 
 // ---- the per-surface tests' own cases (kindSurfaces.test, kindSurfaces.gaps.test), as events ----
 
@@ -687,21 +686,18 @@ function pageOf(note: MinimalEvent, asDictionaryItem: boolean) {
   // A profile redirects to its person, long-form reads on the article layout; the event
   // layout below is what either falls back to (an address that won't encode).
   const route = note.kind === 0 ? "profile" : readsAsArticle(note) ? "article" : "event";
-  const hero = heroFor(note, asDictionaryItem);
-  const mediaItems = note.kind !== 6 && note.kind !== 16 ? mediaItemsOf(note) : [];
-  const structural =
-    hero === null && mediaItems.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text");
-  const dlist = dlistOfEvent(note);
+  const hasMedia = (note.kind !== 6 && note.kind !== 16 ? mediaItemsOf(note) : []).length > 0;
+  const s = pageSurfaceOf(note, { asDictionaryItem, hasMedia });
   return {
     route,
-    hero: hero ?? (structural ? "(structural)" : "(media/text)"),
-    dedicated: hero !== null,
-    collectsRefs: hero === "note" || (hero === null && !structural),
-    threads: hero !== "activity" && hero !== "git-status" && hero !== "git-reply",
-    conversation: hero !== "activity",
-    quietAuthor: !!dlist || asDictionaryItem || note.kind === 39998 || note.kind === 9998,
-    roomy: NOTE_KINDS.has(note.kind) || note.kind === 9802,
-    below: hero === "listing" ? "listing-related" : hero === "thing" ? "thing-sections" : null,
+    hero: s.hero ?? (s.structural ? "(structural)" : "(media/text)"),
+    dedicated: s.dedicated,
+    collectsRefs: s.collectsRefs,
+    threads: s.threads,
+    conversation: s.conversation,
+    quietAuthor: s.quietAuthor,
+    roomy: pageReadsRoomy(note),
+    below: s.below,
   };
 }
 

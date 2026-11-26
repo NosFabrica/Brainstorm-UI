@@ -57,7 +57,6 @@ import { itemPageTitle } from "@/lib/itemPageTitle";
 import { isReady, useItemView } from "@/hooks/useItemView";
 import { useSiteCard } from "@/hooks/useSiteCard";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
-import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventMedia } from "@/components/share/EventMedia";
 import { SensitiveRevealScope } from "@/components/share/SensitiveMedia";
@@ -79,7 +78,7 @@ import { RelayListHero } from "@/components/share/RelayListHero";
 import { UserStatusHero } from "@/components/share/UserStatusHero";
 import { WebBookmarkHero } from "@/components/share/WebBookmarkHero";
 import { ChatContextLine } from "@/components/share/ChatContext";
-import { NOTE_KINDS, heroFor } from "@/components/share/heroFor";
+import { pageReadsRoomy, pageSurfaceOf } from "@/lib/kindSurfaces";
 import { CHAT_KINDS } from "@/lib/chatMessage";
 import { liveHostClaim } from "@/lib/liveStream";
 import { LiveHostLine } from "@/components/share/LiveHostLine";
@@ -297,24 +296,21 @@ function EventView({
   const dlist = useMemo(() => (note ? dlistOfEvent(note) : null), [note]);
   const asDictionaryItem =
     !!note && (!!dictionaryConceptOf(note, concepts.rendered) || (!concepts.known && isDListItem(note) && !dlist));
-  // The hero the page draws, decided once: the chain below, the origin client, the refs
-  // asked for and the thread above all read it (heroFor).
-  const hero = useMemo(() => (note ? heroFor(note, asDictionaryItem) : null), [note, asDictionaryItem]);
+  // What the page draws, decided once (lib/kindSurfaces): the hero below, the origin
+  // client, the refs asked for, the thread above and the sections under it all read it.
+  const surface = useMemo(
+    () => (note ? pageSurfaceOf(note, { asDictionaryItem, hasMedia: mediaItems.length > 0 }) : null),
+    [note, asDictionaryItem, mediaItems],
+  );
+  const hero = surface?.hero ?? null;
   // The generic fallback with no words to read (none, ciphertext, JSON): the structural card.
-  const structural =
-    !!note &&
-    hero === null &&
-    mediaItems.length === 0 &&
-    (!note.content?.trim() || contentShape(note.content).kind !== "text");
+  const structural = !!surface?.structural;
   // References inside the note (quoted notes, articles, mentions) so the rich
   // card can embed them — same two batched queries the share page uses. Only a
   // page that draws the note's words asks: every other hero asks for what it
   // names itself, a fold at a time (a bookmark set's items, a follow set's or a
   // Trusted People list's thousands of members, an activity's post).
-  const refs = useMemo(
-    () => collectRefs(note && (hero === "note" || (hero === null && !structural)) ? [note] : []),
-    [note, hero, structural],
-  );
+  const refs = useMemo(() => collectRefs(note && surface?.collectsRefs ? [note] : []), [note, surface]);
   const refEventsQuery = useStoreEvents(
     refs.ids.length ? `event-refs:${refs.ids.join(",")}` : null,
     refs.ids.length ? [{ ids: refs.ids }] : null,
@@ -411,7 +407,7 @@ function EventView({
   // fallback (media, text, or the structural card): a kind with no hero of its
   // own is the one whose publishing client is worth a way back to (the team,
   // 2026-09-24: "open in original client").
-  const renderedGenerically = !!note && hero === null;
+  const renderedGenerically = !!note && !surface?.dedicated;
   // The ⋯ in the header: copies of the event's ids and "Open in" another
   // client. The URL may have carried a bare id or a note1 — a real nevent
   // is what to copy and what the web apps want.
@@ -457,13 +453,13 @@ function EventView({
   // A list's items and headers are about the thing listed, not who listed it: the
   // lister is a quiet "Listed by" under it, as on the results card, instead of the
   // header a post or an article gets (the team, 2026-10-01).
-  const quietAuthor = !!note && (!!dlist || asDictionaryItem || note.kind === 39998 || note.kind === 9998);
+  const quietAuthor = !!surface?.quietAuthor;
 
   // A zap, a reaction, a report…: its hero is the page, with no thread or topics of its own.
-  const activityPage = hero === "activity";
+  const activityPage = !!surface && !surface.conversation;
   // The conversation above: not above a hero that draws what the event is about itself —
   // an activity's post, a git status's or a legacy git reply's issue or patch.
-  const showAncestors = hero !== "activity" && hero !== "git-status" && hero !== "git-reply";
+  const showAncestors = surface?.threads ?? true;
   const thread = useMemo(() => (note && showAncestors ? replyRefs(note) : {}), [note, showAncestors]);
 
   // When the thread's anon signup gate is showing, suppress the page's own
@@ -618,7 +614,7 @@ function EventView({
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div
-              className={`${WATERMARK_HOST} rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${thread.parentId || thread.rootId ? "ring-1 ring-brand-primary/15" : ""}`}
+              className={`${WATERMARK_HOST} rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${pageReadsRoomy(note) ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${thread.parentId || thread.rootId ? "ring-1 ring-brand-primary/15" : ""}`}
               data-testid="event-note"
             >
               <CompromisedWatermark pubkey={authorPk} postedAt={note.created_at} eventId={note.id} />
@@ -774,11 +770,11 @@ function EventView({
 
             {/* Under a listing: the seller's other things, then similar things
                 from other sellers — a shop page that leads somewhere. */}
-            {hero === "listing" && <ListingRelated event={note} sellerName={authorName} />}
+            {surface?.below === "listing-related" && <ListingRelated event={note} sellerName={authorName} />}
 
             {/* Under a thing: what the network holds around it — a community's
                 posts, a fundraiser's supporters, a calendar's events… */}
-            {hero === "thing" && <ThingSections event={note} />}
+            {surface?.below === "thing-sections" && <ThingSections event={note} />}
 
             {/* What the network says this post is ABOUT (rung C2). Sits under
                 the note itself, where a reader has just finished it and a
