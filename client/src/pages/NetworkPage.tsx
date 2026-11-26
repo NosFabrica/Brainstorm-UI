@@ -61,55 +61,31 @@ import { NetworkReachStrip } from "@/components/network/NetworkReachStrip";
 import { countValuesOf } from "@/lib/networkReach";
 import { networkPerspective } from "@/lib/networkPerspective";
 import { presetDisplayLabel } from "@/services/trustThreshold";
-import { UNKNOWN_EXPLAINER, ladderFor } from "@/lib/trustLadder";
 import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 import { isProfileOverviewFresh, prefetchProfileOverview, useExpandedRow } from "./network/rowOverview";
 import { useRowScores } from "./network/useRowScores";
+import {
+  connectionTier,
+  groupFromSearch,
+  pageWindow,
+  trustFilterChoicesFor,
+  trustFilterFromSearch,
+  type TrustTier,
+} from "./network/networkFilters";
 
 export default function NetworkPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
 
-  const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const group = params.get("group");
-    const validGroups: GroupKey[] = [
-      "followed_by",
-      "following",
-      "muted_by",
-      "muting",
-      "reported_by",
-      "reporting",
-      "flagged",
-    ];
-    return group && validGroups.includes(group as GroupKey) ? (group as GroupKey) : "followed_by";
-  });
+  const [activeGroup, setActiveGroup] = useState<GroupKey>(() => groupFromSearch(window.location.search));
   // Mirror activeGroup into a ref so cards can read it lazily inside their
   // "view full profile" navigate handler without re-rendering on every change.
   const activeGroupRef = useRef(activeGroup);
   activeGroupRef.current = activeGroup;
   const [searchFilter, setSearchFilter] = useState("");
-  type TrustTier =
-    | "all"
-    // Simple-ladder "Verified": every tier at or above the preset's line. Not
-    // a backend bucket — it maps to `verified_only`, which the server resolves
-    // against the same cutoff, so the list and the header count agree.
-    | "verified"
-    | "high"
-    | "medium"
-    | "neutral"
-    | "low"
-    | "unverified"
-    | "flagged";
-  const [trustFilter, setTrustFilter] = useState<TrustTier>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const t = params.get("trust");
-    const valid: TrustTier[] = ["verified", "high", "medium", "neutral", "low", "unverified", "flagged"];
-    if (t && valid.includes(t as TrustTier)) return t as TrustTier;
-    return "all";
-  });
+  const [trustFilter, setTrustFilter] = useState<TrustTier>(() => trustFilterFromSearch(window.location.search));
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("trust")) {
@@ -234,61 +210,10 @@ export default function NetworkPage() {
   // does NOT trigger any fetch itself.
   const [loadedKinds, setLoadedKinds] = useState<Set<GroupKey>>(new Set());
 
-  // Map UI trust filter to backend tier param. Backend uses the GR
-  // `count_values` naming (medium_high / medium / medium_low / low /
-  // low_and_reported_by_2_or_more_trusted_pubkeys); FE UI names differ.
-  // When activeGroup is the derived "flagged" view, drop filters so the
-  // cross-kind flag derivation sees unfiltered loaded items.
-  // The trust filters: this page's own filter keys, each wearing the ladder rung it
-  // selects. "All" has no colour. The keys stay the page's vocabulary; the words and
-  // colours are the ladder's, so a rename there is a rename here.
-  const trustFilterChoices = useMemo((): { key: TrustTier; label: string; color: string | null; tooltip: string }[] => {
-    const ladder = ladderFor(granularity);
-    const rung = (key: string) => ladder.find((r) => r.key === key);
-    const tooltips: Record<TrustTier, string> = {
-      all: "Show all trust levels",
-      verified: "At or above your verified line",
-      high: "Highest Verification Score in your network",
-      medium: "Above-average Verification Score",
-      neutral: "Average Verification Score",
-      low: "Below-average Verification Score",
-      unverified: granularity === "simple" ? UNKNOWN_EXPLAINER : "No Verification Score calculated yet",
-      flagged: "Low trust accounts reported by 2+ of your trusted contacts",
-    };
-    const choice = (
-      key: TrustTier,
-      rungKey: string,
-    ): { key: TrustTier; label: string; color: string | null; tooltip: string } => {
-      const r = rung(rungKey);
-      return { key, label: r?.label ?? key, color: r?.color ?? null, tooltip: tooltips[key] };
-    };
-    const all = { key: "all" as TrustTier, label: "All", color: null, tooltip: tooltips.all };
-    return granularity === "simple"
-      ? [all, choice("verified", "verified"), choice("unverified", "unknown"), choice("flagged", "flagged")]
-      : [
-          all,
-          choice("high", "high"),
-          choice("medium", "trusted"),
-          choice("neutral", "neutral"),
-          choice("low", "low"),
-          choice("unverified", "unverified"),
-          choice("flagged", "flagged"),
-        ];
-  }, [granularity]);
+  const trustFilterChoices = useMemo(() => trustFilterChoicesFor(granularity), [granularity]);
 
   const isFlaggedView = activeGroup === "flagged";
-  const UI_TO_GR_TIER: Record<string, NonNullable<Parameters<typeof useSelfConnections>[2]>["tier"]> = {
-    high: "high",
-    medium: "medium_high",
-    neutral: "medium",
-    low: "medium_low",
-    unverified: "low",
-    flagged: "low_and_reported_by_2_or_more_trusted_pubkeys",
-  };
-  const mappedTier =
-    isFlaggedView || trustFilter === "all" || trustFilter === "verified"
-      ? undefined
-      : UI_TO_GR_TIER[trustFilter as keyof typeof UI_TO_GR_TIER];
+  const mappedTier = connectionTier(trustFilter, isFlaggedView);
   // `verified_only` filters on the preset's cutoff for that section, so the
   // list and the stats-derived header count agree by construction.
   const filterOpts = {
@@ -761,40 +686,7 @@ export default function NetworkPage() {
           : verifiedOnly
             ? (statsQuery.data?.data?.[activeGroup]?.verified ?? 0)
             : (overviewQuery.data?.data?.counts?.[activeGroup] ?? 0)));
-    const loadedTotalItems = visiblePubkeys.length;
-    const totalItems = Math.max(loadedTotalItems, activeServerCount);
-    const totalPages = Math.ceil(totalItems / PAGE_SIZE);
-    const safePage = Math.min(currentPage, totalPages || 1);
-    const startIdx = (safePage - 1) * PAGE_SIZE;
-
-    if (safePage < totalPages) {
-      const nextIdx = safePage * PAGE_SIZE;
-      return {
-        totalPages: totalPages,
-        startIdx: startIdx,
-        safePage: safePage,
-        nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
-        totalItems: totalItems,
-        items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE),
-        nextPage: {
-          totalPages: totalPages,
-          startIdx: nextIdx,
-          safePage: safePage,
-          nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
-          totalItems: totalItems,
-          items: visiblePubkeys.slice(nextIdx, nextIdx + PAGE_SIZE),
-        },
-      };
-    } else {
-      return {
-        totalPages: totalPages,
-        startIdx: startIdx,
-        safePage: safePage,
-        nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
-        totalItems: totalItems,
-        items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE),
-      };
-    }
+    return pageWindow(visiblePubkeys, activeServerCount, currentPage, PAGE_SIZE);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- extra deps bust the memo when ref-backed caches fill
   }, [
     currentPage,
