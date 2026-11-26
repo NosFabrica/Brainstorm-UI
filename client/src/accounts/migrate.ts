@@ -8,6 +8,12 @@
  * in IndexedDB is never touched and the binding still holds. Only the two
  * plaintext key rows need real work, and re-wrapping them is async, so it happens
  * in `finish()` after the first render.
+ *
+ * Every plaintext key v1 left is migrated — as the Account, as the same key the
+ * Account holds, or as its own remembered account — and its row deleted once v2
+ * holds that key at rest (an Unlock-cache envelope or an ncryptsec). Raw hex stays
+ * on the device only where there is no at-rest storage to move it into (no Unlock
+ * cache: private browsing, plain HTTP), since that row is then the only copy.
  */
 import { hexToBytes } from "nostr-tools/utils";
 import { getPublicKey, nip19 } from "nostr-tools";
@@ -119,6 +125,8 @@ type Built = {
   rewrap?: Rewrap;
   /** True when the Account came from `brainstorm_sk_enc`, which it now holds. */
   usedEnvelope?: boolean;
+  /** Plaintext rows of this same key, deleted once the Account is held at rest. */
+  copies?: Row[];
 };
 
 function fromPlaintext(key: Uint8Array, remembered: boolean, row: Row, signerOptions: LocalSignerOptions): Built {
@@ -155,13 +163,19 @@ function buildAccount(
   }
 
   const envelope = storage.device.getItem(V1_KEYS.encryptedKey);
-  if (envelope) {
-    // The envelope is opened with the pubkey as AAD, so without the cached user
-    // there is nothing to open it with — v1 was in the same position. Leave the
-    // row alone rather than guess.
-    if (!user?.pubkey) return null;
+  // The envelope is opened with the pubkey as AAD, so without the cached user
+  // there is nothing to open it with — v1 was in the same position, and went on
+  // to the plaintext key below. The envelope row is left alone rather than guessed at.
+  if (envelope && user?.pubkey) {
     const signer = new LocalSigner(user.pubkey, { envelope }, signerOptions);
-    return { account: new LocalAccount(user.pubkey, signer), remembered: true, usedEnvelope: true, others: [] };
+    const account = new LocalAccount(user.pubkey, signer);
+    const built: Built = { account, remembered: true, usedEnvelope: true };
+    // A plaintext key v1 kept beside it (its own fallback) is migrated too, never
+    // left as raw hex: the same key goes once the envelope is held at rest; another
+    // key is its own remembered account.
+    if (!legacyKey) return { ...built, others: [] };
+    if (getPublicKey(legacyKey) === user.pubkey) return { ...built, copies: [legacyRow], others: [] };
+    return { ...built, others: [fromPlaintext(legacyKey, true, legacyRow, signerOptions)] };
   }
 
   if (legacyKey) return { ...fromPlaintext(legacyKey, true, legacyRow, signerOptions), others: [] };
@@ -275,7 +289,7 @@ export function migrateV1({ storage, signerOptions = {}, retireV1Keys = true }: 
     account: built.account,
     others: built.others.map((other) => other.account),
     async finish() {
-      for (const { account, rewrap, usedEnvelope = false } of all) {
+      for (const { account, rewrap, usedEnvelope = false, copies = [] } of all) {
         if (rewrap) await rewrap.signer.cache();
 
         // Nothing is deleted until the v2 blob has been read back and found to hold
@@ -287,10 +301,10 @@ export function migrateV1({ storage, signerOptions = {}, retireV1Keys = true }: 
         if (!stored) continue;
         // An at-rest form in the blob, not merely in memory. Where there is no Unlock
         // cache (private browsing, plain HTTP) and no Backup, the v1 row is still the
-        // only copy of the key and has to stay.
+        // only copy of the key and has to stay: the one case a raw hex key is kept.
         const atRest = !!(stored.signer?.envelope || stored.signer?.ncryptsec);
 
-        if (rewrap && atRest) for (const row of rewrap.rows) row.store.removeItem(row.key);
+        if (atRest) for (const row of [...(rewrap?.rows ?? []), ...copies]) row.store.removeItem(row.key);
         retire(storage, account.pubkey, {
           ownsCachedUser: user?.pubkey === account.pubkey,
           envelopeStored: usedEnvelope && atRest,

@@ -327,6 +327,18 @@ Real-device checks before shipping a change here: `docs/agents/pwa-checklist.md`
   nginx (1 day, stale on error or rate limit), and in dev by Vite. The APK has no
   such proxy.
 
+## Accounts at rest
+
+v2 keeps a local key at rest in one of two forms, never as raw hex: an Unlock
+cache envelope (sealed under the device key in IndexedDB, `lib/skVault`) or an
+ncryptsec, on the Account in the v2 blob (`accounts/persist.ts`). The one-time v1
+migration (`accounts/migrate.ts`) takes every plaintext key v1 left (the session key,
+and the persistent plaintext key v1 kept beside its encrypted one): as the Account, as
+the same key the Account holds, or as its own remembered account. Each plaintext row is
+deleted only once the blob, read back, holds that key at rest. Raw hex stays on the
+device only where there is no at-rest storage to move it into (no Unlock cache:
+private browsing, plain HTTP), since that row is then the key's only copy.
+
 ## Passkeys
 
 A passkey unlocks a key the app holds (a `LocalAccount`); it is not a Signer and
