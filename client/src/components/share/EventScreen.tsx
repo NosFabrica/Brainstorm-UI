@@ -45,7 +45,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { publicPageUrl } from "@/lib/publicOrigin";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
-import { DeletedEvent } from "@/components/share/eventPage/DeletedEvent";
+import { DeletedStub } from "@/components/share/DeletedStub";
 import { EventByline } from "@/components/share/eventPage/EventByline";
 import { EventFunnel } from "@/components/share/eventPage/EventFunnel";
 import { EventMenu } from "@/components/share/eventPage/EventMenu";
@@ -133,6 +133,25 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
       );
   }
   return <EventView ptr={ptr} note={note} loading={eventQuery.loading} />;
+}
+
+/** An event deleted (by NIP-09, or by overwriting) or past its NIP-40 expiration: said, never drawn. */
+function DeletedEvent({ expired = false }: { expired?: boolean }) {
+  return (
+    <div className="min-h-page bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <PublicPageHeader />
+      <main className={cn(pageWidth("reading"), "py-8")}>
+        <div className="py-10" data-testid={expired ? "event-expired" : "event-deleted"}>
+          <DeletedStub expired={expired} />
+          <p className="mt-4 text-center">
+            <Link href="/" className="text-sm font-semibold text-brand-link hover:underline">
+              Go to Brainstorm →
+            </Link>
+          </p>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 function EventView({
