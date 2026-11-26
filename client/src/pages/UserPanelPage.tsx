@@ -45,9 +45,6 @@ import {
   Loader2,
   Check,
   CheckCircle2,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   UserPlus,
   Clock,
   List,
@@ -55,12 +52,9 @@ import {
   ExternalLink,
   X,
   Zap,
-  Sparkles,
   Activity,
   Globe,
-  Star,
   Eye,
-  Signal,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -78,226 +72,34 @@ import {
   saveAgentState,
   savePreviousScores,
   type AgentState,
-  type AgentStatus,
 } from "./userPanelState";
 import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import { TIER_LABELS } from "@/services/trustThreshold";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { hasOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
-
-type SortField = "name" | "score" | "tier";
-type SortDir = "asc" | "desc";
-
-interface FollowedUser {
-  pubkey: string;
-  npub: string;
-  influence: number;
-  displayName?: string;
-  picture?: string;
-  tier: string;
-  tierColor: string;
-}
-
-interface LookedUpUser {
-  pubkey: string;
-  npub: string;
-  displayName?: string;
-  picture?: string;
-}
-
-interface TaHistoryEntry {
-  timestamp: number;
-  eventKind: number;
-  relays: string[];
-  status: "success" | "failure" | "pending";
-}
-
-const AGENT_STATUS_CONFIG: Record<
-  AgentStatus,
-  {
-    label: string;
-    color: string;
-    bgClass: string;
-    borderClass: string;
-    icon: React.ComponentType<{ className?: string }>;
-    description: string;
-    level: number;
-  }
-> = {
-  dormant: {
-    label: "Dormant",
-    color: "text-slate-400",
-    bgClass: "bg-slate-500/20",
-    borderClass: "border-slate-500/30",
-    icon: AgentIcon,
-    description: "Your agent awaits activation",
-    level: 0,
-  },
-  activating: {
-    label: "Activating",
-    color: "text-amber-400",
-    bgClass: "bg-amber-500/20",
-    borderClass: "border-amber-500/30",
-    icon: Loader2,
-    description: "Powering up...",
-    level: 0,
-  },
-  active: {
-    label: "Active",
-    color: "text-emerald-400",
-    bgClass: "bg-emerald-500/20",
-    borderClass: "border-emerald-500/30",
-    icon: Zap,
-    description: "Published to the Nostr network",
-    level: 1,
-  },
-  established: {
-    label: "Established",
-    color: "text-brand-accent",
-    bgClass: "bg-brand-accent/20",
-    borderClass: "border-brand-accent/[0.3]",
-    icon: Globe,
-    description: "Discovered by multiple relays",
-    level: 2,
-  },
-  networked: {
-    label: "Networked",
-    color: "text-brand-link",
-    bgClass: "bg-brand-primary/20",
-    borderClass: "border-brand-primary/[0.3]",
-    icon: Signal,
-    description: "Connected to the wider trust network",
-    level: 3,
-  },
-  trusted: {
-    label: TIER_LABELS.trusted,
-    color: "text-amber-300",
-    bgClass: "bg-amber-400/20",
-    borderClass: "border-amber-400/30",
-    icon: Star,
-    description: "Recognized and trusted across the ecosystem",
-    level: 4,
-  },
-};
-
-const ACHIEVEMENTS = [
-  {
-    id: "activated",
-    label: "First Spark",
-    description: "Activated your agent",
-    icon: Zap,
-    check: (a: AgentState) => a.status !== "dormant" && a.status !== "activating",
-  },
-  {
-    id: "named",
-    label: "Identity",
-    description: "Named your agent",
-    icon: AgentIcon,
-    check: (a: AgentState) => !!a.name,
-  },
-  {
-    id: "published",
-    label: "On the Grid",
-    description: "Published to Nostr relays",
-    icon: Globe,
-    check: (a: AgentState) => !!a.publishedAt,
-  },
-  {
-    id: "described",
-    label: "Story Told",
-    description: "Added a description",
-    icon: Sparkles,
-    check: (a: AgentState) => !!a.description,
-  },
-  {
-    id: "portrait",
-    label: "Portrait",
-    description: "Added a profile picture",
-    icon: Eye,
-    check: (a: AgentState) => !!a.picture,
-  },
-  {
-    id: "lightning",
-    label: "Lightning Rod",
-    description: "Added a lightning address",
-    icon: Zap,
-    check: (a: AgentState) => !!a.lud16,
-  },
-  {
-    id: "verified",
-    label: "Verified",
-    description: "Added NIP-05 identity",
-    icon: Shield,
-    check: (a: AgentState) => !!a.nip05,
-  },
-];
-
-function getTier(influence: number): { name: string; color: string; badgeClass: string } {
-  if (influence >= 0.8)
-    return {
-      name: TIER_LABELS.high,
-      color: "text-emerald-600",
-      badgeClass: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    };
-  if (influence >= 0.5)
-    return {
-      name: TIER_LABELS.trusted,
-      color: "text-brand-accent",
-      badgeClass: "bg-brand-accent/10 border-brand-accent/20 text-brand-accent",
-    };
-  if (influence >= 0.2)
-    return {
-      name: "Neutral",
-      color: "text-brand-primary",
-      badgeClass: "bg-brand-primary/10 border-brand-primary/20 text-brand-primary",
-    };
-  if (influence >= 0.05)
-    return {
-      name: TIER_LABELS.low,
-      color: "text-amber-600",
-      badgeClass: "bg-amber-50 border-amber-200 text-amber-700",
-    };
-  return {
-    name: "Unverified",
-    color: "text-slate-500",
-    badgeClass:
-      "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400",
-  };
-}
-
-function TrendIndicator({ current, previous }: { current: number; previous: number | null }) {
-  if (previous === null) return <Minus className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />;
-  const diff = current - previous;
-  if (Math.abs(diff) < 0.001) return <Minus className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />;
-  if (diff > 0) return <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />;
-  return <TrendingDown className="h-3.5 w-3.5 text-red-500" />;
-}
-
-function StatusLevelBar({ currentLevel }: { currentLevel: number }) {
-  const levels = ["Dormant", "Active", "Established", "Networked", "Trusted"];
-  return (
-    <div className="flex w-full items-center gap-1" data-testid="agent-status-bar">
-      {levels.map((label, i) => (
-        <div key={label} className="flex flex-1 flex-col items-center gap-1">
-          <div
-            className={`h-1.5 w-full rounded-full transition-all duration-700 ${i <= currentLevel ? "bg-gradient-to-r from-emerald-400 to-brand-accent shadow-[0_0_8px_rgba(52,211,153,0.4)]" : "bg-white/10"}`}
-          />
-          <span
-            className={`text-[8px] font-bold uppercase tracking-widest transition-colors ${i <= currentLevel ? "text-emerald-300" : "text-white/20"}`}
-          >
-            {label}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+import {
+  ACHIEVEMENTS,
+  AGENT_STATUS_CONFIG,
+  filterAndSortFollowed,
+  formatRelativeTime,
+  formatTimestamp,
+  getTier,
+  nextAgentStatus,
+  promoteOnPublish,
+  resolveNpubInput,
+  taHistoryFrom,
+  type FollowedUser,
+  type LookedUpUser,
+  type SortDir,
+  type SortField,
+  type TaHistoryEntry,
+} from "./agentsuite/agentPanelModel";
+import { StatusLevelBar, TrendIndicator } from "./agentsuite/AgentBits";
 
 /** One identity's panel: remounted on an Account switch, so nothing typed or stored carries over. */
 export default function UserPanelPage() {
@@ -359,24 +161,10 @@ function UserPanel() {
   const { published: lightweightPublish } = useBrainstormAssistant();
   const lwTs = lightweightPublish?.publishedAt;
   useEffect(() => {
-    const STATUS_LEVEL: Record<AgentStatus, number> = {
-      dormant: 0,
-      activating: 1,
-      active: 2,
-      established: 3,
-      networked: 4,
-      trusted: 5,
-    };
     if (!lwTs || isNaN(lwTs)) return;
     setAgentState((prev) => {
-      if (prev.publishedAt && prev.publishedAt >= lwTs) return prev;
-      const promotedStatus: AgentStatus = STATUS_LEVEL[prev.status] >= STATUS_LEVEL.active ? prev.status : "active";
-      const next: AgentState = {
-        ...prev,
-        status: promotedStatus,
-        publishedAt: lwTs,
-        activatedAt: prev.activatedAt || lwTs,
-      };
+      const next = promoteOnPublish(prev, lwTs);
+      if (next === prev) return prev;
       saveAgentState(pubkey, next);
       return next;
     });
@@ -418,11 +206,7 @@ function UserPanel() {
     const grData = grapeRankData?.data;
     const hasCalc = grData?.internal_publication_status?.toLowerCase() === "success";
 
-    let newStatus: AgentStatus = "active";
-    if (agentState.publishedAt) newStatus = "active";
-    if (agentState.publishedAt && totalSize >= 10) newStatus = "established";
-    if (newStatus === "established" && nip85Activated && totalSize >= 50) newStatus = "networked";
-    if (newStatus === "networked" && hasCalc && totalSize >= 100) newStatus = "trusted";
+    const newStatus = nextAgentStatus(agentState.publishedAt, totalSize, nip85Activated, hasCalc);
 
     if (newStatus !== agentState.status) {
       updateAgentState({ status: newStatus });
@@ -486,80 +270,21 @@ function UserPanel() {
     });
   }, [followingList]);
 
-  const filteredAndSortedUsers = useMemo(() => {
-    let list = [...followedUsers];
-    if (scoreSearch.trim()) {
-      const q = scoreSearch.toLowerCase();
-      list = list.filter(
-        (u) =>
-          (u.displayName && u.displayName.toLowerCase().includes(q)) ||
-          u.npub.toLowerCase().includes(q) ||
-          u.pubkey.toLowerCase().includes(q),
-      );
-    }
-    list.sort((a, b) => {
-      let va: string | number, vb: string | number;
-      if (scoreSortField === "score" || scoreSortField === "tier") {
-        va = a.influence;
-        vb = b.influence;
-      } else {
-        va = (a.displayName || a.npub).toLowerCase();
-        vb = (b.displayName || b.npub).toLowerCase();
-      }
-      if (va < vb) return scoreSortDir === "asc" ? -1 : 1;
-      if (va > vb) return scoreSortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return list;
-  }, [followedUsers, scoreSearch, scoreSortField, scoreSortDir]);
+  const filteredAndSortedUsers = useMemo(
+    () => filterAndSortFollowed(followedUsers, scoreSearch, scoreSortField, scoreSortDir),
+    [followedUsers, scoreSearch, scoreSortField, scoreSortDir],
+  );
 
   const taHistory = useMemo((): TaHistoryEntry[] => {
-    const entries: TaHistoryEntry[] = [];
+    let nip85Relay: string | null = null;
     if (grapeRank) {
-      let nip85Relay: string | null = null;
       try {
         nip85Relay = getNip85RelayUrl();
       } catch {
         nip85Relay = null;
       }
-      const createdAt = grapeRank.created_at
-        ? new Date(grapeRank.created_at.endsWith?.("Z") ? grapeRank.created_at : grapeRank.created_at + "Z")
-        : null;
-      const updatedAt = grapeRank.updated_at
-        ? new Date(grapeRank.updated_at.endsWith?.("Z") ? grapeRank.updated_at : grapeRank.updated_at + "Z")
-        : null;
-      const taStatus = grapeRank.ta_status;
-      const relays = nip85Relay ? [nip85Relay] : [];
-      if (updatedAt && !isNaN(updatedAt.getTime())) {
-        entries.push({
-          timestamp: updatedAt.getTime(),
-          eventKind: 30382,
-          relays,
-          status:
-            taStatus?.toLowerCase() === "success"
-              ? "success"
-              : taStatus?.toLowerCase() === "failure"
-                ? "failure"
-                : "pending",
-        });
-      }
-      if (createdAt && !isNaN(createdAt.getTime()) && createdAt.getTime() !== updatedAt?.getTime()) {
-        entries.push({ timestamp: createdAt.getTime(), eventKind: 30382, relays, status: "success" });
-      }
     }
-    const localHistory = localStorage.getItem("brainstorm_ta_history");
-    if (localHistory) {
-      try {
-        const parsed = JSON.parse(localHistory);
-        if (Array.isArray(parsed)) {
-          for (const entry of parsed) {
-            if (!entries.some((e) => Math.abs(e.timestamp - entry.timestamp) < 60000)) entries.push(entry);
-          }
-        }
-      } catch {}
-    }
-    entries.sort((a, b) => b.timestamp - a.timestamp);
-    return entries;
+    return taHistoryFrom(grapeRank, nip85Relay, localStorage.getItem("brainstorm_ta_history"));
   }, [grapeRank]);
 
   const getProfilePayload = useCallback(
@@ -653,24 +378,8 @@ function UserPanel() {
     updateBrainstormProfile.mutate();
   };
 
-  const resolveNpubInput = (): string | null => {
-    const input = npubInput.trim();
-    if (!input) return null;
-    try {
-      if (input.startsWith("npub1")) {
-        const decoded = nip19.decode(input);
-        if (decoded.type === "npub") return decoded.data;
-        return null;
-      }
-      if (/^[0-9a-f]{64}$/i.test(input)) return input;
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
   const handleLookupNpub = async () => {
-    const pubkey = resolveNpubInput();
+    const pubkey = resolveNpubInput(npubInput);
     if (!pubkey) {
       toast({
         variant: "destructive",
@@ -722,34 +431,6 @@ function UserPanel() {
   const handleLogout = () => {
     logout();
     navigate("/");
-  };
-
-  const formatTimestamp = (ts: number): string => {
-    const d = new Date(ts);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
-  const formatRelativeTime = (dateStr: string | null): string => {
-    if (!dateStr) return "Never";
-    const date = new Date(dateStr.endsWith?.("Z") ? dateStr : dateStr + "Z");
-    if (isNaN(date.getTime())) return "Unknown";
-    const diffMs = Date.now() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    if (diffSec < 60) return "just now";
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
-    const diffDays = Math.floor(diffHr / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const toggleSort = (field: SortField) => {
