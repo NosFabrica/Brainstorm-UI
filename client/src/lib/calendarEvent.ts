@@ -17,10 +17,12 @@ export interface CalendarEvent {
   /** A list item's organizer, as text — the feed's calendar name, never a nostr name. */
   organizer?: string;
   /**
-   * Called off, in the host's own words: a title that starts "Cancelled:" (Event Index
-   * marks a cancelled event so). NIP-52 defines no status for a calendar event, so a
-   * NIP-52 event's `status` tag is not read (a host that withdraws one deletes it, NIP-09);
-   * a list item's `status` field is its list's, and is.
+   * Called off, in the host's own words: a title that starts "Cancelled:", or a
+   * `status` of `cancelled`. Event Index marks a cancelled event both ways. NIP-52
+   * defines no status for a calendar event (a host that withdraws one deletes it,
+   * NIP-09): `status: cancelled` is Event Index's convention, proposed for NIP-52
+   * (issue #243), and no other value of it is read. A list item's `status` field is
+   * its list's, and reads the same.
    */
   cancelled: boolean;
   image?: string;
@@ -61,7 +63,8 @@ export function parseCalendarEvent(ev: MinimalEvent): CalendarEvent {
     isDateOnly: ev.kind === 31922 || (ev.kind === EVENT_ITEM_KIND && /^\d{4}-\d{2}-\d{2}$/.test(start ?? "")),
     location: tag("location"),
     organizer: tag("organizer")?.trim() || undefined,
-    cancelled: saidCancelled || (ev.kind === EVENT_ITEM_KIND && tag("status")?.toLowerCase() === "cancelled"),
+    // `status: cancelled`: Event Index's convention, not NIP-52's (see `cancelled` above).
+    cancelled: saidCancelled || tag("status")?.trim().toLowerCase() === "cancelled",
     image: tag("image"),
     summary: (tag("summary") || ev.content || "").trim() || undefined,
     recordingUrl,

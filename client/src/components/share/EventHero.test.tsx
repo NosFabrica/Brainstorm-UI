@@ -412,7 +412,7 @@ describe("EventHero — issue #243 (NIP-52)", () => {
     );
   });
 
-  it("a title that says Cancelled: is cancelled — the title without it, no RSVP; a status tag is not NIP-52's", () => {
+  it("a title that says Cancelled: is cancelled — the title without it, no RSVP; so is Event Index's status tag", () => {
     render(
       <EventHero
         event={{
@@ -441,7 +441,10 @@ describe("EventHero — issue #243 (NIP-52)", () => {
         }}
       />,
     );
-    expect(screen.queryByTestId("event-hero-cancelled")).toBeNull();
+    // Event Index's `status: cancelled` (NIP-52 has none): cancelled too, the title as it is.
+    expect(screen.getByTestId("event-hero-cancelled")).toBeInTheDocument();
+    expect(screen.getByTestId("event-hero-title")).toHaveTextContent(/^Hack night$/);
+    expect(screen.queryByTestId("event-rsvp")).toBeNull();
   });
 
   it("says how many going the reader trusts, their faces first", async () => {

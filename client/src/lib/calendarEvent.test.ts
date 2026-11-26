@@ -100,11 +100,12 @@ describe("parseCalendarEvent — a list item", () => {
   });
 });
 
-describe("parseCalendarEvent — NIP-52 defines no status", () => {
-  const nip52 = (tags: string[][]) =>
-    ({ id: "1".repeat(64), kind: 31923, pubkey: "2".repeat(64), created_at: 1, content: "", tags }) as never;
+describe("parseCalendarEvent — a cancelled NIP-52 event", () => {
+  const nip52 = (tags: string[][], kind = 31923) =>
+    ({ id: "1".repeat(64), kind, pubkey: "2".repeat(64), created_at: 1, content: "", tags }) as never;
 
-  it("a NIP-52 event's status tag is not read; its title saying so is", () => {
+  // NIP-52 defines no status; Event Index proposes `status: cancelled` for it, and writes it.
+  it("reads `status: cancelled` (Event Index's convention), and no other status", () => {
     expect(
       parseCalendarEvent(
         nip52([
@@ -112,7 +113,29 @@ describe("parseCalendarEvent — NIP-52 defines no status", () => {
           ["status", "cancelled"],
         ]),
       ).cancelled,
+    ).toBe(true);
+    expect(
+      parseCalendarEvent(
+        nip52(
+          [
+            ["title", "Day"],
+            ["status", "CANCELLED"],
+          ],
+          31922,
+        ),
+      ).cancelled,
+    ).toBe(true);
+    expect(
+      parseCalendarEvent(
+        nip52([
+          ["title", "Meetup"],
+          ["status", "confirmed"],
+        ]),
+      ).cancelled,
     ).toBe(false);
+  });
+
+  it("and still a title that says so, without the prefix", () => {
     const off = parseCalendarEvent(nip52([["title", "Cancelled: Meetup"]]));
     expect(off.cancelled).toBe(true);
     expect(off.title).toBe("Meetup");
