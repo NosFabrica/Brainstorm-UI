@@ -10,6 +10,7 @@
  */
 import { useState } from "react";
 import type { NostrEvent } from "nostr-tools";
+import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DListItemCardPreview } from "@/components/dictionary/DListItemCard";
 import { DListItemRow } from "@/components/dictionary/DListItemRow";
@@ -45,7 +46,7 @@ export function ItemPreview({
           ))}
         </TabsList>
       </Tabs>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+      <Card className="p-4 sm:p-5">
         {view === "page" ? (
           <DListItemHeroPreview event={item} resolved={resolved} />
         ) : view === "card" ? (
@@ -57,7 +58,7 @@ export function ItemPreview({
             <DListItemRow item={item} resolved={resolved} />
           </ul>
         )}
-      </div>
+      </Card>
       {readouts.length > 0 && <LinkReadouts readouts={readouts} testId={`${testId}-links`} />}
     </div>
   );

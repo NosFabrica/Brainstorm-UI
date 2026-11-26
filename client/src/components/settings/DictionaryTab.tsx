@@ -42,6 +42,7 @@ import { ListManager, listManagerPath } from "@/components/lists/ListManager";
 import { DListItemRow } from "@/components/dictionary/DListItemRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { useDictionary } from "@/hooks/useDictionary";
 import { useDictionaryManagers } from "@/hooks/useDictionaryManagers";
 import { useDictionaryReader } from "@/hooks/useDictionaryReader";
@@ -628,20 +629,15 @@ function ItemsSection({
           />
           <div className="flex items-center gap-0.5" role="group" aria-label="Sort">
             {ITEM_ORDERS.map((o) => (
-              <button
+              <ToggleChip
                 key={o.key}
-                type="button"
+                variant="ghost"
+                pressed={order === o.key}
                 onClick={() => setOrder(o.key)}
-                aria-pressed={order === o.key}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                  order === o.key
-                    ? "bg-brand-primary text-white"
-                    : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
-                }`}
                 data-testid={`dictionary-items-sort-${o.key}`}
               >
                 {o.label}
-              </button>
+              </ToggleChip>
             ))}
           </div>
         </div>

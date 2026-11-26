@@ -122,20 +122,15 @@ export function TabFacetRows({
             {EVENT_WHEN_ORDER.filter(
               (when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0),
             ).map((when) => (
-              <button
+              <FacetChip
                 key={when}
-                type="button"
-                aria-pressed={effectiveWhen === when}
+                pressed={effectiveWhen === when}
                 onClick={() => setEventWhen(when)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  effectiveWhen === when
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                    : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                }`}
-                data-testid={`event-facet-${when}`}
+                count={eventCounts[when]}
+                testId={`event-facet-${when}`}
               >
-                {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
-              </button>
+                {EVENT_WHEN_LABELS[when]}
+              </FacetChip>
             ))}
           </FacetRow>
           {eventsFellBack && (

@@ -15,14 +15,6 @@
   --card: 0 0% 100%;
   --card-foreground: 223 41% 7%;
   --card-border: 204 7% 85%;
-  --sidebar: 0 0% 98%;
-  --sidebar-foreground: 223 41% 7%;
-  --sidebar-border: 204 7% 85%;
-  --sidebar-primary: 258 100% 61%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 80 6% 94%;
-  --sidebar-accent-foreground: 223 41% 7%;
-  --sidebar-ring: 258 100% 61%;
   --popover: 0 0% 100%;
   --popover-foreground: 223 41% 7%;
   --popover-border: 204 7% 85%;
@@ -82,14 +74,6 @@
   --tracking-normal: -0.011em;
   --spacing: 0.25rem;
 
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(
-    from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(
-    from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
   --primary-border: hsl(var(--primary));
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --secondary-border: hsl(var(--secondary));
@@ -115,14 +99,6 @@
   --card: 219 33% 12%;
   --card-foreground: 80 8% 95%;
   --card-border: 214 22% 21%;
-  --sidebar: 240 5.9% 10%;
-  --sidebar-foreground: 240 4.8% 95.9%;
-  --sidebar-border: 214 22% 21%;
-  --sidebar-primary: 258 100% 61%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 214 22% 21%;
-  --sidebar-accent-foreground: 240 4.8% 95.9%;
-  --sidebar-ring: 258 100% 61%;
   --popover: 223 41% 7%;
   --popover-foreground: 0 0% 98%;
   --popover-border: 214 22% 21%;
@@ -159,14 +135,6 @@
   --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.5);
   --shadow-2xl: 0 35px 60px -15px rgb(0 0 0 / 0.6);
 
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(
-    from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(
-    from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
   --primary-border: hsl(var(--primary));
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --secondary-border: hsl(var(--secondary));
