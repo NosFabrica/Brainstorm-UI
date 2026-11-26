@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { AccountManager, BaseAccount } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
@@ -9,6 +9,10 @@ import { rememberProfile } from "@/accounts/display";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata, BrainstormAccount } from "@/accounts/metadata";
 import { useActiveAccountDisplay } from "./useActiveAccountDisplay";
+
+// The hook asks the relays for the account's kind-0 (useLiveProfile); the tests put
+// it in the store themselves.
+vi.mock("@/services/nostr", async () => (await import("@/test/fakeNostr")).nostrReadDefaults);
 
 class TestAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-identity-hook";

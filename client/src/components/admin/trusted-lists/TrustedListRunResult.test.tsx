@@ -12,6 +12,8 @@ vi.mock("./listMembers", () => ({ loadTrustedList: (...a: unknown[]) => loadTrus
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchProfileMap: async () => new Map([["d".repeat(64), { name: "Vitor Pamplona" }]]),
+  // A list of notes asks the relays for them; a note not found still shows its row and score.
+  fetchEventsByIds: async () => [],
 }));
 
 import { TrustedListRunResult } from "./TrustedListRunResult";

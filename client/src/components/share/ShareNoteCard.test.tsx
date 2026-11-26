@@ -22,6 +22,11 @@ const clientLink = vi.hoisted(() => ({
 }));
 vi.mock("@/services/clientLinks", () => ({ resolveClientLink: clientLink.resolve, peekClientLink: clientLink.peek }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+// A market the note names is read from the relays when the card doesn't hold it; these do.
+vi.mock("@/services/nostr", async (orig) => ({
+  ...(await orig<typeof import("@/services/nostr")>()),
+  fetchAddressableEvents: async () => new Map(),
+}));
 
 const PUBKEY = "a".repeat(64);
 const base = { pubkey: PUBKEY, tags: [] as string[][], created_at: 1_700_000_000 };

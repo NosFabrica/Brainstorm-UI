@@ -42,6 +42,10 @@ vi.mock("@/components/Footer", () => ({ Footer: () => null }));
 vi.mock("@/components/PageBackground", () => ({ default: () => null }));
 vi.mock("@/components/DeferredSession", () => ({ DeferredSessionNotice: () => null }));
 vi.mock("@/components/admin/NostrHealthCard", () => ({ NostrHealthCard: () => null }));
+// The Health tab times a socket to each relay on open.
+vi.mock("@/pages/admin/health/useRelayLatency", () => ({
+  useRelayLatency: () => ({ relayLatencies: [], relayCheckRunning: false, runRelayCheck: () => {} }),
+}));
 vi.mock("@/components/admin/support/AdminSupportCards", () => ({ AdminSupportCards: () => null }));
 vi.mock("@/components/admin/billing/AdminBillingCards", () => ({ AdminBillingCards: () => null }));
 vi.mock("@/components/admin/billing/PlanMappingsCard", () => ({ PlanMappingsCard: () => null }));
