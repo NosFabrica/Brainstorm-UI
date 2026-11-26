@@ -8,6 +8,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { useScorePov } from "@/components/score/TrustScorePov";
 import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
 import { TagDescriptionEditor } from "@/components/tags/TagDescriptionEditor";
@@ -550,16 +551,8 @@ function SortChip({
   testId?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
-        active ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
-      }`}
-      data-testid={testId}
-    >
+    <ToggleChip variant="ghost" pressed={active} onClick={onClick} className="px-2.5" data-testid={testId}>
       {children}
-    </button>
+    </ToggleChip>
   );
 }

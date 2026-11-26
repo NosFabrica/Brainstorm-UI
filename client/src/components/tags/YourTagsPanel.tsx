@@ -7,6 +7,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { FacePile, NameList, displayName, profilePath } from "@/components/tags/FacePile";
 import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
@@ -1011,17 +1012,15 @@ function StanceTab({
   testId: string;
 }) {
   return (
-    <button
-      type="button"
+    <ToggleChip
+      variant="ghost"
+      pressed={active}
       onClick={onClick}
-      aria-pressed={active}
-      className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-        active ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
-      }`}
+      className="flex items-center gap-1.5"
       data-testid={testId}
     >
       {children}
-    </button>
+    </ToggleChip>
   );
 }
 

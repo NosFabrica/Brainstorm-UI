@@ -5,6 +5,7 @@ import { TagsPageShell } from "@/components/tags/TagsPageShell";
 import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { useTagIndex } from "@/hooks/useTags";
 
 import { npubFromPubkey } from "@/lib/shareId";
@@ -52,17 +53,14 @@ export default function TagIndexPage() {
   const hidden = useMemo(() => (data ?? []).filter((t) => t.unverified).length, [data]);
 
   const tab = (key: Sort, label: string) => (
-    <button
-      type="button"
+    <ToggleChip
+      variant="ghost"
+      pressed={sort === key}
       onClick={() => setSort(key)}
-      aria-pressed={sort === key}
-      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-        sort === key ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
-      }`}
       data-testid={`tag-index-sort-${key}`}
     >
       {label}
-    </button>
+    </ToggleChip>
   );
 
   return (
