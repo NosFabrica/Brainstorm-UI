@@ -11,10 +11,10 @@ import { useListKinds } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
 import { offersTab, type TabEvidence } from "@/lib/tabCounts";
 import { useHandlePointers } from "@/hooks/useHandlePointers";
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { HelpCircle, Radar, SlidersHorizontal } from "lucide-react";
 import {
   activeFilterCount,
   applyFilters,
@@ -46,12 +46,12 @@ import {
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
 import { FiltersPanel } from "./FiltersPanel";
+import { MediaFacetRow, TabFacetRows } from "./TabFacetRows";
 import { TabResultCard, isPersonCard, type CardProfile, type TabCardContext } from "./TabResultCard";
 import { CALENDAR_KIND, LIVE_KINDS, NOTE_KINDS, isGitItemTab, isGitTab, isThingTab } from "./tabKinds";
 import { displayRows, tabHits, type DisplayRow } from "./pipelines";
 import { appCategoryFacets as appCategoryFacetsOf, appPlatformFacets } from "./pipelines/apps";
 import {
-  ARTICLE_TYPE_LABEL,
   articleFacets as articleFacetsOf,
   recipeFacets as recipeFacetsOf,
   type ArticleType,
@@ -79,7 +79,7 @@ import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
 import { fetchGitCommentCounts, fetchGitStatuses, fetchGoalProgress, type GoalProgress } from "@/services/search";
 import { useEventRsvps } from "@/hooks/useEventRsvps";
-import { GIT_STATE_LABEL, isGitItem, type GitState } from "@/lib/gitStatus";
+import { isGitItem, type GitState } from "@/lib/gitStatus";
 import { MediaCard, mediaUrlOf } from "@/components/search/cards";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
@@ -103,7 +103,7 @@ import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
-import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, type EventWhen } from "@/lib/eventFilters";
+import { eventWhenCounts, type EventWhen } from "@/lib/eventFilters";
 import { cardGroupOf } from "@/lib/listingVariants";
 import { priceBands, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -119,9 +119,8 @@ import { leadingTags } from "@/lib/tagMatch";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
-import { FacetChip, FacetRow } from "@/components/search/sections";
-import { MEDIA_KIND_LABELS, MEDIA_KIND_ORDER, type MediaKind } from "@/lib/mediaKind";
-import { MEDIA_FACET_LABELS, mediaFacetOf, mediaNarrowingOf, withMediaFacet, type MediaFacet } from "@/lib/mediaFacet";
+import { type MediaKind } from "@/lib/mediaKind";
+import { mediaFacetOf, mediaNarrowingOf, withMediaFacet, type MediaFacet } from "@/lib/mediaFacet";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { SearchPriorityContext, useSearchPriorityState } from "@/hooks/useSearchPriority";
 import { ComposedResults } from "@/components/search/ComposedResults";
@@ -1437,50 +1436,10 @@ export const SearchResults = memo(function SearchResults({
                 offered on every Media page, and a narrowed page that found nothing still needs
                 the way back. Photos and Audio join them when the loaded page mixes kinds. */}
               {tab === "media" && serverStatus.search !== "down" && (
-                <FacetRow className="mb-2" testId="media-facets">
-                  <FacetChip
-                    pressed={!mediaFacet && pageKind === null}
-                    onClick={() => chooseMediaFacet(null)}
-                    testId="media-facet-all"
-                  >
-                    All
-                  </FacetChip>
-                  {MEDIA_KIND_ORDER.map((kind) => {
-                    if (kind === "video")
-                      return (
-                        <Fragment key={kind}>
-                          <FacetChip
-                            pressed={mediaFacet === "videos" || pageKind === "video"}
-                            onClick={toggleVideos}
-                            testId="media-facet-video"
-                          >
-                            {MEDIA_FACET_LABELS.videos}
-                          </FacetChip>
-                          {onQueryRewrite && (
-                            <FacetChip
-                              pressed={mediaFacet === "vines"}
-                              onClick={() => chooseMediaFacet(mediaFacet === "vines" ? null : "vines")}
-                              testId="media-facet-vines"
-                            >
-                              {MEDIA_FACET_LABELS.vines}
-                            </FacetChip>
-                          )}
-                        </Fragment>
-                      );
-                    const count = mediaCounts.get(kind);
-                    return count === undefined ? null : (
-                      <FacetChip
-                        key={kind}
-                        pressed={pageKind === kind}
-                        onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))}
-                        count={count}
-                        testId={`media-facet-${kind}`}
-                      >
-                        {MEDIA_KIND_LABELS[kind]}
-                      </FacetChip>
-                    );
-                  })}
-                </FacetRow>
+                <MediaFacetRow
+                  {...{ mediaFacet, pageKind, chooseMediaFacet, toggleVideos, mediaCounts, setMediaKind }}
+                  vines={!!onQueryRewrite}
+                />
               )}
               {/* The tags the results carry, most carried first: each a filter over them. */}
               {(FEATURES.searchTagFilters || onListTab) && onAll && !tagTabKey && serverStatus.search !== "down" && (
@@ -1645,298 +1604,51 @@ export const SearchResults = memo(function SearchResults({
                 </div>
               ) : (
                 <>
-                  {tab === "events" && eventCounts && (
-                    <div className="mb-2.5">
-                      <FacetRow testId="event-facets">
-                        {EVENT_WHEN_ORDER.filter(
-                          (when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0),
-                        ).map((when) => (
-                          <button
-                            key={when}
-                            type="button"
-                            aria-pressed={effectiveWhen === when}
-                            onClick={() => setEventWhen(when)}
-                            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                              effectiveWhen === when
-                                ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                                : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                            }`}
-                            data-testid={`event-facet-${when}`}
-                          >
-                            {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
-                          </button>
-                        ))}
-                      </FacetRow>
-                      {eventsFellBack && (
-                        <p
-                          className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
-                          data-testid="event-facets-note"
-                        >
-                          No upcoming events for this search — showing past events.
-                        </p>
-                      )}
-                      {displayHits.length === 0 && !eventsFellBack && (
-                        <p
-                          className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
-                          data-testid="event-facets-empty"
-                        >
-                          No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
-                    <FacetRow className="mb-2" testId="repo-state-facets">
-                      <button
-                        type="button"
-                        onClick={() => setRepoState(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                        data-testid="repo-state-all"
-                      >
-                        All
-                      </button>
-                      {repoStateFacets.map(([st]) => (
-                        <button
-                          key={st}
-                          type="button"
-                          onClick={() => setRepoState(repoState === st ? null : st)}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                          data-testid={`repo-state-${st}`}
-                        >
-                          {GIT_STATE_LABEL[st]}
-                        </button>
-                      ))}
-                      {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
-                        <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                      )}
-                      {repoLabelFacets.map(([label]) => (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => setRepoLabel(repoLabel === label ? null : label)}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                          data-testid={`repo-label-${label}`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "live" &&
-                    !liveShowable &&
-                    hits.length > 0 &&
-                    // Nothing on any shelf yet. While the relay or the proofs are still
-                    // answering, hold the shape; once they have, say so — never a blank
-                    // page under a count of eleven (Joe Martin's stale "live" pair).
-                    (!snapshot?.eose || proofs.pending > 0 ? (
-                      <div
-                        className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                        data-testid="live-skeleton"
-                        aria-hidden="true"
-                      >
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="animate-pulse">
-                            <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
-                            <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
-                            <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div
-                        className="mt-2 rounded-2xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60"
-                        data-testid="live-empty"
-                      >
-                        <EmptyState
-                          icon={Radio}
-                          compact
-                          title={
-                            scopedTo
-                              ? "Nothing live from them right now"
-                              : query.trim()
-                                ? `Nothing live for “${query.trim()}” right now`
-                                : "Nothing live right now"
-                          }
-                          description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
-                        />
-                      </div>
-                    ))}
-                  {tab === "live" && liveShowable && (
-                    <FacetRow className="mb-3" testId="live-facets">
-                      {(["live", "upcoming", "replay"] as LiveState[])
-                        .filter((st) => liveCounts[st] > 0)
-                        .map((st) => (
-                          <FacetChip
-                            key={st}
-                            pressed={effectiveShelf === st}
-                            onClick={() => setLiveShelf(st)}
-                            count={liveCounts[st]}
-                            testId={`live-facet-${st === "replay" ? "replays" : st}`}
-                          >
-                            {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
-                          </FacetChip>
-                        ))}
-                    </FacetRow>
-                  )}
-                  {tab === "articles" && articleFacets.length > 0 && (
-                    <FacetRow className="mb-2" testId="article-facets">
-                      <button
-                        type="button"
-                        onClick={() => setArticleType(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          articleType === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="article-facet-all"
-                      >
-                        All
-                      </button>
-                      {articleFacets.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setArticleType((cur) => (cur === t ? null : t))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            articleType === t
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`article-facet-${t}`}
-                        >
-                          {ARTICLE_TYPE_LABEL[t]}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "recipes" && recipeFacets.length > 0 && (
-                    <FacetRow className="mb-2" testId="recipe-facets">
-                      <button
-                        type="button"
-                        onClick={() => setRecipeTopic(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          recipeTopic === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="recipe-facet-all"
-                      >
-                        All
-                      </button>
-                      {recipeFacets.map(([topic]) => (
-                        <button
-                          key={topic}
-                          type="button"
-                          onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            recipeTopic === topic
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`recipe-facet-${topic}`}
-                        >
-                          {topic}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "shop" && shopFacets.length > 0 && (
-                    <FacetRow className="mb-2" testId="shop-facets">
-                      <button
-                        type="button"
-                        onClick={() => setShopCategory(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          shopCategory === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="shop-facet-all"
-                      >
-                        All
-                      </button>
-                      {shopFacets.map(([cat]) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            shopCategory === cat
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`shop-facet-${cat}`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "shop" && rates && rawHits.length > 0 && (
-                    <FacetRow className="mb-2" testId="shop-price-facets">
-                      {bands.map((b) => (
-                        <FacetChip
-                          key={b.key}
-                          pressed={shopPrice === b.key}
-                          onClick={() => setShopPrice((cur) => (cur === b.key ? null : b.key))}
-                          testId={`shop-price-${b.key}`}
-                        >
-                          {b.label}
-                        </FacetChip>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
-                    <FacetRow className="mb-2" testId="app-facets">
-                      <button
-                        type="button"
-                        onClick={() => setAppPlatform(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          appPlatform === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="app-facet-all"
-                      >
-                        All
-                      </button>
-                      {appFacets.map(([platform]) => (
-                        <button
-                          key={platform}
-                          type="button"
-                          onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            appPlatform === platform
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`app-facet-${platform.toLowerCase()}`}
-                        >
-                          {platform}
-                        </button>
-                      ))}
-                      {/* One row, like Repos: platforms, a hairline, then the apps' own
-                  categories. Licences are a fact for the app page, not a way
-                  people browse. */}
-                      {appCategoryFacets.length > 0 && (
-                        <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                      )}
-                      {appCategoryFacets.map(([cat]) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            appCategory === cat
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`app-cat-facet-${cat}`}
-                        >
-                          #{cat}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
+                  <TabFacetRows
+                    {...{
+                      tab,
+                      eventCounts,
+                      effectiveWhen,
+                      setEventWhen,
+                      eventsFellBack,
+                      displayHits,
+                      repoStateFacets,
+                      repoLabelFacets,
+                      repoState,
+                      setRepoState,
+                      repoLabel,
+                      setRepoLabel,
+                      liveShowable,
+                      hits,
+                      snapshot,
+                      proofs,
+                      scopedTo,
+                      query,
+                      liveCounts,
+                      effectiveShelf,
+                      setLiveShelf,
+                      articleFacets,
+                      articleType,
+                      setArticleType,
+                      recipeFacets,
+                      recipeTopic,
+                      setRecipeTopic,
+                      shopFacets,
+                      shopCategory,
+                      setShopCategory,
+                      rates,
+                      rawHits,
+                      bands,
+                      shopPrice,
+                      setShopPrice,
+                      appFacets,
+                      appCategoryFacets,
+                      appPlatform,
+                      setAppPlatform,
+                      appCategory,
+                      setAppCategory,
+                    }}
+                  />
                   {/* No count by default — Google dropped it from the default view too.
               The number does work only when a chip or a filter narrows the
               page: what matched, of how many. */}
