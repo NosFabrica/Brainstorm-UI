@@ -578,6 +578,22 @@ describe("a thing page's reads (ADR 0005)", () => {
     expect(added).toContain(post);
     add.mockRestore();
   });
+
+  it("show only what the store kept: a copy it refused (a bad signature, a deleted event) is not on the page", async () => {
+    const { eventStore } = await import("@/lib/eventStore");
+    const kept = ev(1111, [["A", "34550:" + who + ":k"]], "kept");
+    const refused = ev(1111, [["A", "34550:" + who + ":r"]], "refused");
+    const add = vi.spyOn(eventStore, "add").mockImplementation((e: NostrEvent) => (e.id === refused.id ? null : e));
+    fromSearchMock.mockResolvedValue([kept, refused]);
+    function Probe() {
+      const got = useSearchEvents("refusals", [{ kinds: [1111] }]);
+      return <p data-testid="probe">{got ? got.map((e) => e.content).join(",") : "-"}</p>;
+    }
+    render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId("probe")).not.toHaveTextContent("-"));
+    expect(screen.getByTestId("probe")).toHaveTextContent(/^kept$/);
+    add.mockRestore();
+  });
 });
 
 describe("App, learning and torrent pages", () => {

@@ -427,16 +427,22 @@ type SearchFilter = Record<string, unknown>;
 /** The store's half of a search filter: what the relay alone reads (`limit`, `search`) left out. */
 const storeFilterOf = ({ limit: _limit, search: _search, ...f }: SearchFilter) => f as Filter;
 
-/** Hand the answers to the store; whatever it keeps renders from it, the rest from the answer. */
+/**
+ * Hand the answers to the store, and answer with what it kept, as it holds it.
+ * A copy it refused (a bad signature, an event its author deleted: `add` is null)
+ * is not passed on, so it can't show from the answer either.
+ */
 function intoStore(events: NostrEvent[]): NostrEvent[] {
+  const kept: NostrEvent[] = [];
   for (const e of events) {
     try {
-      eventStore.add(e);
+      const held = eventStore.add(e);
+      if (held) kept.push(held);
     } catch {
-      /* a copy the store refuses still shows from the answer */
+      /* refused: not shown */
     }
   }
-  return events;
+  return kept;
 }
 
 /**
