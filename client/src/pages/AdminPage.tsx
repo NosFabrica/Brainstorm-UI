@@ -99,11 +99,9 @@ export default function AdminPage() {
   });
   const {
     userSearch,
-    setUserSearch,
     setUserPage,
     kpiFilter,
     setKpiFilter,
-    setExpandedRows,
     setHighlightedPubkey,
     setSelectedUserPubkeys,
     lookupOpen,
@@ -300,13 +298,8 @@ export default function AdminPage() {
 
   // Another tab's link to a person: the Users tab, searched to them, their row open and lit.
   const openInUsers = (pubkey: string) => {
-    setUserSearch(pubkey);
+    directory.focusUser(pubkey);
     setActiveTab("users");
-    setKpiFilter(null);
-    setUserPage(0);
-    setExpandedRows(new Set([pubkey]));
-    setHighlightedPubkey(pubkey);
-    setTimeout(() => setHighlightedPubkey(null), 2500);
   };
 
   // A tab of the bar: the Users tab opens on its first page, unfiltered.
