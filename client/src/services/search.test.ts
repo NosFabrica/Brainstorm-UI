@@ -3010,7 +3010,8 @@ describe("fetchGitStatuses", () => {
     const issue = "1".repeat(64),
       patch = "2".repeat(64),
       quiet = "3".repeat(64);
-    const pending = fetchGitStatuses([issue, patch, quiet]);
+    // Held items, by the status author: whose status counts is the next block's question.
+    const pending = fetchGitStatuses([issue, patch, quiet].map((id) => ev(id, 1621, "m".repeat(64))));
     await tick();
     const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
     expect(filter.kinds).toEqual([1630, 1631, 1632, 1633]);
@@ -3033,7 +3034,7 @@ describe("fetchGitStatuses", () => {
     const issue = "1".repeat(64),
       revision = "2".repeat(64),
       mentioned = "3".repeat(64);
-    const pending = fetchGitStatuses([issue, revision, mentioned]);
+    const pending = fetchGitStatuses([issue, revision, mentioned].map((id) => ev(id, 1621, "m".repeat(64))));
     await tick();
     const merged = status("s1", 1631, issue, 100);
     merged.tags.push(["e", revision, "", "reply"], ["e", mentioned]);
@@ -3090,6 +3091,31 @@ describe("fetchGitStatuses", () => {
       );
       subject.next(EOSE);
       expect((await pending).get(issue.id)).toEqual({ kind: 1632, at: 200 });
+    });
+
+    it("an item given by id that the store doesn't hold is asked for, and a stranger's status still doesn't count", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue.id]);
+      await tick();
+      expect(reqMock.mock.calls.map((c) => (Array.isArray(c[0]) ? c[0][0] : c[0]))).toContainEqual(
+        expect.objectContaining({ ids: [issue.id], search: "include:spam" }),
+      );
+      subject.next(frame(issue));
+      subject.next(frame(by("s1", 1632, AUTHOR, 100)));
+      subject.next(frame(by("s2", 1630, STRANGER, 300)));
+      subject.next(EOSE);
+      await tick();
+      subject.next(EOSE); // the repo's announcement, asked once the item named it
+      expect((await pending).get(issue.id)).toEqual({ kind: 1632, at: 100 });
+    });
+
+    it("an item nobody has: no status counts, since whose it is can't be told", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue.id]);
+      await tick();
+      subject.next(frame(by("s1", 1632, STRANGER, 300)));
+      subject.next(EOSE);
+      expect((await pending).has(issue.id)).toBe(false);
     });
   });
 
