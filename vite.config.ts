@@ -3,7 +3,9 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import zlib from "zlib";
 import { precacheLists, type BuiltFile } from "./client/src/sw/precache";
+import { bundleReport, type BudgetFile } from "./client/src/buildChecks/bundleBudget";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -61,6 +63,30 @@ function serviceWorkerPlugin(): Plugin {
 }
 
 /**
+ * What the first page downloads, printed with every build, and the build
+ * fails when the entry outgrows its budget or the chunks it loads import each
+ * other in a circle (client/src/buildChecks/bundleBudget). Gzipped at level 9, as
+ * the image serves them (Dockerfile).
+ */
+function bundleBudgetPlugin(): Plugin {
+  return {
+    name: "bundle-budget",
+    apply: "build",
+    // After Vite's own generateBundle, which still rewrites the chunks' preload lists.
+    enforce: "post",
+    generateBundle(_options, bundle) {
+      const gzip = (code: string) => zlib.gzipSync(code, { level: 9 }).length;
+      const report = bundleReport(bundle as unknown as Record<string, BudgetFile>, gzip);
+      const kb = (bytes: number) => `${(bytes / 1024).toFixed(0)} KB`;
+      console.log(
+        `bundle: entry ${report.entry} ${kb(report.entryGz)} gz; first page ${report.firstLoad.length} chunks, ${kb(report.firstLoadGz)} gz`,
+      );
+      if (report.problems.length) this.error(report.problems.join("\n"));
+    },
+  };
+}
+
+/**
  * The face nearly every word on first paint is set in: Figtree's Latin subset.
  * The CSS names it, so without a hint its download only starts once the
  * stylesheet has arrived and been parsed; preloaded, it overlaps the stylesheet.
@@ -97,9 +123,69 @@ function fontPreloadPlugin(): Plugin {
   };
 }
 
+/**
+ * Libraries that change far less often than the app, each in a chunk of its
+ * own: an app release then re-hashes only the app's chunk, and a returning
+ * visitor's cached copy of these still holds. The browser fetches them side
+ * by side with the entry (modulepreload), so the first visit is no heavier.
+ */
+const VENDOR_CHUNKS: [name: string, packages: RegExp][] = [
+  ["react", /\/node_modules\/(react|react-dom|scheduler)\//],
+  ["nostr", /\/node_modules\/(applesauce-[^/]+|nostr-tools|@noble\/[^/]+|@scure\/[^/]+|rxjs)\//],
+  ["ui", /\/node_modules\/(@radix-ui\/[^/]+|@floating-ui\/[^/]+|lucide-react|tailwind-merge)\//],
+];
+
+/**
+ * lucide-react's icons, one module each, and the barrel that re-exports them.
+ * The entry reaches every icon through that barrel, and which of them a page
+ * really uses is only known once the bundle is tree-shaken, after chunks are
+ * assigned; Rollup also moves a manual chunk's unassigned imports in with it.
+ * In the vendor chunk, every lazy page's icons would ship on the first visit,
+ * so they stay with the code that draws them; lucide's shared core goes in `ui`.
+ */
+const LUCIDE_ICONS = /\/node_modules\/lucide-react\/dist\/esm\/(icons\/|lucide-react\.js$)/;
+
+type ModuleInfo = { isEntry: boolean; importedIds: readonly string[] } | null;
+interface ChunkMeta {
+  getModuleIds: () => IterableIterator<string>;
+  getModuleInfo: (id: string) => ModuleInfo;
+}
+
+/**
+ * A vendor chunk holds only what the first page already runs: the modules the
+ * entry reaches through static imports. A lazy page's own icon or Radix
+ * widget stays in that page's chunk, where it was, rather than coming along
+ * with the vendor chunk on every visit.
+ */
+function vendorChunks() {
+  let eager: Set<string> | null = null;
+  const reach = (meta: ChunkMeta): Set<string> => {
+    const seen = new Set<string>();
+    const queue = [...meta.getModuleIds()].filter((id) => meta.getModuleInfo(id)?.isEntry);
+    while (queue.length) {
+      const id = queue.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      for (const next of meta.getModuleInfo(id)?.importedIds ?? []) queue.push(next);
+    }
+    return seen;
+  };
+  return (id: string, meta: ChunkMeta): string | undefined => {
+    // Rollup's CommonJS interop, which React's CJS build needs first. Left
+    // unassigned it joins whichever vendor chunk reached it first (`nostr`),
+    // and `react` then imports `nostr`, which imports `react`: a chunk cycle,
+    // which runs React's module before the helper it calls exists.
+    if (id.includes("commonjsHelpers")) return "react";
+    const vendor = VENDOR_CHUNKS.find(([, packages]) => packages.test(id));
+    if (!vendor || LUCIDE_ICONS.test(id)) return undefined;
+    eager ??= reach(meta);
+    return eager.has(id) ? vendor[0] : undefined;
+  };
+}
+
 export default defineConfig({
   appType: "spa",
-  plugins: [react(), fontPreloadPlugin(), spaFallbackPlugin(), serviceWorkerPlugin()],
+  plugins: [react(), fontPreloadPlugin(), spaFallbackPlugin(), serviceWorkerPlugin(), bundleBudgetPlugin()],
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
@@ -113,6 +199,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
+    rollupOptions: { output: { manualChunks: vendorChunks() } },
   },
   server: {
     port: 5000,
