@@ -6,13 +6,8 @@ import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
-import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
-import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
-import { AdminSupportCards } from "@/components/admin/support/AdminSupportCards";
 import { ADMIN_SUPPORT_QUERY_KEY, adminListTickets } from "@/services/support";
 import { unreadCount } from "@/lib/supportSeen";
-import { AdminBillingCards } from "@/components/admin/billing/AdminBillingCards";
-import { PlanMappingsCard } from "@/components/admin/billing/PlanMappingsCard";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { UserActionsMenu } from "@/components/admin/UserActionsMenu";
 import type { SchedulingItem } from "@/services/api";
@@ -69,8 +64,6 @@ import {
   withinRange,
   type AdminRange,
 } from "./adminRange";
-import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
-import { CompromisedCard } from "@/components/admin/compromised/CompromisedCard";
 import { GrowthCard } from "@/components/admin/growth/GrowthCard";
 import { ALL_USERS_DAYS, readEveryPage, useAdminHeaderMetrics } from "@/components/admin/useAdminHeaderMetrics";
 import { Area, AreaChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
@@ -145,6 +138,11 @@ import { UserHistoryRow } from "./admin/users/UserHistoryRow";
 import { type BulkSource, useBulkRetrigger } from "@/components/admin/users/useBulkRetrigger";
 import { BulkConfirmDialog } from "./admin/BulkConfirmDialog";
 import { useRefreshBoost } from "./admin/useRefreshBoost";
+import { BillingTab } from "./admin/BillingTab";
+import { CompromisedTab } from "./admin/CompromisedTab";
+import { SchedulingTab } from "./admin/SchedulingTab";
+import { SupportTab } from "./admin/SupportTab";
+import { TrustedListsTab } from "./admin/TrustedListsTab";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
@@ -3200,110 +3198,15 @@ export default function AdminPage() {
             </>
           )}
 
-          {activeTab === "support" && (
-            <div className="grid grid-cols-1 gap-6" data-testid="panel-support">
-              <div
-                className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                data-testid="card-support-tickets"
-              >
-                <div className="border-b border-brand-accent/10 px-5 py-4">
-                  <h3
-                    className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    Priority Support
-                  </h3>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    Tickets from paid users — reply here; the in-app thread is the source of truth
-                  </p>
-                </div>
-                <div className="px-5 py-4">
-                  <AdminSupportCards active={activeTab === "support"} />
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === "support" && <SupportTab />}
 
-          {activeTab === "scheduling" && (
-            <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div
-                className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                data-testid="card-scheduling-policies"
-              >
-                <div className="border-b border-brand-accent/10 px-5 py-4">
-                  <h3
-                    className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    Scheduling Policies
-                  </h3>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    Tier cadences for automatic GrapeRank recalculation
-                  </p>
-                </div>
-                <div className="px-5 py-4">
-                  <SchedulingCard active={activeTab === "scheduling"} />
-                </div>
-              </div>
-              <div
-                className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                data-testid="card-scheduling-stats"
-              >
-                <div className="border-b border-brand-accent/10 px-5 py-4">
-                  <h3
-                    className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    Scheduler Health
-                  </h3>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    Throughput, demand, queue depths and per-tier slip
-                  </p>
-                </div>
-                <div className="px-5 py-4">
-                  <SchedulingStatsPanel active={activeTab === "scheduling"} />
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === "scheduling" && <SchedulingTab />}
 
-          {activeTab === "billing" && (
-            <div className="grid grid-cols-1 gap-6" data-testid="panel-billing">
-              <div
-                className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                data-testid="card-billing-subscribers"
-              >
-                {/* The header is the roster's own — count, page, source and the
-                    controls — the User Database's anatomy. */}
-                <AdminBillingCards active={activeTab === "billing"} />
-              </div>
-              <div
-                className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                data-testid="card-billing-plans"
-              >
-                {/* The header is the card's own — its sentence once, New mapping beside it. */}
-                <PlanMappingsCard active={activeTab === "billing"} />
-              </div>
-            </div>
-          )}
+          {activeTab === "billing" && <BillingTab />}
 
-          {activeTab === "trusted-lists" && (
-            <div className="grid grid-cols-1 gap-6" data-testid="panel-trusted-lists">
-              {/* Keyed on the person sent, so a new shortcut starts fresh. */}
-              <TrustedListsCard
-                key={trustedListsObserver ?? "picker"}
-                initialObserver={trustedListsObserver ?? undefined}
-              />
-            </div>
-          )}
+          {activeTab === "trusted-lists" && <TrustedListsTab observer={trustedListsObserver} />}
 
-          {activeTab === "compromised" && (
-            <div className="grid grid-cols-1 gap-6" data-testid="panel-compromised">
-              <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none">
-                <CompromisedCard active={activeTab === "compromised"} />
-              </div>
-            </div>
-          )}
+          {activeTab === "compromised" && <CompromisedTab />}
 
           {activeTab === "growth" && (
             <div data-testid="panel-growth">
