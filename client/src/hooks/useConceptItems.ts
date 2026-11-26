@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
-import { lastAnswer } from "@/lib/askOnce";
+import { capMap } from "@/lib/boundedMap";
 import {
   filedItems,
   itemFilters,
@@ -36,7 +36,7 @@ function useFiledItems(prefix: string, headers: string[], enabled: boolean, ask:
     [read.events, headersKey], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const data = asking && (read.settled || items.length > 0) ? items : undefined;
-  return { data, isPending: data === undefined, key, settled: read.settled };
+  return { data, isPending: data === undefined, settled: read.settled };
 }
 
 /**
@@ -75,12 +75,25 @@ export function useConceptMatches(entry: DictionaryEntry | undefined, words: rea
   return { data, isPending: data === undefined };
 }
 
+/**
+ * Per read, whether its answer reached the read's limit: a fact about the ask's answer, not about
+ * the store. Kept beside the asks, as hooks/useListItems keeps its flags, so a mount within the
+ * window, served without the read running again, still knows.
+ */
+const truncatedReads = new Map<string, boolean>();
+const MAX_READS = 500;
+
 /** Any list's items by the headers it's filed under, and whether the read was cut off (a list header's page). */
 export function useListItems(headers: string[]): { data: ListItems | undefined; isPending: boolean } {
-  const read = useFiledItems("list-items", headers, true, () => loadListItems(headers));
-  // Whether the read reached its limit is a fact about the ask's answer, not about the store.
-  const answer = read.settled && read.key ? (lastAnswer(read.key) as ListItems | undefined) : undefined;
-  const truncated = answer?.truncated === true;
+  const key = `list-items:${headers.join(" ")}`;
+  const read = useFiledItems("list-items", headers, true, async () => {
+    const answer = await loadListItems(headers);
+    truncatedReads.set(key, answer.truncated);
+    capMap(truncatedReads, MAX_READS);
+    // The items themselves are the answer: the store holds them, and useStoreEvents keeps any it has let go.
+    return answer.items;
+  });
+  const truncated = read.settled && truncatedReads.get(key) === true;
   const data = useMemo(() => read.data && { items: read.data, truncated }, [read.data, truncated]);
   return { data, isPending: read.isPending };
 }
