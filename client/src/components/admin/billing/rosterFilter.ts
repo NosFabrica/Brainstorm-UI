@@ -44,7 +44,8 @@ export function filterAndSort(
           return (s.granted_scheduling_name ?? s.scheduling_name ?? "").toLowerCase();
         case "source":
           return s.scheduling_source;
-        // ISO timestamps sort correctly as strings; missing dates sink to the bottom.
+        // ISO timestamps sort correctly as strings; a missing date ("") sinks
+        // to the bottom whichever way the column sorts (`missingLast` below).
         case "period":
           return s.current_period_end ?? "";
         case "nextbill":
@@ -54,7 +55,13 @@ export function filterAndSort(
       }
     };
     const dir = sort.dir === "asc" ? 1 : -1;
-    out = [...out].sort((a, b) => value(a).localeCompare(value(b)) * dir);
+    const missingLast = sort.key === "period" || sort.key === "nextbill" || sort.key === "synced";
+    out = [...out].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (missingLast && !va !== !vb) return va ? -1 : 1;
+      return va.localeCompare(vb) * dir;
+    });
   }
   return out;
 }

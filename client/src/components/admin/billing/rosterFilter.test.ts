@@ -12,9 +12,18 @@ const sub = (c: string, over: Partial<AdminBillingSubscription> = {}): AdminBill
 });
 
 const items = [
-  sub("a", { granted_scheduling_name: "Priority", next_billing_date: "2026-12-03" }),
+  sub("a", {
+    granted_scheduling_name: "Priority",
+    next_billing_date: "2026-12-03",
+    current_period_end: "2026-12-03",
+    last_synced_at: "2026-11-20T10:00:00Z",
+  }),
   sub("b", { flash_status: "past_due", scheduling_source: "admin", scheduling_name: "Free" }),
-  sub("c", { next_billing_date: "2026-12-01" }),
+  sub("c", {
+    next_billing_date: "2026-12-01",
+    current_period_end: "2026-12-01",
+    last_synced_at: "2026-11-21T10:00:00Z",
+  }),
 ];
 const profiles = new Map([
   [pk("a"), { name: "Alice" }],
@@ -57,8 +66,17 @@ describe("filterAndSort", () => {
     expect(run("", "all", "all", "svc-prod")).toEqual(["a"]);
   });
 
-  it("sorts either way; a missing date reads as the earliest", () => {
+  it("sorts either way", () => {
     expect(run("", "all", "all", "all", { key: "subscriber", dir: "desc" })).toEqual(["c", "b", "a"]);
-    expect(run("", "all", "all", "all", { key: "nextbill", dir: "asc" })).toEqual(["b", "c", "a"]);
+    expect(run("", "all", "all", "all", { key: "nextbill", dir: "asc" })).toEqual(["c", "a", "b"]);
+    expect(run("", "all", "all", "all", { key: "nextbill", dir: "desc" })).toEqual(["a", "c", "b"]);
+  });
+
+  it("sinks a missing date to the bottom whichever way the column sorts", () => {
+    for (const key of ["period", "nextbill", "synced"] as const) {
+      for (const dir of ["asc", "desc"] as const) {
+        expect(run("", "all", "all", "all", { key, dir }).at(-1), `${key} ${dir}`).toBe("b");
+      }
+    }
   });
 });
