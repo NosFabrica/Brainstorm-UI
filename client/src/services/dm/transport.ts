@@ -8,9 +8,7 @@
  * pages don't, and report `auth` instead so the pager can park the relay until
  * services/relayAuth signs in. Publishing is the same: many inbox relays only
  * take a wrap from a signed-in sender, so a send refused with `auth-required`
- * waits briefly for that login and tries again. services/relayAuth signs in only
- * on relays the reader chose, so a recipient's inbox relay that wants a login
- * never gets one: that copy waits, then reports the refusal.
+ * waits briefly for that login and tries again.
  */
 import { AuthRequiredError, RelayClosedError } from "applesauce-relay";
 import {

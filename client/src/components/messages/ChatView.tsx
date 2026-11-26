@@ -705,9 +705,8 @@ export function ChatView({
 
 /**
  * A message held by a recipient's inbox relay whose login didn't happen
- * (services/relayAuth signs in by itself, but only on relays the reader chose —
- * their own lists name a recipient's relay seldom): say who turned it down, and
- * offer another go. The reader's own inbox relays are InboxNotices' to say.
+ * (services/relayAuth signs in by itself): say who turned it down, and offer
+ * another go. The reader's own inbox relays are InboxNotices' to say.
  */
 function SendAuthBanner({ state }: { state: DmEngineState }) {
   const problems = useRelayAuthProblems();

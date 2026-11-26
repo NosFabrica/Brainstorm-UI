@@ -19,14 +19,6 @@
  * next refusal, which would be a prompt per read, and not on a reconnect, whose
  * fresh challenge is still the same relay. `askRelayAuthAgain` clears it.
  *
- * Only on relays the reader chose: their own relay list (10002), their inbox
- * relays (10050) and the app's own relays. A relay reached any other way — a
- * stranger's outbox relay, opened by viewing their profile — gets no login, even
- * after refusing a read: a NIP-42 login is a kind-22242 signature over the
- * relay's challenge, the same kind the Brainstorm sign-in signs, so a relay that
- * relays the backend's challenge for the reader could redeem the login there.
- * And a relay nobody chose doesn't learn who is reading.
- *
  * It follows who may sign, not only new challenges: switching accounts answers
  * a challenge already waiting. A relay signed in as someone no longer active —
  * another account, signed out — is dropped from the pool: NIP-42 has no
@@ -49,19 +41,12 @@ import {
   pairwise,
   shareReplay,
   startWith,
-  switchMap,
-  map,
-  of,
   type Observable,
 } from "rxjs";
 import type { EventTemplate, NostrEvent } from "nostr-tools";
 import type { Relay, RelayPool } from "applesauce-relay";
 import type { IAccount } from "applesauce-accounts";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { eventStore } from "@/lib/eventStore";
-import { parseRelayList, RELAY_LIST_KIND } from "@/lib/relayList";
-import { CONTENT_RELAYS, DCOSL_RELAY, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
-import { DM_RELAY_LIST_KIND, parseDmRelays, SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 
 type AuthPool = Pick<RelayPool, "relays" | "add$" | "remove$" | "remove">;
 type ActiveAccount = Pick<IAccount, "pubkey" | "signEvent">;
@@ -151,29 +136,6 @@ class SignerTimeout extends Error {
   }
 }
 
-/** The app's own relays: the defaults it reads from and the inboxes it offers at setup. */
-const APP_RELAYS = [SEARCH_RELAY, DCOSL_RELAY, ...PROFILE_RELAYS, ...CONTENT_RELAYS, ...SUGGESTED_INBOX_RELAYS];
-
-/**
- * The relays `pubkey` chose, normalized: their relay list (10002, read and write),
- * their inbox relays (10050) and the app's own — as the store holds them now, and
- * again whenever either list changes.
- */
-export function chosenRelays$(pubkey: string): Observable<ReadonlySet<string>> {
-  return combineLatest([
-    eventStore.replaceable(RELAY_LIST_KIND, pubkey).pipe(startWith(undefined)),
-    eventStore.replaceable(DM_RELAY_LIST_KIND, pubkey).pipe(startWith(undefined)),
-  ]).pipe(
-    map(([list, inbox]) => {
-      const { read, write } = parseRelayList(list);
-      return new Set([...APP_RELAYS, ...read, ...write, ...parseDmRelays(inbox)].map((url) => normalizeURL(url)));
-    }),
-  );
-}
-
-/** The relays an account chose, tagged with whose they are: never read for the account that follows. */
-type Chosen = { pubkey: string | undefined; relays: ReadonlySet<string> };
-
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).trim() || undefined;
 
 export function startRelayAuth<A extends ActiveAccount>({
@@ -185,7 +147,6 @@ export function startRelayAuth<A extends ActiveAccount>({
   signTimeoutMs = SIGN_TIMEOUT_MS,
   upFront = [],
   canSignUnasked = async () => false,
-  chosenRelays = chosenRelays$,
 }: {
   pool: AuthPool;
   active$: Observable<A | undefined>;
@@ -209,22 +170,11 @@ export function startRelayAuth<A extends ActiveAccount>({
    * or bunker prompts for every signature — it waits for a refusal, as any relay does.
    */
   canSignUnasked?: (account: A) => Promise<boolean>;
-  /** The relays this pubkey chose (chosenRelays$): the only ones it logs in to, besides `upFront`. */
-  chosenRelays?: (pubkey: string) => Observable<ReadonlySet<string>>;
 }): () => void {
   const eager = new Set(upFront.map((url) => normalizeURL(url)));
   // Who answers a challenge right now: the active account, whoever it is.
   const signer$: Observable<A | undefined> = active$.pipe(
     distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true }),
-  );
-  // Where the active account may be logged in: re-read as its relay lists arrive or change.
-  const chosen$: Observable<Chosen> = signer$.pipe(
-    switchMap((signer) =>
-      signer
-        ? chosenRelays(signer.pubkey).pipe(map((relays) => ({ pubkey: signer.pubkey, relays })))
-        : of({ pubkey: undefined, relays: new Set<string>() }),
-    ),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
   let current: A | undefined;
@@ -267,14 +217,12 @@ export function startRelayAuth<A extends ActiveAccount>({
     const url = normalizeURL(relay.url);
     // Challenges answered, or being answered, on this connection — gone with it.
     const answered = new Set<string>();
-    type Inputs = [string | null, boolean, boolean, A | undefined, boolean, Chosen];
+    type Inputs = [string | null, boolean, boolean, A | undefined, boolean];
     let last: Inputs | undefined;
 
-    const evaluate = ([challenge, read, publish, account, interactive, chosen]: Inputs) => {
+    const evaluate = ([challenge, read, publish, account, interactive]: Inputs) => {
       const signedInAs = relay.authenticatedAs;
       if (signedInAs && signedInAs !== account?.pubkey) return drop(relay);
-      // A relay the reader didn't choose never gets their signature (see the top of this file).
-      if (!eager.has(url) && !(chosen.pubkey === account?.pubkey && chosen.relays.has(url))) return;
       // Only a relay that refused something — or one of ours, answered up front: no prompt,
       // and no pubkey, for anyone else's that didn't need it.
       if (!challenge || !account || signedInAs || !(read || publish || eager.has(url))) return;
@@ -382,7 +330,6 @@ export function startRelayAuth<A extends ActiveAccount>({
         relay.authRequiredForPublish$.pipe(distinctUntilChanged()),
         signer$,
         interactive$,
-        chosen$,
       ]).subscribe((inputs) => {
         last = inputs;
         evaluate(inputs);
