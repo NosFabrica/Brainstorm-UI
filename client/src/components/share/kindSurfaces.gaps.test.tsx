@@ -62,6 +62,7 @@ vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => null }));
 
 import { EventScreen } from "./EventScreen";
 import { EmbeddedNoteCard } from "./EmbeddedNoteCard";
+import { EmbeddedArticleCard } from "./EmbeddedArticleCard";
 import { SerpRow } from "@/components/search/SerpRow";
 import { ListCard, LiveTile, MediaCard } from "@/components/search/cards";
 import { UserStatusCard } from "@/components/search/relayStatusCards";
@@ -127,6 +128,13 @@ const CASES: Case[] = [
     ),
     page: { testId: "article-draft", text: /Draft/ },
     embed: { testId: "embedded-article", text: /Half an essay/ },
+    // The Articles tab lists drafts, as an article card (SearchResults' ARTICLE_KINDS).
+    grid: {
+      tab: "articles",
+      card: (e) => <EmbeddedArticleCard event={e as MinimalEvent} author={AUTHOR} />,
+      testId: "embedded-article",
+      text: /Half an essay/,
+    },
     row: { testId: "serp-row-", text: /Half an essay/ },
     summary: { title: "Half an essay" },
     label: "Draft",
