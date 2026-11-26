@@ -412,3 +412,10 @@ export function computeTrends(
 }
 
 export type Trends = ReturnType<typeof computeTrends>;
+
+/** pubkey → current scheduling tier, for the users a table has loaded. */
+export function tierByPubkey(users: readonly { pubkey: string; scheduling_name: string }[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const u of users) if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
+  return m;
+}

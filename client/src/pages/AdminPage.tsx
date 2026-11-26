@@ -63,7 +63,6 @@ import {
   withinRange,
   type AdminRange,
 } from "./adminRange";
-import { GrowthCard } from "@/components/admin/growth/GrowthCard";
 import { ALL_USERS_DAYS, readEveryPage, useAdminHeaderMetrics } from "@/components/admin/useAdminHeaderMetrics";
 import { Area, AreaChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { FEATURES } from "@/config/featureFlags";
@@ -141,6 +140,8 @@ import { SupportTab } from "./admin/SupportTab";
 import { TrustedListsTab } from "./admin/TrustedListsTab";
 import { HealthTab } from "./admin/health/HealthTab";
 import { useRelayLatency } from "./admin/health/useRelayLatency";
+import { GrowthTab } from "./admin/GrowthTab";
+import { tierByPubkey } from "./admin/metrics";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
@@ -371,16 +372,6 @@ export default function AdminPage() {
     },
   });
 
-  // The year's runs, whole, for the Growth tab: a person's first run is their
-  // earliest record here, whatever the dashboard's range.
-  const yearActivityQuery = useQuery<AdminUserHistoryPage>({
-    queryKey: ["/api/admin/activity/year"],
-    queryFn: () => readEveryPage((page) => apiClient.getAdminActivity({ page, size: 100, days: BACKEND_MAX_DAYS })),
-    enabled: !!user?.isAdmin && activeTab === "growth",
-    staleTime: 300_000,
-    retry: 1,
-  });
-
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity", rangeDays, activityPage, activityPageSize],
     queryFn: () =>
@@ -505,13 +496,7 @@ export default function AdminPage() {
   const overviewAllUsers = overviewUsersQuery.data?.items ?? NONE;
   // pubkey → current scheduling tier, for Platform Activity rows (best-effort:
   // only covers users in the loaded set; activity records don't carry the tier).
-  const schedulingTierByPubkey = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const u of overviewAllUsers) {
-      if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
-    }
-    return m;
-  }, [overviewAllUsers]);
+  const schedulingTierByPubkey = useMemo(() => tierByPubkey(overviewAllUsers), [overviewAllUsers]);
   // What the Overview loaded (the range and the one before it, for deltas)
   // and the part inside the range, which every figure and chart reads.
   const overviewLoadedActivity = overviewActivityQuery.data?.items ?? NONE;
@@ -561,12 +546,6 @@ export default function AdminPage() {
     for (const [pk, c] of liveProfiles) m.set(pk, { name: c.display_name || c.name, picture: c.picture });
     return m;
   }, [liveProfiles]);
-  // pubkey → scheduling tier, for the Growth tab's rows and its tier filter.
-  const tiersByPubkey = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const u of allUsers) if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
-    return m;
-  }, [allUsers]);
   // A KPI card's filter or a name search narrows every user (allUsersQuery,
   // loaded whole), paged here; otherwise the directory is the backend's page.
   const clientFilteredUsers = activeNameSearch || !!kpiFilter;
@@ -863,6 +842,17 @@ export default function AdminPage() {
     }
     setDetailData(data);
   }, []);
+
+  // Another tab's link to a person: the Users tab, searched to them, their row open and lit.
+  const openInUsers = (pubkey: string) => {
+    setUserSearch(pubkey);
+    setActiveTab("users");
+    setKpiFilter(null);
+    setUserPage(0);
+    setExpandedRows(new Set([pubkey]));
+    setHighlightedPubkey(pubkey);
+    setTimeout(() => setHighlightedPubkey(null), 2500);
+  };
 
   if (!user || isAuthRedirecting()) return null;
 
@@ -1685,13 +1675,7 @@ export default function AdminPage() {
                                             <button
                                               onClick={() => {
                                                 const pk = g.latest.pubkey!;
-                                                setUserSearch(pk);
-                                                setActiveTab("users");
-                                                setKpiFilter(null);
-                                                setUserPage(0);
-                                                setExpandedRows(new Set([pk]));
-                                                setHighlightedPubkey(pk);
-                                                setTimeout(() => setHighlightedPubkey(null), 2500);
+                                                openInUsers(pk);
                                               }}
                                               className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-deep hover:text-brand-accent"
                                               data-testid={`failure-group-view-user-${idx}`}
@@ -3160,24 +3144,13 @@ export default function AdminPage() {
           {activeTab === "compromised" && <CompromisedTab />}
 
           {activeTab === "growth" && (
-            <div data-testid="panel-growth">
-              <GrowthCard
-                records={yearActivityQuery.data?.items ?? NONE}
-                range={range}
-                isLoading={yearActivityQuery.isLoading}
-                profiles={userProfiles}
-                tiers={tiersByPubkey}
-                onOpenPerson={(pk) => {
-                  setUserSearch(pk);
-                  setActiveTab("users");
-                  setKpiFilter(null);
-                  setUserPage(0);
-                  setExpandedRows(new Set([pk]));
-                  setHighlightedPubkey(pk);
-                  setTimeout(() => setHighlightedPubkey(null), 2500);
-                }}
-              />
-            </div>
+            <GrowthTab
+              isAdmin={!!user.isAdmin}
+              range={range}
+              allUsers={allUsers}
+              profiles={userProfiles}
+              onOpenPerson={openInUsers}
+            />
           )}
 
           {activeTab === "health" && (
@@ -3197,13 +3170,7 @@ export default function AdminPage() {
                   overviewActivityQuery.error instanceof Error ? overviewActivityQuery.error.message : undefined
                 }
                 onViewUser={(pk) => {
-                  setUserSearch(pk);
-                  setActiveTab("users");
-                  setKpiFilter(null);
-                  setUserPage(0);
-                  setExpandedRows(new Set([pk]));
-                  setHighlightedPubkey(pk);
-                  setTimeout(() => setHighlightedPubkey(null), 2500);
+                  openInUsers(pk);
                 }}
               />
 
@@ -3528,13 +3495,7 @@ export default function AdminPage() {
                                     });
                                   }}
                                   onNavigateToUser={(pubkey) => {
-                                    setUserSearch(pubkey);
-                                    setActiveTab("users");
-                                    setKpiFilter(null);
-                                    setUserPage(0);
-                                    setExpandedRows(new Set([pubkey]));
-                                    setHighlightedPubkey(pubkey);
-                                    setTimeout(() => setHighlightedPubkey(null), 2500);
+                                    openInUsers(pubkey);
                                   }}
                                   onRetrigger={async (pubkey) => {
                                     try {
