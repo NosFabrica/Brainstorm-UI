@@ -455,9 +455,8 @@ describe("the topic panel", () => {
     const full = render(
       <KnowledgePanel query="chicago" pov="nosfabrica" sections={{ people: snap([]), events: snap(three) }} />,
     );
-    await vi.waitFor(() =>
-      expect(streamCalls.some((c) => c.params.tab === "topic" || c.params.tab === "apps")).toBe(true),
-    );
+    // The panel has asked for its other blocks (apps, for words that aren't a #tag)…
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
     expect(streamCalls.some((c) => c.params.tab === "events")).toBe(false);
     full.unmount();
     streamCalls = [];
