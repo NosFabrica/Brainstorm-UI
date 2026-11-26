@@ -8,7 +8,7 @@
  *
  * The window follows the connection, as trustSignals' does, and each new ask
  * extends it until a ceiling. Concurrent asks for one (reader, concept)
- * share a promise; once settled, caching is react-query's job
+ * share a promise; once settled, the headers are the EventStore's to hold
  * (hooks/useItemConcept), not this module's.
  */
 import { connectionSpeed, type ConnectionSpeed } from "@/lib/connection";

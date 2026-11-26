@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
+import { useDictionaryEntries } from "@/hooks/useDictionaryEntries";
 import { useDictionaryReader } from "@/hooks/useDictionaryReader";
-import { loadDictionary, type DictionaryEntry } from "@/services/dictionary";
+import type { DictionaryEntry } from "@/services/dictionary";
 
 /** The Dictionaries this device last read, by what was asked, so the next visit has one at once. */
 const REMEMBERED = "dictionary-entries:v1";
@@ -44,7 +45,8 @@ export function __forgetDictionaries(): void {
 
 /**
  * The Active Account's Dictionary (services/dictionary), over the concepts
- * it shows (hooks/useDictionaryConcepts). Waits for
+ * it shows (hooks/useDictionaryConcepts), from the EventStore while the
+ * relays are asked (hooks/useDictionaryEntries, docs/adr/0005). Waits for
  * `/user/history` to say who their Assistant is — reading without it would
  * show "not in your Dictionary" for a concept their Assistant did add, then
  * flip. With no Session the history never comes, so it reads with the
@@ -70,24 +72,15 @@ export function useDictionary(
 ) {
   const { pubkey, taPubkey, settled } = useDictionaryReader();
   const concepts = useDictionaryConcepts();
-  const queryKey = ["dictionary", pubkey, taPubkey, concepts.shown, managers ?? []];
-  const ask = JSON.stringify(queryKey);
+  const ask = JSON.stringify(["dictionary", pubkey, taPubkey, concepts.shown, managers ?? []]);
   const asking = enabled && (anonymous || !!pubkey) && settled && concepts.known && managers !== null;
-  const query = useQuery({
-    queryKey,
-    // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
-    queryFn: async ({ queryKey: asked }) => {
-      // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): the Dictionary is an aggregate resolved through concept batches, with a device placeholder; not yet on the store
-      const entries = await loadDictionary({ pubkey, taPubkey }, concepts.shown, undefined, {
-        items: false,
-        managers: managers ?? [],
-      });
-      if (entries.length) remember(JSON.stringify(asked), entries);
-      return entries;
-    },
-    placeholderData: asking ? remembered()[ask] : undefined,
-    enabled: asking,
-    staleTime: 5 * 60_000,
-  });
-  return { ...query, pubkey, taPubkey };
+  const reader = useMemo(() => ({ pubkey, taPubkey }), [pubkey, taPubkey]);
+  // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
+  const read = useDictionaryEntries(reader, concepts.shown, { enabled: asking, managers: managers ?? undefined });
+  // A read that found nothing (every relay failed) is not the Dictionary: it isn't remembered.
+  useEffect(() => {
+    if (asking && read.settled && read.entries?.some((e) => e.resolved)) remember(ask, read.entries);
+  }, [asking, ask, read.settled, read.entries]);
+  const data = asking ? (read.settled ? read.entries : (remembered()[ask] ?? read.entries)) : undefined;
+  return { data, isPending: data === undefined, isError: false, pubkey, taPubkey };
 }
