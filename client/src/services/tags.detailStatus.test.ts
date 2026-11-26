@@ -31,7 +31,6 @@ vi.mock("@/services/nostr", () => ({
   fetchEventsByFilter: (filter: Record<string, unknown>) => relay.handler(filter),
   fetchProfileMap: async () => new Map(),
   hasLocalSecretKey: () => false,
-  loadOutboxRelayListFromDb: () => [],
   pool: { publish: async () => [] },
 }));
 

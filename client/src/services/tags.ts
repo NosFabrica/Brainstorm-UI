@@ -326,8 +326,9 @@ async function publishTo(
 
 /** How often a tagging is asked for before it is called unconfirmed, how long between, and how long each ask may take. */
 const CONFIRM_TRIES = 3;
-const CONFIRM_WAIT_MS = 600;
 const CONFIRM_TIMEOUT_MS = 2500;
+/** Test seam: the wait between asks is wall-clock, so a test whose relays never keep the tagging shrinks it. */
+export const __confirmWait = { ms: 600 };
 
 /**
  * "Did my tag save?" A publish succeeds when ONE relay says OK, and a relay can
@@ -348,7 +349,7 @@ async function readBack<T extends { published: { id: string }[]; failedAt?: unkn
   const tagging = result.failedAt ? undefined : result.published[result.published.length - 1];
   if (!tagging) return { ...result, confirmed: false };
   for (let attempt = 0; attempt < CONFIRM_TRIES; attempt++) {
-    if (attempt) await new Promise((resolve) => setTimeout(resolve, CONFIRM_WAIT_MS));
+    if (attempt) await new Promise((resolve) => setTimeout(resolve, __confirmWait.ms));
     const found = await (
       fetchEventsByFilter({ ids: [tagging.id] }, tagRelays(), CONFIRM_TIMEOUT_MS) as Promise<NostrEvent[]>
     ).catch(() => [] as NostrEvent[]);
