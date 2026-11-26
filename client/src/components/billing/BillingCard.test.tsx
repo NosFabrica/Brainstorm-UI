@@ -127,6 +127,19 @@ describe("BillingCard — every date is reported, never worked out", () => {
     expect(link.textContent).toMatch(/invoices and receipts/i);
   });
 
+  // The portal link is the API's answer, put into href and window.open: a web address
+  // over https or nothing (lib/safeHref httpsHref), never a javascript: url.
+  it("links no portal, and offers no cancel, when the manage url isn't https", () => {
+    for (const manageUrl of ["javascript:alert(1)", "http://vault.example/portal/svc"]) {
+      sub = paidSub({ manageUrl });
+      const { unmount } = renderWithProviders(<BillingCard />);
+      expect(screen.queryByTestId("billing-invoices-link")).toBeNull();
+      expect(screen.queryByTestId("billing-manage")).toBeNull();
+      expect(screen.queryByTestId("billing-cancel")).toBeNull();
+      unmount();
+    }
+  });
+
   it("shows the period the server sent, both ends of it", () => {
     renderWithProviders(<BillingCard />);
     const row = screen.getByTestId("billing-payment-row");

@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatAmount, formatBillingDate, formatBillingInterval } from "@/lib/plans";
+import { httpsHref } from "@/lib/safeHref";
 import { npubFromPubkey } from "@/lib/shareId";
 import { statusTone } from "./DivergenceRows";
 import { describeCycles, describeDunning, describePolicy, readFlashSubscription } from "./flashRecord";
@@ -32,6 +33,8 @@ export function FlashSubscriptionSheet({
   /** The service's name from the account's list; the id stands in when unknown. */ serviceName?: string;
 }) {
   const r = readFlashSubscription(raw);
+  // Flash's answer, into href: an https address or no link (lib/safeHref).
+  const portalUrl = httpsHref(r.portalUrl);
   const price = r.amountMinor !== null && r.currency ? formatAmount(r.amountMinor, r.currency) : null;
   const interval = formatBillingInterval(r.billingInterval);
   const cycles = describeCycles(r);
@@ -111,9 +114,9 @@ export function FlashSubscriptionSheet({
         </p>
       )}
 
-      {r.portalUrl && (
+      {portalUrl && (
         <a
-          href={r.portalUrl}
+          href={portalUrl}
           target="_blank"
           rel="noopener"
           className="inline-flex items-center gap-1 text-xs font-medium text-brand-deep hover:underline dark:text-brand-link"

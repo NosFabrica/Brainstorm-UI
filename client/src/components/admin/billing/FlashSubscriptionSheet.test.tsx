@@ -151,4 +151,12 @@ describe("FlashSubscriptionSheet — how it is going wrong, and how it ends", ()
     render(<FlashSubscriptionSheet raw={ACTIVE} />);
     expect(screen.queryByTestId("flash-sheet-service")).toBeNull();
   });
+
+  it("links their portal only at an https address", () => {
+    const { unmount } = render(<FlashSubscriptionSheet raw={{ ...ACTIVE, portalUrl: "javascript:alert(1)" }} />);
+    expect(screen.queryByTestId("flash-sheet-portal")).toBeNull();
+    unmount();
+    render(<FlashSubscriptionSheet raw={ACTIVE} />);
+    expect(screen.getByTestId("flash-sheet-portal").getAttribute("href")).toBe(ACTIVE.portalUrl);
+  });
 });
