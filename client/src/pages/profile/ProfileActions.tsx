@@ -34,7 +34,6 @@ import type { MyReport } from "@/services/socialActions";
 
 export function ProfileActions({
   hexPubkey,
-  isAnon,
   isOwnProfile,
   social,
   myReport,
@@ -48,7 +47,6 @@ export function ProfileActions({
   setReportDialogOpen,
 }: {
   hexPubkey: string;
-  isAnon: boolean;
   isOwnProfile: boolean;
   social: ReturnType<typeof useSocialActions>;
   myReport: MyReport | null;
@@ -66,7 +64,7 @@ export function ProfileActions({
   const [followHovered, setFollowHovered] = useState(false);
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="row-profile-actions">
-      {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
+      {hexPubkey && !social.isSelf(hexPubkey) ? (
         <>
           {social.listsLoading ? (
             <div

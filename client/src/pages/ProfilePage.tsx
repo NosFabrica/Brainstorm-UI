@@ -31,18 +31,11 @@ import {
   selectStats,
   statsOptions,
 } from "@/services/queries/userReads";
-import {
-  getProfileSeed,
-  setProfileSeed,
-  clearProfileSeed,
-  consumeStoredSearchSeed,
-  type ProfileSeed,
-} from "@/lib/profileSeed";
+import { getProfileSeed, clearProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import { useProfileConnections } from "./profileConnections";
 import { expandProfileCache, expandTrustCacheFor } from "@/services/profilePageCache";
 import { Footer } from "@/components/Footer";
-import { SignInButton } from "@/components/SignInButton";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
@@ -105,7 +98,6 @@ export default function ProfilePage() {
   const [reportTypeFilterState, setReportTypeFilterState] = useState<Record<string, ReportTypeFilter>>({});
   const [reportTypeDropdownOpen, setReportTypeDropdownOpen] = useState<Record<string, boolean>>({});
 
-  const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
@@ -146,25 +138,10 @@ export default function ProfilePage() {
     if (calcDoneNow) markOwnScores(user?.pubkey);
   }, [calcDoneNow, user?.pubkey]);
 
-  // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
-  // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
-  // view — no matter how they arrived (search, a shared link, a bookmark).
-  //
-  // "Logged out" means holding no Account, not holding no Session. An Account
-  // stays active with its Session cleared — a deferred re-auth, or a 401 that
-  // `handleUnauthorized` decided not to redirect over — and `RequireAuth` lets
-  // that in. Bouncing on the Session sent those users to a public page that
-  // carries no unlock prompt, and every attempt to come back bounced again.
-  useEffect(() => {
-    if (npubParam && !user) {
-      navigate(`/p/${npubParam}`, { replace: true });
-    }
-  }, [npubParam, navigate, user]);
-
+  // Only an admin reaches this page (AdminProfileRoute sends anyone else, signed
+  // out included, to the public /p/:npub), so there is always an Account here.
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const group = urlParams.get("fromGroup");
-    setFromGroup(group || null);
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
     setFromAdmin(adminFrom === "admin" ? adminPubkey || "1" : null);
@@ -197,28 +174,9 @@ export default function ProfilePage() {
 
   const seed = useMemo<ProfileSeed | null>(() => {
     if (!hexPubkey) return null;
-    const inMem = getProfileSeed(hexPubkey);
-    if (inMem) return inMem;
-    // Refresh-surviving fallback: if the search-click set ?showNosfabricaResult=1,
-    // hydrate from sessionStorage once, then strip the flag from the URL so a
-    // second refresh doesn't re-trigger a now-empty read.
-    if (typeof window === "undefined") return null;
-    try {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get("showNosfabricaResult") !== "1") return null;
-      const stored = consumeStoredSearchSeed(hexPubkey);
-      if (!stored) {
-        url.searchParams.delete("showNosfabricaResult");
-        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-        return null;
-      }
-      setProfileSeed(hexPubkey, stored);
-      url.searchParams.delete("showNosfabricaResult");
-      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-      return stored;
-    } catch {
-      return null;
-    }
+    // The search's seed, held in memory (useOpenProfile sends a search click to
+    // /p/, so nothing arrives here with its sessionStorage copy to restore).
+    return getProfileSeed(hexPubkey);
   }, [hexPubkey]);
 
   // Overview drives the header (influence + counts). Lists load lazily on expand.
@@ -722,7 +680,6 @@ export default function ProfilePage() {
     (pk: string) => {
       const targetNpub = nip19.npubEncode(pk);
       const params = new URLSearchParams();
-      if (fromGroup) params.set("fromGroup", fromGroup);
       if (fromAdmin) {
         params.set("from", "admin");
         if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
@@ -730,7 +687,7 @@ export default function ProfilePage() {
       const qs = params.toString();
       navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
     },
-    [navigate, fromGroup, fromAdmin],
+    [navigate, fromAdmin],
   );
 
   const handleSetSort = useCallback((k: string, v: SortMode) => {
@@ -876,9 +833,8 @@ export default function ProfilePage() {
     return Math.min(1, Math.max(0, v01));
   }, [seed?.wotRankNosfabrica, nosfabricaRankQuery.data]);
 
-  if (isAuthRedirecting()) return null;
+  if (isAuthRedirecting() || !user) return null;
 
-  const isAnon = !user;
   const renderTrustBadge = () => {
     if (!profileResult || profileResult.influence === undefined || !hasTier) return null;
 
@@ -908,29 +864,7 @@ export default function ProfilePage() {
     >
       <GlossBackground />
 
-      {isAnon ? (
-        <header
-          className="relative z-20 flex items-center justify-between px-4 py-4 sm:px-8"
-          data-testid="header-profile-anon"
-        >
-          <button
-            type="button"
-            onClick={() => navigate("/about")}
-            className="text-sm font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
-            data-testid="link-profile-about"
-          >
-            About
-          </button>
-          <SignInButton
-            variant="primary"
-            label="Sign in"
-            className="!rounded-full sm:px-5"
-            data-testid="button-profile-sign-in"
-          />
-        </header>
-      ) : (
-        <AppHeader user={user} onLogout={handleLogout} />
-      )}
+      <AppHeader user={user} onLogout={handleLogout} />
 
       <ShareProfileModal
         open={shareOpen}
@@ -956,7 +890,7 @@ export default function ProfilePage() {
 
       <main className={cn(pageWidth("standard"), "relative z-10 py-12")}>
         <div className="mb-6 flex items-center gap-2">
-          <ProfileBackButton fromAdmin={fromAdmin} fromGroup={fromGroup} />
+          <ProfileBackButton fromAdmin={fromAdmin} />
         </div>
 
         {isLoading && <ProfileSkeleton />}
@@ -1002,7 +936,6 @@ export default function ProfilePage() {
                     actions={
                       <ProfileActions
                         hexPubkey={hexPubkey}
-                        isAnon={isAnon}
                         isOwnProfile={isOwnProfile}
                         social={social}
                         myReport={myReport}
@@ -1130,31 +1063,6 @@ export default function ProfilePage() {
       </main>
 
       <style>{`
-        @keyframes profileBlobA {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(15px) scale(1.03); }
-        }
-        @keyframes profileBlobB {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(-20px) scale(1.05); }
-        }
-        @keyframes profileLineDraw {
-          0% { stroke-dashoffset: var(--dash); opacity: 0; }
-          100% { stroke-dashoffset: 0; opacity: 0.18; }
-        }
-        @keyframes profileLinePulse {
-          0%, 100% { opacity: 0.12; }
-          50% { opacity: 0.2; }
-        }
-        @keyframes profileNodePop {
-          0% { opacity: 0; transform: scale(0); }
-          60% { opacity: 0.25; transform: scale(1.15); }
-          100% { opacity: 0.18; transform: scale(1); }
-        }
-        @keyframes profileNodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.15; }
-          50% { transform: translateY(-12px); opacity: 0.25; }
-        }
         @keyframes profileFadeIn {
           0% { opacity: 0; transform: translateY(24px) scale(0.97); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -1167,31 +1075,7 @@ export default function ProfilePage() {
         hexPubkey={hexPubkey}
       />
 
-      {isAnon ? (
-        <footer
-          className="relative z-10 mt-auto flex items-center justify-between px-4 py-4 text-xs sm:px-8"
-          data-testid="footer-profile-anon"
-        >
-          <button
-            type="button"
-            onClick={() => navigate("/developers")}
-            className="font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
-            data-testid="link-profile-developers"
-          >
-            Developers
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/how-search-works")}
-            className="font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
-            data-testid="link-profile-how-search-works"
-          >
-            How search works
-          </button>
-        </footer>
-      ) : (
-        <Footer />
-      )}
+      <Footer />
     </div>
   );
 }

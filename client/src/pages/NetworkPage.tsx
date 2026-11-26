@@ -787,41 +787,6 @@ export default function NetworkPage() {
         </div>
       </main>
 
-      <style>{`
-        @keyframes networkBlobA {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(15px) scale(1.03); }
-        }
-        @keyframes networkBlobB {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(-20px) scale(1.05); }
-        }
-        @keyframes networkBlobC {
-          0%, 100% { transform: translateY(0); opacity: 0.15; }
-          50% { transform: translateY(-25px); opacity: 0.35; }
-        }
-        @keyframes networkLineDraw {
-          0% { stroke-dashoffset: var(--dash); opacity: 0; }
-          100% { stroke-dashoffset: 0; opacity: 0.18; }
-        }
-        @keyframes networkLinePulse {
-          0%, 100% { opacity: 0.12; }
-          50% { opacity: 0.2; }
-        }
-        @keyframes networkNodePop {
-          0% { opacity: 0; transform: scale(0); }
-          60% { opacity: 0.25; transform: scale(1.15); }
-          100% { opacity: 0.18; transform: scale(1); }
-        }
-        @keyframes networkNodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.15; }
-          50% { transform: translateY(-12px); opacity: 0.25; }
-        }
-        @keyframes networkCalcFloat {
-          0%, 100% { opacity: 0; transform: translateY(0); }
-          20%, 80% { opacity: 0.45; transform: translateY(-6px); }
-        }
-      `}</style>
       <Footer minimal />
     </div>
   );

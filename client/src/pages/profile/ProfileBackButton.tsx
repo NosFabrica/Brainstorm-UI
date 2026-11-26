@@ -2,8 +2,8 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGoBack } from "@/hooks/useGoBack";
 
-/** Back to where the visit came from: the admin console, a Network group, or wherever Back goes. */
-export function ProfileBackButton({ fromAdmin, fromGroup }: { fromAdmin: string | null; fromGroup: string | null }) {
+/** Back to where the visit came from: the admin console, or wherever Back goes. */
+export function ProfileBackButton({ fromAdmin }: { fromAdmin: string | null }) {
   const goBack = useGoBack();
   if (fromAdmin) {
     const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
@@ -17,20 +17,6 @@ export function ProfileBackButton({ fromAdmin, fromGroup }: { fromAdmin: string 
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Admin
-      </Button>
-    );
-  }
-  if (fromGroup) {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="no-default-hover-elevate no-default-active-elevate -ml-1 gap-2 text-slate-500 hover:bg-brand-primary/10 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-brand-primary/10 dark:hover:text-brand-link"
-        onClick={() => goBack(`/network?group=${fromGroup}`)}
-        data-testid="button-back-to-network"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Network
       </Button>
     );
   }
