@@ -32,7 +32,6 @@ export function NetworkFilters({
   setActiveGroup,
   getGroupCount,
   overviewCounts,
-  isVerifiableGroup,
   trustFilter,
   setTrustFilter,
   trustFilterChoices,
@@ -54,7 +53,6 @@ export function NetworkFilters({
   setActiveGroup: (group: GroupKey) => void;
   getGroupCount: (key: GroupKey) => number;
   overviewCounts: Partial<Record<GroupKey, number>> | undefined;
-  isVerifiableGroup: (key: GroupKey) => boolean;
   trustFilter: TrustTier;
   setTrustFilter: (tier: TrustTier) => void;
   trustFilterChoices: TrustFilterChoice[];
@@ -223,7 +221,6 @@ export function NetworkFilters({
               const count = getGroupCount(group.key);
               const totalCount = overviewCounts?.[group.key] ?? 0;
               const isActive = activeGroup === group.key;
-              const showVerified = verifiedOnly && isVerifiableGroup(group.key);
               return (
                 <UITooltip key={group.key} delayDuration={500}>
                   <TooltipTrigger asChild>
@@ -250,7 +247,7 @@ export function NetworkFilters({
                             : `${group.bgColor} ${group.color} ${group.borderColor} border`
                         }`}
                       >
-                        {showVerified ? `${count}/${totalCount}` : count}
+                        {verifiedOnly ? `${count}/${totalCount}` : count}
                       </span>
                     </button>
                   </TooltipTrigger>
@@ -259,7 +256,7 @@ export function NetworkFilters({
                     className={`max-w-[220px] border border-l-2 border-slate-300 bg-white px-2.5 py-1.5 text-slate-700 shadow-lg backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 ${group.tooltipAccent}`}
                   >
                     <p className="text-xs font-medium">{group.tooltip}</p>
-                    {showVerified && totalCount !== count && (
+                    {verifiedOnly && totalCount !== count && (
                       <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                         {count} verified of {totalCount} total
                       </p>

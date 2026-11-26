@@ -400,8 +400,6 @@ export default function NetworkPage() {
     [groupPubkeySets],
   );
 
-  const isVerifiableGroup = (_key: GroupKey) => true;
-
   const getGroupCount = useCallback(
     (key: GroupKey): number => {
       // "flagged" comes from overview.flagged_count (DISTINCT across all
@@ -411,7 +409,9 @@ export default function NetworkPage() {
       // totals), independent of whether the section's items have been fetched.
       const counts = overviewQuery.data?.data?.counts;
       const stats = statsQuery.data?.data;
-      if (verifiedOnly && isVerifiableGroup(key)) {
+      // Every relationship has a verified count under the preset (Flagged, the
+      // one without, returned above).
+      if (verifiedOnly) {
         return stats?.[key]?.verified ?? 0;
       }
       return counts?.[key] ?? 0;
@@ -742,7 +742,6 @@ export default function NetworkPage() {
             setActiveGroup={setActiveGroup}
             getGroupCount={getGroupCount}
             overviewCounts={overviewQuery.data?.data?.counts}
-            isVerifiableGroup={isVerifiableGroup}
             trustFilter={trustFilter}
             setTrustFilter={setTrustFilter}
             trustFilterChoices={trustFilterChoices}
