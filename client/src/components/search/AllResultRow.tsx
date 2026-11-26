@@ -37,6 +37,7 @@ import { clip, who } from "@/lib/resultReaders";
 import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { HighlightQuote } from "@/components/share/HighlightQuote";
+import { resultName } from "@/lib/displayName";
 
 const THUMB = "h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800";
 const COVER = "h-20 w-[3.375rem] shrink-0 rounded-md bg-slate-100 object-cover shadow-sm dark:bg-slate-800";
@@ -107,7 +108,7 @@ export const AllResultRow = memo(function AllResultRow({
   const tierRing = useTierRing();
   const speed = useConnectionSpeed();
   const words = summary.body ? clip(summary.body, 600) : null;
-  const authorName = author?.displayName || author?.name || name || shortKey(pubkey);
+  const authorName = resultName(author) || name || shortKey(pubkey);
   const face = author?.picture || picture;
   // "to @Bob" says nothing once the quote below opens with Bob's name.
   // A highlight's "From site" says less than the article line its resolved source gets.

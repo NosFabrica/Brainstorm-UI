@@ -1,6 +1,6 @@
 import { nip19 } from "nostr-tools";
 import type { ConnectionSpeed } from "@/lib/connection";
-import { nameIn } from "@/lib/displayName";
+import { resultName } from "@/lib/displayName";
 
 export interface SearchResult {
   pubkey: string;
@@ -27,7 +27,7 @@ export interface SearchResult {
 
 /** A search result's name (lib/displayName's rules), or the start of its npub. */
 export function getDisplayLabel(result: SearchResult): string {
-  return nameIn({ display_name: result.displayName, name: result.name }) ?? result.npub.slice(0, 12) + "...";
+  return resultName(result) ?? result.npub.slice(0, 12) + "...";
 }
 
 /** How long typing must pause before a search box asks for suggestions. */

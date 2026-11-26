@@ -9,6 +9,7 @@ import { ProfileImg } from "@/components/ui/profile-img";
 import { nip19 } from "nostr-tools";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 export function mentionPubkey(uri: string): string | null {
   try {
@@ -33,7 +34,7 @@ export function MentionChip({
 
   if (!pubkey) return <span>{uri}</span>;
   const npub = nip19.npubEncode(pubkey);
-  const name = profile?.display_name || profile?.name || `${npub.slice(0, 10)}…`;
+  const name = nameIn(profile) || `${npub.slice(0, 10)}…`;
   if (plain)
     return (
       <span data-testid="mention-name">

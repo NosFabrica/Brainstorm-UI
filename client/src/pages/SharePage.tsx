@@ -133,6 +133,7 @@ import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { articleTitle, isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 import { hasOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
+import { nameIn } from "@/lib/displayName";
 
 const NO_RELAYS: string[] = [];
 
@@ -315,7 +316,7 @@ export default function SharePage() {
     return effectiveFollowerPubkeys.map((pk) => ({
       pubkey: pk,
       score01: followedByScores.get(pk) ?? null,
-      name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
+      name: nameIn(profs?.get(pk)),
       picture: profs?.get(pk)?.picture,
     }));
   }, [effectiveFollowerPubkeys, followedByProfiles, followedByScores]);
@@ -342,7 +343,7 @@ export default function SharePage() {
     const profs = candidateProfiles;
     return (followerCandidatesQuery.data ?? []).map((pk) => ({
       pubkey: pk,
-      name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
+      name: nameIn(profs?.get(pk)),
       picture: profs?.get(pk)?.picture,
     }));
   }, [followerCandidatesQuery.data, candidateProfiles]);
@@ -441,7 +442,7 @@ export default function SharePage() {
   const profileRelays = relays.length ? relays : relayHints;
 
   const profile = (liveProfile.profile ?? {}) as ProfileContentLike;
-  const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
+  const displayName = nameIn(profile) || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
 
   /**
    * "Last posted <when>" — the newest thing they actually wrote.
@@ -605,7 +606,7 @@ export default function SharePage() {
   // publishes one track to relays and six to Wavlake (2026-09-05). The artist
   // is matched by their linked Nostr key, else their exact name — never loosely.
   const catalogue = useArtistCatalogue(pubkey || null, {
-    name: profile.display_name || profile.name || null,
+    name: nameIn(profile) ?? null,
     limit: 6,
   });
   const audio = useMemo(() => mergeArtistAudio(tracks, catalogue.songs, 3), [tracks, catalogue.songs]);
@@ -883,9 +884,7 @@ export default function SharePage() {
   // Who "Join free" connects a newcomer to: this profile, or its owner's Current account.
   const invitesOther = invitePk !== pubkey;
   const inviteNpub = invitesOther ? safeNpub(invitePk) : npub;
-  const inviteName = invitesOther
-    ? inviteLive.profile?.display_name || inviteLive.profile?.name || displayName
-    : displayName;
+  const inviteName = invitesOther ? (nameIn(inviteLive.profile) ?? displayName) : displayName;
   const invitePicture = invitesOther ? inviteLive.profile?.picture : profile.picture;
   const inviteEvent = invitesOther ? inviteLive.event : liveProfile.event;
   const profileMenu = (

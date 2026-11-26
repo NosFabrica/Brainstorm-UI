@@ -1,6 +1,7 @@
 import { fetchProfileMap } from "@/services/nostr";
 import { useEffect, useRef, useState } from "react";
 import { type ProfileBits } from "./rosterShared";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * Kind-0 enrichment for the roster, same seam the scheduling admin uses
@@ -36,7 +37,7 @@ export function useRosterProfiles(pubkeys: string[]): Map<string, ProfileBits> {
           const next = new Map(prev);
           for (const pk of targets) {
             const c = map.get(pk);
-            if (c) next.set(pk, { name: c.display_name || c.name, picture: c.picture });
+            if (c) next.set(pk, { name: nameIn(c), picture: c.picture });
           }
           return next;
         });

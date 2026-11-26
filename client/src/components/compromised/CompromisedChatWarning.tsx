@@ -4,6 +4,7 @@ import { useCompromisedAmong } from "@/hooks/useCompromised";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
+import { displayNameOf } from "@/lib/displayName";
 
 /**
  * In a conversation with a Compromised account — the place the damage is
@@ -28,8 +29,7 @@ export function CompromisedChatWarning({
   const found = useCompromisedAmong(pubkeys);
   const profiles = useLiveProfiles(found.map((s) => s.pubkey));
   if (found.length === 0) return null;
-  const nameOf = (pk: string) =>
-    profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
+  const nameOf = (pk: string) => displayNameOf(profiles.get(pk), pk, "npub12");
 
   if (placement === "composer")
     return (

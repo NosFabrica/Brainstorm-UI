@@ -27,6 +27,7 @@ import {
 } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import type { NostrEvent } from "applesauce-core/helpers";
+import { nameIn } from "@/lib/displayName";
 
 interface AdminProfileFields {
   name?: string;
@@ -777,8 +778,8 @@ function AssignedAssistantSection({
   const event = query.data?.event ?? null;
   const profile = query.data?.profile ?? null;
   const isAssistant = isLikelyBrainstormWebsite(profile?.website);
-  const displayName = profile?.display_name || profile?.name || "(no name)";
-  const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
+  const displayName = nameIn(profile) ?? "(no name)";
+  const initials = (nameIn(profile) ?? "?").slice(0, 2).toUpperCase();
 
   return (
     <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800" data-testid="section-assigned-assistant">
@@ -912,8 +913,8 @@ function Kind0Panel({
   const event = query.data?.event ?? null;
   const profile = query.data?.profile ?? null;
   const isAssistant = isLikelyBrainstormWebsite(profile?.website);
-  const displayName = profile?.display_name || profile?.name || "(no name)";
-  const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
+  const displayName = nameIn(profile) ?? "(no name)";
+  const initials = (nameIn(profile) ?? "?").slice(0, 2).toUpperCase();
 
   const pill = query.isLoading ? (
     <StatusPill tone="neutral" label="Loading" testId="status-kind0-overall" />

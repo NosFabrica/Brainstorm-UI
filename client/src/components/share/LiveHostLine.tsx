@@ -3,6 +3,7 @@ import { Chip } from "@/components/ui/chip";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { npubFromPubkey } from "@/lib/shareId";
 import type { LiveHostClaim } from "@/lib/liveStream";
+import { nameIn } from "@/lib/displayName";
 
 const npubOf = (pk: string): string => {
   try {
@@ -23,7 +24,7 @@ export function LiveHostLine({ host, className }: { host: LiveHostClaim; classNa
   const { profile } = useLiveProfile(host.pubkey);
   const npub = npubOf(host.pubkey);
   if (!npub) return null;
-  const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
+  const name = nameIn(profile) || `${npub.slice(0, 12)}…`;
   return (
     <p
       className={`flex flex-wrap items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-300 ${className ?? ""}`}

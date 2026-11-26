@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { displayNameOf, nameIn, nameOf, profileName, shortKey, shortNpub } from "./displayName";
+import { displayNameOf, nameIn, nameOf, profileName, resultName, shortKey, shortNpub } from "./displayName";
 import { getDisplayLabel } from "./profileSearch";
 
 const PK = "a".repeat(64);
@@ -63,6 +63,15 @@ describe("displayNameOf", () => {
 
   it("never encodes something that isn't a key", () => {
     expect(shortKey("not-a-key-at-all", "npub12")).toBe("not-a-ke…");
+  });
+});
+
+describe("resultName", () => {
+  it("reads a search hit's displayName as its display_name", () => {
+    expect(resultName({ displayName: " Ana ", name: "ana" })).toBe("Ana");
+    expect(resultName({ displayName: "", name: "ana" })).toBe("ana");
+    expect(resultName({ displayName: "  " })).toBeUndefined();
+    expect(resultName(undefined)).toBeUndefined();
   });
 });
 

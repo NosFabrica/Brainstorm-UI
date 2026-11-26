@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchProfileMap } from "@/services/nostr";
+import { nameIn } from "@/lib/displayName";
 
 export type ProfileBits = { name?: string; picture?: string };
 
@@ -24,7 +25,7 @@ export function useProfileBits(pubkeys: (string | null | undefined)[]): Map<stri
           const next = new Map(prev);
           for (const pk of targets) {
             const c = map.get(pk);
-            if (c) next.set(pk, { name: c.display_name || c.name, picture: c.picture });
+            if (c) next.set(pk, { name: nameIn(c), picture: c.picture });
           }
           return next;
         });

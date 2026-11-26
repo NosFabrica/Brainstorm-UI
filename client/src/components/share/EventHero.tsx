@@ -39,6 +39,7 @@ import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 type Profile = { name?: string; display_name?: string; picture?: string };
 
@@ -173,7 +174,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
   const scoreOf = useAuthorScores([...hosts, ...faces]);
   const tierRing = useTierRing();
   const host = profiles.get(hosts[0]);
-  const hostName = host?.display_name || host?.name || null;
+  const hostName = nameIn(host) ?? null;
   let hostNpub = "";
   try {
     hostNpub = nip19.npubEncode(hosts[0]);
@@ -364,7 +365,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
                   return (
                     <Avatar
                       key={pk}
-                      title={p?.display_name || p?.name || undefined}
+                      title={nameIn(p)}
                       className={`h-6 w-6 border border-white dark:border-slate-900 ${tierRing(scoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
                       data-testid={`event-hero-guest-${pk}`}
                     >

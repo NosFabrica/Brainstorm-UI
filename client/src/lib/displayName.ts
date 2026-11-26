@@ -72,6 +72,15 @@ export function nameIn(profile: NamedProfile | null | undefined, options?: NameO
   );
 }
 
+/**
+ * The same rules for a person already read out of a kind-0, a search hit
+ * (lib/profileSearch's SearchResult) and its like: `displayName` there holds
+ * the kind-0's `display_name`.
+ */
+export function resultName(person: { displayName?: unknown; name?: unknown } | null | undefined): string | undefined {
+  return person ? nameIn({ display_name: person.displayName, name: person.name }) : undefined;
+}
+
 /** Their name from one profile, or their key in the form the caller shows. */
 export function displayNameOf(
   profile: NamedProfile | null | undefined,

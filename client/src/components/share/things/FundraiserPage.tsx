@@ -35,6 +35,7 @@ import {
   type PageEvent,
 } from "./shared";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 interface Gift {
   id: string;
@@ -245,7 +246,7 @@ export function FundraiserHero({
           }}
           recipientPubkey={event.pubkey}
           lud16={lud16}
-          displayName={(organizer?.display_name as string) || (organizer?.name as string) || "the organizer"}
+          displayName={nameIn(organizer) ?? "the organizer"}
           picture={typeof organizer?.picture === "string" ? organizer.picture : undefined}
           target={{
             eventId: event.id,

@@ -10,6 +10,7 @@ import type { ReportMetadata } from "@/services/nostr";
 import { toPubkeys, type GraphEntry } from "@/services/graphHelpers";
 import { expandProfileCache } from "@/services/profilePageCache";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { nameIn } from "@/lib/displayName";
 
 export interface ProfileResultData {
   influence?: number;
@@ -263,7 +264,7 @@ export function computeProcessedPubkeys(
   if (trimmed) {
     filtered = filtered.filter((pk) => {
       const profile = expandProfileCache.get(pk);
-      const name = (profile?.display_name || profile?.name || "").toLowerCase();
+      const name = (nameIn(profile) ?? "").toLowerCase();
       const nip05 = (profile?.nip05 || "").toLowerCase();
       if (name.includes(trimmed) || nip05.includes(trimmed)) return true;
       if (trimmed.startsWith("npub")) {
@@ -288,8 +289,8 @@ export function computeProcessedPubkeys(
     sorted.sort((a, b) => {
       const pa = expandProfileCache.get(a);
       const pb = expandProfileCache.get(b);
-      const na = (pa?.display_name || pa?.name || "").toLowerCase();
-      const nb = (pb?.display_name || pb?.name || "").toLowerCase();
+      const na = (nameIn(pa) ?? "").toLowerCase();
+      const nb = (nameIn(pb) ?? "").toLowerCase();
       if (!na && !nb) return 0;
       if (!na) return 1;
       if (!nb) return -1;

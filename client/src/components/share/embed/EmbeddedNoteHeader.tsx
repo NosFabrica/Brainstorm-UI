@@ -10,6 +10,7 @@ import { Chip } from "@/components/ui/chip";
 import { namesItsKind } from "@/lib/embedShape";
 import { kindLabel } from "@/lib/kindLabel";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { nameIn } from "@/lib/displayName";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -52,7 +53,7 @@ export function EmbeddedNoteHeader({
   replyTargets: string[];
   profiles?: Map<string, ProfileLite>;
 }) {
-  const name = author?.display_name || author?.name || "Unknown";
+  const name = nameIn(author) ?? "Unknown";
   return (
     <>
       <div className="mb-1.5 flex items-center gap-2">
@@ -112,7 +113,7 @@ export function EmbeddedNoteHeader({
             const p = profiles?.get(pk);
             return (
               <span key={pk} className="font-medium text-brand-link">
-                @{p?.display_name || p?.name || "someone"}
+                @{nameIn(p) ?? "someone"}
               </span>
             );
           })}

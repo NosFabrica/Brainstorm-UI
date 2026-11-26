@@ -49,6 +49,7 @@ import {
   setPictureSet,
   type AssistantProfile,
 } from "@/lib/assistantStorage";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * A kind-0 as this card stores it. `AssistantProfile` is a storage shape — it is
@@ -478,7 +479,7 @@ export function BrainstormAssistantCard({
                   : "space-y-3"
               }
             >
-              {(profile?.display_name || profile?.name || profile?.about || profile?.website) && (
+              {(nameIn(profile) || profile?.about || profile?.website) && (
                 <div
                   className="relative overflow-hidden rounded-xl border border-brand-accent/20 bg-gradient-to-br from-white to-brand-primary/10 px-4 py-3.5 dark:from-slate-900"
                   data-testid={`profile-assistant-${variant}`}
@@ -492,10 +493,10 @@ export function BrainstormAssistantCard({
                       <div className="min-w-0">
                         <h4
                           className="truncate text-sm font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-[15px]"
-                          title={profile?.display_name || profile?.name}
+                          title={nameIn(profile)}
                           data-testid={`text-assistant-display-name-${variant}`}
                         >
-                          {profile?.display_name || profile?.name}
+                          {nameIn(profile)}
                         </h4>
                         {profile?.nip05 && (
                           <p

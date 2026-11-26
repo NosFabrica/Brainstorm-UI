@@ -69,6 +69,7 @@ import { useConnectionSpeed } from "@/lib/connection";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { resultName } from "@/lib/displayName";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -350,7 +351,7 @@ function KnowledgePanelBody({
     if (!needsWavlake || !person) return;
     let cancelled = false;
     void (async () => {
-      const artist = await findWavlakeArtist({ name: person.displayName || person.name, pubkey: person.pubkey });
+      const artist = await findWavlakeArtist({ name: resultName(person), pubkey: person.pubkey });
       if (!artist || cancelled) return;
       const songs = await wavlakeArtistTracks(artist.id, 3);
       if (!cancelled && songs.length > 0) setPersonWavlake({ artist, songs });
@@ -659,7 +660,7 @@ function KnowledgePanelBody({
                     key={tr.id}
                     id={tr.id}
                     title={tr.title}
-                    artist={tr.artist ?? person.displayName ?? person.name}
+                    artist={tr.artist ?? resultName(person)}
                     cover={tr.cover}
                     audio={tr.audio}
                     genre={tr.genre}

@@ -10,6 +10,7 @@ import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useTagComments, usePostTagComment } from "@/hooks/useTags";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { displayNameOf } from "@/lib/displayName";
 
 /**
  * Discussion of what a tag MEANS.
@@ -114,7 +115,7 @@ export function TagComments({
         <ul className="space-y-4">
           {list.map((c) => {
             const p = profiles?.get(c.author);
-            const name = p?.display_name || p?.name || `${c.author.slice(0, 8)}…`;
+            const name = displayNameOf(p, c.author, "hex8");
             let npub = "";
             try {
               npub = npubFromPubkey(c.author);

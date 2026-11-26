@@ -37,6 +37,7 @@ import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { ARTICLE_EMBED_KINDS, embedShapeOf } from "@/lib/embedShape";
 import { nip19 } from "nostr-tools";
+import { nameIn } from "@/lib/displayName";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -135,8 +136,7 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   const [imgBroken, setImgBroken] = useState(false);
   const nip05Verified = useNip05(blank ? undefined : author?.nip05, event.pubkey) === "verified";
   const [, navigate] = useLocation();
-  if (blank)
-    return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+  if (blank) return <DeletedStub who={nameIn(author)} className="mt-2" testId="embedded-deleted" />;
   // Past its NIP-40 expiration: the same whisper, saying so.
   if (isExpired(event, Math.floor(Date.now() / 1000)))
     return <DeletedStub expired className="mt-2" testId="embedded-expired" />;
@@ -168,7 +168,7 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   // A book's cover is a portrait jacket: shown whole, not cropped to its middle by the 16:9 frame.
   const jacket = event.kind === PUBLICATION_INDEX_KIND && coverSrc === image;
   const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
-  const name = author?.display_name || author?.name || "Unknown";
+  const name = nameIn(author) ?? "Unknown";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/e/${naddr}` : undefined;
 

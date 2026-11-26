@@ -46,6 +46,7 @@ import {
   ScoreMonitorCard,
   TaHistoryCard,
 } from "./agentsuite/PanelCards";
+import { nameIn } from "@/lib/displayName";
 
 /** One identity's panel: remounted on an Account switch, so nothing typed or stored carries over. */
 export default function UserPanelPage() {
@@ -196,7 +197,7 @@ function UserPanel() {
     fetchProfiles(pubkeys, (pubkey, profile) => {
       setFollowedProfiles((prev) => {
         const next = new Map(prev);
-        next.set(pubkey, { name: profile.display_name || profile.name, picture: profile.picture || profile.image });
+        next.set(pubkey, { name: nameIn(profile), picture: profile.picture || profile.image });
         return next;
       });
     });

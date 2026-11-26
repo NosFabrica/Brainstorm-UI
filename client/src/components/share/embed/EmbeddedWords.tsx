@@ -6,6 +6,7 @@ import { contentWarningOf, revealKeyOf } from "@/lib/nip36";
 import { noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
 import { POLL_KINDS } from "@/lib/pollKinds";
 import type { WebBookmark } from "@/lib/webBookmark";
+import { nameIn } from "@/lib/displayName";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -52,7 +53,7 @@ export function EmbeddedWords({
         imageOpensThread={!!href}
         tags={event.tags}
         contentWarning={contentWarningOf(event)}
-        authorName={author?.display_name || author?.name}
+        authorName={nameIn(author)}
         embeddedCoords={embeddedCoords}
         embeddedIds={embeddedIds}
       />

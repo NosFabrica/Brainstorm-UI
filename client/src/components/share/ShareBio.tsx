@@ -3,6 +3,7 @@ import { useShareNav } from "@/components/share/ShareNavContext";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { HOUSE_POV, suggestProfiles } from "@/services/search";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { nameIn, resultName } from "@/lib/displayName";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
@@ -49,7 +50,7 @@ function PlainMention({ name }: { name: string }) {
             requestNav({
               kind: "profile",
               target: top.npub,
-              label: top.displayName || top.name || `@${name}`,
+              label: resultName(top) ?? `@${name}`,
               picture: top.picture,
             });
         } catch {
@@ -115,7 +116,7 @@ export function ShareBio({
           const bech32 = part.replace(/^nostr:/i, "");
           const { pubkey } = decodeNostrEntity(bech32);
           const prof = pubkey ? profiles?.get(pubkey) : undefined;
-          const name = prof?.display_name || prof?.name;
+          const name = nameIn(prof);
           const label = name ? `@${name}` : `@${bech32.slice(0, 10)}…`;
           return (
             <button

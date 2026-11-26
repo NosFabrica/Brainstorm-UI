@@ -29,6 +29,7 @@ import {
   type SortMode,
   type TrustCache,
 } from "./connectionModel";
+import { nameIn } from "@/lib/displayName";
 
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [v, setV] = useState(value);
@@ -316,7 +317,7 @@ export const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelPro
         {visiblePubkeys.map((pk) => {
           const profile = expandProfileCache.get(pk);
           const trustScore = trustCache.get(pk);
-          const displayName = profile?.display_name || profile?.name || nip19.npubEncode(pk).slice(0, 12) + "...";
+          const displayName = nameIn(profile) || nip19.npubEncode(pk).slice(0, 12) + "...";
           const overlappingGroups = (groupsByPubkey.get(pk) ?? []).filter((g) => g.key !== key);
 
           const trustPct =

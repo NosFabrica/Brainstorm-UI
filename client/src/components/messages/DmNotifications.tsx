@@ -25,11 +25,11 @@ import { onOpenUrl, showAppNotification } from "@/lib/serviceWorker";
 import { playChime } from "@/lib/chime";
 import { eventStore } from "@/lib/eventStore";
 import { profileContentOf } from "@/lib/profileContent";
-import { shortNpub } from "./people";
+import { profileName } from "@/lib/displayName";
 
 function nameFromStore(pubkey: string): string {
   const p = profileContentOf(eventStore.getReplaceable(0, pubkey) as never);
-  return (p?.display_name || p?.name || "").trim() || shortNpub(pubkey);
+  return profileName(p, pubkey);
 }
 
 /** Shown without a worker (`new Notification`), so the worker's list doesn't have them. */

@@ -8,6 +8,7 @@ import { cardGroupOf } from "@/lib/listingVariants";
 import { useListingShelf } from "@/hooks/useListingShelf";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ListingCard } from "@/components/search/cards";
+import { nameIn } from "@/lib/displayName";
 
 type ListingLike = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
 
@@ -66,7 +67,10 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
         pubkey: pk,
         npub: nip19.npubEncode(pk),
         name: p.name,
-        displayName: p.display_name ?? (p as { displayName?: string }).displayName,
+        displayName: nameIn(
+          { display_name: p.display_name, displayName: (p as { displayName?: unknown }).displayName },
+          { legacy: true },
+        ),
         picture: p.picture,
         nip05: p.nip05,
       });

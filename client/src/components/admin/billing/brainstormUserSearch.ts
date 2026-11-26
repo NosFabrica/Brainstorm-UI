@@ -17,6 +17,7 @@
 import { apiClient } from "@/services/api";
 import { fetchProfileMap, searchNostrProfiles } from "@/services/nostr";
 import { decodeShareId } from "@/lib/shareId";
+import { nameIn, resultName } from "@/lib/displayName";
 
 export type BrainstormUser = { pubkey: string; name?: string; picture?: string };
 
@@ -58,7 +59,7 @@ export async function searchBrainstormUsers(query: string): Promise<UserSearchOu
       .catch(() => undefined);
     return {
       kind: "results",
-      users: [{ pubkey: key, name: profile?.display_name || profile?.name, picture: profile?.picture }],
+      users: [{ pubkey: key, name: nameIn(profile), picture: profile?.picture }],
       withoutAccount: 0,
       exact: true,
     };
@@ -73,7 +74,7 @@ export async function searchBrainstormUsers(query: string): Promise<UserSearchOu
     const pk = r.pubkey?.toLowerCase();
     if (!pk || !HEX_KEY.test(pk) || seen.has(pk)) continue;
     seen.add(pk);
-    candidates.push({ pubkey: pk, name: r.displayName || r.name, picture: r.picture });
+    candidates.push({ pubkey: pk, name: resultName(r), picture: r.picture });
   }
   const accounts = await Promise.all(candidates.map((c) => hasAccount(c.pubkey)));
   const users = candidates.filter((_, i) => accounts[i]);

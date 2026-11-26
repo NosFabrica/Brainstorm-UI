@@ -54,6 +54,7 @@ import { OverviewTab } from "./admin/overview/OverviewTab";
 import { adminTabList, AdminTabBar } from "./admin/AdminTabBar";
 import { RangeSelector } from "./admin/RangeSelector";
 import { useConsoleFigures } from "./admin/useConsoleFigures";
+import { nameIn } from "@/lib/displayName";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
@@ -292,7 +293,7 @@ export default function AdminPage() {
   const liveProfiles = useLiveProfiles(profilePubkeys);
   const userProfiles = useMemo(() => {
     const m = new Map<string, { name?: string; picture?: string }>();
-    for (const [pk, c] of liveProfiles) m.set(pk, { name: c.display_name || c.name, picture: c.picture });
+    for (const [pk, c] of liveProfiles) m.set(pk, { name: nameIn(c), picture: c.picture });
     return m;
   }, [liveProfiles]);
 

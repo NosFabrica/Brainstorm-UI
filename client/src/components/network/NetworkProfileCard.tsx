@@ -27,6 +27,7 @@ import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { detailMetrics, metricIcons, groups, FlaggedIcon } from "@/components/network/networkGroups";
 import { useNetworkCardActions, useNetworkCardView } from "@/components/network/cardContext";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 type DetailGraph = {
   influence?: number | null;
@@ -89,7 +90,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
-  const displayName = profile?.display_name || profile?.name || displayNpub;
+  const displayName = nameIn(profile) ?? displayNpub;
   const pkShort = pk.slice(0, 8);
   const [cardFollowHovered, setCardFollowHovered] = useState(false);
   const [cardActionPending, setCardActionPending] = useState<string | null>(null);
@@ -250,10 +251,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   className="truncate text-sm font-bold text-slate-900 dark:text-slate-100"
                   data-testid={`detail-name-${pkShort}`}
                 >
-                  <ProfileEmojiText
-                    pubkey={pk}
-                    text={profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
-                  />
+                  <ProfileEmojiText pubkey={pk} text={nameIn(profile) || npub.slice(0, 12) + "..."} />
                 </p>
                 {profile?.nip05 && (
                   <p className="truncate text-xs text-brand-primary" data-testid={`detail-nip05-${pkShort}`}>

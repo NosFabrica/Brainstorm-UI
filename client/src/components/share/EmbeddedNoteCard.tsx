@@ -35,6 +35,7 @@ import { EmbeddedNoteHeader } from "@/components/share/embed/EmbeddedNoteHeader"
 import { EmbeddedSealed, EmbeddedStructural } from "@/components/share/embed/EmbeddedPlaceholders";
 import { EmbeddedWords } from "@/components/share/embed/EmbeddedWords";
 import { repostedEvent } from "@/components/share/embed/repostedEvent";
+import { nameIn } from "@/lib/displayName";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -207,8 +208,7 @@ function NoteCardBody({
       }
     : undefined;
 
-  if (blank)
-    return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+  if (blank) return <DeletedStub who={nameIn(author)} className="mt-2" testId="embedded-deleted" />;
   return (
     <div
       className={`${WATERMARK_HOST} not-prose mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/70 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
@@ -237,12 +237,7 @@ function NoteCardBody({
       ) : media === "picture" ? (
         <EmbeddedPictures key={revealKeyOf(event)} event={event} opensThread={!!href} />
       ) : media === "audio" ? (
-        <EmbeddedAudio
-          key={revealKeyOf(event)}
-          event={event}
-          artist={author?.display_name || author?.name}
-          href={href}
-        />
+        <EmbeddedAudio key={revealKeyOf(event)} event={event} artist={nameIn(author)} href={href} />
       ) : activity ? (
         <EmbeddedActivity event={event} nested={nested} />
       ) : highlight ? (

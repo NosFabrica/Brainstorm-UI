@@ -58,7 +58,7 @@ export function getNip85RelayUrl(): string {
   return NIP85_RELAY_URL;
 }
 
-import { getProfileContent, getDisplayName, getProfilePicture, isValidProfile } from "applesauce-core/helpers/profile";
+import { getProfileContent, getProfilePicture, isValidProfile } from "applesauce-core/helpers/profile";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import {
   activeAccount,
@@ -74,6 +74,7 @@ import {
 import { type BrainstormAccount } from "@/accounts/metadata";
 import { rememberProfile } from "@/accounts/display";
 import { NostrEvent } from "applesauce-core/helpers";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * Sign an event with a freshly-generated THROWAWAY key. Used for anonymous
@@ -1359,7 +1360,7 @@ export function cacheProfile(content: ProfileContent, pubkey?: string): void {
   // A switch mid-fetch means this profile belongs to whoever we were before.
   if (!account || (pubkey !== undefined && account.pubkey !== pubkey)) return;
   rememberProfile(account, {
-    name: getDisplayName(content) || content.name || content.display_name,
+    name: nameIn(content, { legacy: true }),
     picture: getProfilePicture(content) || content.picture || content.image,
     nip05: content.nip05,
   });
@@ -1814,7 +1815,7 @@ export async function searchNostrProfiles(
       pubkey: event.pubkey,
       npub: nip19.npubEncode(event.pubkey),
       name: content?.name || undefined,
-      displayName: content?.display_name || content?.displayName || undefined,
+      displayName: nameIn({ display_name: content?.display_name, displayName: content?.displayName }, { legacy: true }),
       picture: content?.picture || undefined,
       about: content?.about || undefined,
       nip05: content?.nip05 || undefined,

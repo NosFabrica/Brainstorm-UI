@@ -3,6 +3,7 @@ import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { lookupTrustSignals } from "@/services/trustSignals";
 import { npubFromPubkey } from "@/lib/shareId";
+import { nameIn } from "@/lib/displayName";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 
@@ -34,7 +35,7 @@ export function useEventAuthor(authorPk: string, relays: string[]) {
         }
       })()
     : "";
-  const authorName = profile.display_name || profile.name || (authorNpub ? authorNpub.slice(0, 12) + "…" : "Someone");
+  const authorName = nameIn(profile) || (authorNpub ? authorNpub.slice(0, 12) + "…" : "Someone");
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
   return { authorProfile, profile, compromisedRing, authorNpub, authorName, score01 };
 }

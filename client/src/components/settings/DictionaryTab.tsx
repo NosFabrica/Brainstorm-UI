@@ -69,6 +69,7 @@ import {
 } from "@/lib/managedDictionary";
 import { definitionOf, type DefinitionSource, type ResolvedConcept } from "@/lib/conceptResolution";
 import type { DictionaryItem } from "@/services/dictionary";
+import { nameIn } from "@/lib/displayName";
 
 export const dictionaryEntryPath = (coordinate: string) =>
   `/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`;
@@ -508,7 +509,7 @@ function FieldsSection({ fields, display }: { fields: FieldDecl[]; display: Disp
 
 function Who({ pubkey }: { pubkey: string }) {
   const { profile } = useLiveProfile(pubkey);
-  const name = profile?.display_name || profile?.name;
+  const name = nameIn(profile);
   return (
     <Link href={`/p/${pubkey}`} className="font-medium text-brand-link hover:underline">
       {name || `${pubkey.slice(0, 8)}…`}

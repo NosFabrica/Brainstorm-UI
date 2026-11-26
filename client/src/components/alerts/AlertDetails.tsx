@@ -10,6 +10,7 @@ import { useMyFollows } from "@/hooks/useMyFollows";
 import { interactionLine, type InteractionSummary } from "@/lib/interactionSummary";
 import { breakdownLine, reporterBreakdown, type Reporter } from "@/lib/reporterBreakdown";
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
+import { nameIn } from "@/lib/displayName";
 
 const FACES = 6;
 const day = (sec: number) => new Date(sec * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" });
@@ -141,7 +142,7 @@ function Faces({
       <span className="flex -space-x-1.5">
         {people.slice(0, FACES).map((r) => {
           const p = profiles.get(r.pubkey);
-          const name = p?.display_name || p?.name || "Someone";
+          const name = nameIn(p) ?? "Someone";
           return (
             <Avatar
               key={r.pubkey}
