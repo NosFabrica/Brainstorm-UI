@@ -21,7 +21,7 @@
  * than reverting it. A new list publishes only once its identifier is known
  * to be free: read at that `d`, not guessed from the lists loaded so far.
  */
-import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -98,9 +98,10 @@ export function ListEditor({
   const [typedD, setTypedD] = useState<string | null>(null);
   const freshD = typedD ?? slugOf(fresh.draft.plural);
   const listRelays = useMemo(() => [...new Set([...tagRelays(), ...dictionaryRelays()])], []);
+  // A 9998 opened to edit has no 39998 version yet: the form starts from it.
+  const readForm = useCallback((ev: NostrEvent | null) => formOf(ev ?? header), [header]);
   const list = useReplaceableListDraft(39998, own ? author : null, inPlace ? publishedD! : freshD, {
-    // A 9998 opened to edit has no 39998 version yet: the form starts from it.
-    read: (ev) => formOf(ev ?? header),
+    read: readForm,
     held: inPlace ? header : null,
     also: listRelays,
     // A new list's d is typed: read it once the typing stops.

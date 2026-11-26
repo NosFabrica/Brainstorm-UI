@@ -31,7 +31,10 @@ import {
 } from "@/lib/replaceableDraft";
 
 export interface ListDraftOptions<T> {
-  /** The value a version holds; `null` for a list that doesn't exist yet. */
+  /**
+   * The value a version holds; `null` for a list that doesn't exist yet. Kept
+   * stable by the caller: a new `read` reads the list again.
+   */
   read: (event: NostrEvent | null) => T;
   /** A version the caller already holds (one it streamed in): weighed with the store's. */
   held?: NostrEvent | null;
@@ -148,8 +151,10 @@ export function useReplaceableListDraft<T>(
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  // Untouched, the value follows the newest version.
-  const value = useMemo(() => (draft ? draft.value : read(latest)), [draft, latest]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Untouched, the value follows the newest version, as the caller's current
+  // `read` makes it: keep `read` stable (a module function, a useCallback), or
+  // the value is a new one each render.
+  const value = useMemo(() => (draft ? draft.value : read(latest)), [draft, latest, read]);
   const base = draft ? draft.base : latest;
   const stale = !!draft && !!latest && latest.id !== draft.base?.id && beats(latest, draft.base ?? undefined);
   const canEdit = status === "ready" && !publishing;

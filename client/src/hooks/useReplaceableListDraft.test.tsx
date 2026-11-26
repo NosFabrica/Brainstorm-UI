@@ -271,4 +271,18 @@ describe("useReplaceableListDraft", () => {
     expect(a.success).toBe(true);
     expect(b).toEqual({ success: false, cancelled: true });
   });
+
+  it("follows a new read: an untouched draft shows what the caller's current read makes of the list", async () => {
+    const first = version(["wss://a"], 100);
+    eventStore.add(first);
+    probes.next = [answered(first)];
+    const { result, rerender } = renderHook(
+      ({ read }: { read: (ev: NostrEvent | null) => string[] }) =>
+        useReplaceableListDraft(KIND, me, undefined, { read }),
+      { initialProps: { read } },
+    );
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    rerender({ read: (ev) => read(ev).map((r) => r.toUpperCase()) });
+    expect(result.current.value).toEqual(["WSS://A"]);
+  });
 });
