@@ -33,7 +33,7 @@ import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { getProfileContent, isValidProfile, type ProfileContent } from "applesauce-core/helpers/profile";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import { isAuthRedirecting } from "@/services/api";
 import {
   useSelfOverview,
   useSelfStats,
@@ -42,7 +42,7 @@ import {
   type ConnectionItem,
 } from "@/hooks/useSelf";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
-import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
+import { toPubkeys } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
@@ -66,18 +66,7 @@ import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 import { isProfileOverviewFresh, prefetchProfileOverview, useExpandedRow } from "./network/rowOverview";
-
-type RowGraphData = { muted_by?: string[]; reported_by?: string[] };
-
-/** The cache for one perspective, made the first time it is asked for. */
-function cacheFor<V>(caches: Map<boolean, Map<string, V>>, house: boolean): Map<string, V> {
-  let cache = caches.get(house);
-  if (!cache) {
-    cache = new Map();
-    caches.set(house, cache);
-  }
-  return cache;
-}
+import { useRowScores } from "./network/useRowScores";
 
 export default function NetworkPage() {
   const [, navigate] = useLocation();
@@ -185,10 +174,6 @@ export default function NetworkPage() {
   // one came back). Lets a row fall back to its npub instead of an endless
   // skeleton when no profile exists. See the gate in NetworkProfileCard.
   const profileAttempted = useRef<Set<string>>(new Set());
-  // Scores and graph data are the perspective's: held per `house` below.
-  const trustCaches = useRef(new Map<boolean, Map<string, number | null>>());
-  const graphDataCaches = useRef(new Map<boolean, Map<string, RowGraphData>>());
-  const [trustLoadedCount, setTrustLoadedCount] = useState(0);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
   const supportsHoverRef = useRef<boolean>(true);
 
@@ -237,11 +222,6 @@ export default function NetworkPage() {
   const { pov: scorePov } = useScorePov();
   const perspective = networkPerspective({ signedIn, calcDone, scorePov });
   const house = perspective.house;
-  // One cache per perspective, keyed [house, pubkey]: a row's score is whose
-  // perspective it was asked in, so switching it must not keep showing the
-  // other one's numbers. Coming back finds the first one's still held.
-  const trustCache = useMemo(() => ({ current: cacheFor(trustCaches.current, house) }), [house]);
-  const graphDataCache = useMemo(() => ({ current: cacheFor(graphDataCaches.current, house) }), [house]);
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
 
   const overviewQuery = useSelfOverview(user?.pubkey, { house });
@@ -404,35 +384,7 @@ export default function NetworkPage() {
   // per-section UI, not by this top-level flag.
   const isLoading = overviewQuery.isLoading;
 
-  // Every section's rows carry their influence, the Flagged one too (the
-  // server's `kind=flagged` page has the same row shape), so none of them needs
-  // the heavy per-row `/user/{pk}` below. Leaving Flagged out sent up to 200 of
-  // those, eight at a time, for a tab that already had its answers.
-  // An effect, not a memo: it writes the cache, then re-renders the rows that read it.
-  useEffect(() => {
-    let added = 0;
-    const allGroups: GroupKey[] = [
-      "followed_by",
-      "following",
-      "muted_by",
-      "muting",
-      "reported_by",
-      "reporting",
-      "flagged",
-    ];
-    for (const groupKey of allGroups) {
-      const items = networkData[groupKey];
-      if (!items || items.length === 0) continue;
-      const influenceMap = toInfluenceMap(items);
-      influenceMap.forEach((influence, pk) => {
-        if (!trustCache.current.has(pk)) {
-          trustCache.current.set(pk, influence);
-          added += 1;
-        }
-      });
-    }
-    if (added) setTrustLoadedCount((prev) => prev + added);
-  }, [networkData, trustCache]);
+  const { trustCache, graphDataCache, trustLoadedCount, fetchTrustScores } = useRowScores(house, networkData);
 
   const fetchProfilesCallback = useCallback(
     async (pubkeys: string[]) => {
@@ -477,41 +429,6 @@ export default function NetworkPage() {
       }
     },
     [bumpLoaded],
-  );
-
-  const fetchTrustScores = useCallback(
-    async (pubkeys: string[]) => {
-      const unfetched = pubkeys.filter((pk) => !trustCache.current.has(pk));
-      if (unfetched.length === 0) {
-        return;
-      }
-      const batchSize = 8;
-      for (let i = 0; i < unfetched.length; i += batchSize) {
-        const batch = unfetched.slice(i, i + batchSize);
-        const results = await Promise.allSettled(
-          batch.map(async (pk) => {
-            const res = await apiClient.getUserByPubkey(pk, { house });
-            return res?.data ?? null;
-          }),
-        );
-        results.forEach((res, idx) => {
-          const pk = batch[idx];
-          if (res.status === "fulfilled") {
-            const graph = res.value?.graph ?? res.value;
-            const influence = graph?.influence;
-            trustCache.current.set(pk, typeof influence === "number" ? influence : null);
-            graphDataCache.current.set(pk, {
-              muted_by: toPubkeys(graph?.muted_by),
-              reported_by: toPubkeys(graph?.reported_by),
-            });
-          } else {
-            trustCache.current.set(pk, null);
-          }
-        });
-        setTrustLoadedCount((prev) => prev + batch.length);
-      }
-    },
-    [house, trustCache, graphDataCache],
   );
 
   const toggleExpanded = useCallback((pk: string) => {
