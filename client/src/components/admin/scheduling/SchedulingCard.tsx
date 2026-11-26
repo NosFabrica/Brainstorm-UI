@@ -120,8 +120,8 @@ function PolicyUsersInline({ policy, policies }: { policy: SchedulingItem; polic
   const pageItems = filtered.slice((clampedPage - 1) * CLIENT_PAGE, clampedPage * CLIENT_PAGE);
 
   function refetchUsers() {
-    queryClient.invalidateQueries({ queryKey: usersKey });
-    queryClient.invalidateQueries({ queryKey: STATS_KEY });
+    void queryClient.invalidateQueries({ queryKey: usersKey });
+    void queryClient.invalidateQueries({ queryKey: STATS_KEY });
   }
 
   async function handleRemove(pubkey: string) {
@@ -319,7 +319,7 @@ function PolicyUsersInline({ policy, policies }: { policy: SchedulingItem; polic
         onOpenChange={setAssignOpen}
         policyId={policy.id}
         policyName={policy.name}
-        onAssigned={() => queryClient.invalidateQueries({ queryKey: usersKey })}
+        onAssigned={() => void queryClient.invalidateQueries({ queryKey: usersKey })}
       />
 
       <Dialog open={!!confirmRemove} onOpenChange={(o) => !o && setConfirmRemove(null)}>
@@ -338,10 +338,10 @@ function PolicyUsersInline({ policy, policies }: { policy: SchedulingItem; polic
             </Button>
             <Button
               className="no-default-hover-elevate no-default-active-elevate bg-brand-deep text-white hover:bg-brand-primary"
-              onClick={async () => {
+              onClick={() => {
                 const pk = confirmRemove?.pubkey;
                 setConfirmRemove(null);
-                if (pk) await handleRemove(pk);
+                if (pk) void handleRemove(pk);
               }}
             >
               Move to {defaultName}
@@ -491,7 +491,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
           <p className="text-sm text-slate-500 dark:text-slate-400">Failed to load scheduling policies.</p>
           <button
             type="button"
-            onClick={() => refetch()}
+            onClick={() => void refetch()}
             className="mt-2 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Retry
@@ -640,7 +640,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={on}
-                            onCheckedChange={() => handleToggleEnabled(p)}
+                            onCheckedChange={() => void handleToggleEnabled(p)}
                             aria-label={`Toggle ${p.name}`}
                             className="data-[state=checked]:!bg-brand-deep"
                           />
@@ -718,7 +718,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>
               Cancel
             </Button>
-            <Button variant="destructive" disabled={deleting} onClick={handleDelete}>
+            <Button variant="destructive" disabled={deleting} onClick={() => void handleDelete()}>
               Delete policy
             </Button>
           </DialogFooter>

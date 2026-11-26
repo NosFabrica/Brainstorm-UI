@@ -82,7 +82,7 @@ export function TranslateLine({ text, className = "" }: { text: string; classNam
   return (
     <button
       type="button"
-      onClick={run}
+      onClick={(e) => void run(e)}
       disabled={phase === "working"}
       className={`mt-1 rounded text-[11px] font-medium text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:opacity-60 ${className}`}
       data-testid="translate-link"

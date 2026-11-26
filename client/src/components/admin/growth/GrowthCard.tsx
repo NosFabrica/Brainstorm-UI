@@ -210,7 +210,7 @@ export function GrowthCard({
               type="button"
               variant="outline"
               size="sm"
-              onClick={copyNpubs}
+              onClick={() => void copyNpubs()}
               disabled={people.length === 0}
               data-testid="button-copy-npubs"
             >
@@ -334,9 +334,10 @@ export function GrowthCard({
                   <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                     <PersonMenu
                       pubkey={p.pubkey}
-                      onCopy={async () => {
-                        const ok = await copyToClipboard(npub, {});
-                        toast({ title: ok ? "Copied npub" : "Couldn't copy" });
+                      onCopy={() => {
+                        void copyToClipboard(npub, {}).then((ok) =>
+                          toast({ title: ok ? "Copied npub" : "Couldn't copy" }),
+                        );
                       }}
                       onOpen={() => onOpenPerson(p.pubkey)}
                     />

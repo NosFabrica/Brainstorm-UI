@@ -147,7 +147,12 @@ export function ProfileMenu({
           </DropdownMenuItem>
           {social && (
             <>
-              <DropdownMenuItem className="gap-2" onClick={toggleMute} disabled={busy} data-testid="share-mute">
+              <DropdownMenuItem
+                className="gap-2"
+                onClick={() => void toggleMute()}
+                disabled={busy}
+                data-testid="share-mute"
+              >
                 {muted ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                 {muted ? "Unmute" : "Mute"}
               </DropdownMenuItem>

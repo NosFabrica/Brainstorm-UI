@@ -75,12 +75,13 @@ export function TrustedListMembers({
               variant="ghost"
               size="sm"
               className="h-7 gap-1.5 text-xs"
-              onClick={async () => {
-                const ok = await copyToClipboard(list.data!.naddr);
-                toast({
-                  title: ok ? "Link copied" : "Couldn't copy the link",
-                  description: ok ? "Paste it into any Nostr app to open the list." : undefined,
-                });
+              onClick={() => {
+                void copyToClipboard(list.data!.naddr).then((ok) =>
+                  toast({
+                    title: ok ? "Link copied" : "Couldn't copy the link",
+                    description: ok ? "Paste it into any Nostr app to open the list." : undefined,
+                  }),
+                );
               }}
             >
               <Copy className="h-3.5 w-3.5" /> Copy link

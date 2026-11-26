@@ -107,7 +107,7 @@ export function LegacyRolePrompt({
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          onClick={addAll}
+          onClick={() => void addAll()}
           disabled={busy}
           className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
           data-testid="legacy-role-add-all"

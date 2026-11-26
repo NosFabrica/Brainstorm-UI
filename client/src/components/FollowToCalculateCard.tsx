@@ -102,7 +102,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     }
     let cancelled = false;
     setSearching(true);
-    const timer = setTimeout(async () => {
+    const search = async () => {
       try {
         const r = await suggestProfiles(q, { pov: HOUSE_POV }, { limit: 12 });
         if (!cancelled) setResults(r);
@@ -111,7 +111,8 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       } finally {
         if (!cancelled) setSearching(false);
       }
-    }, 300);
+    };
+    const timer = setTimeout(() => void search(), 300);
     return () => {
       cancelled = true;
       clearTimeout(timer);

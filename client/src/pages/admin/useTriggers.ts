@@ -50,8 +50,8 @@ export function useTriggers({
       try {
         await apiClient.triggerUserGraperank(pubkey);
         toast({ title: "GrapeRank triggered", description: `Triggered for ${pubkey.slice(0, 12)}...` });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
         onTriggered();
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Unknown error";

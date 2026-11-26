@@ -239,7 +239,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
   };
 
   return (
-    <form onSubmit={handleSubmit} data-testid="form-profile-edit">
+    <form onSubmit={(e) => void handleSubmit(e)} data-testid="form-profile-edit">
       {/* Banner — full-bleed at the card top (mirrors BrainstormAssistantCard) */}
       <ImageUpload
         aspect="banner"

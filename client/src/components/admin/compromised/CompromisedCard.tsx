@@ -187,7 +187,7 @@ function MarkAccountForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3" data-testid="form-mark-compromised">
+    <form onSubmit={(e) => void submit(e)} className="space-y-3" data-testid="form-mark-compromised">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="compromised-account">Compromised account</Label>
@@ -430,7 +430,7 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
           <Button variant="outline" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={busy} onClick={save} data-testid="button-save-compromised">
+          <Button disabled={busy} onClick={() => void save()} data-testid="button-save-compromised">
             {busy && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
             {replacingProof ? "Save and zero again" : "Save"}
           </Button>
@@ -477,7 +477,12 @@ function UnmarkDialog({ row, onClose, onDone }: { row: CompromisedPubkey; onClos
           <Button variant="outline" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="destructive" disabled={busy} onClick={unmark} data-testid="button-confirm-unmark">
+          <Button
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void unmark()}
+            data-testid="button-confirm-unmark"
+          >
             {busy && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
             Unmark
           </Button>
@@ -684,7 +689,7 @@ export function CompromisedCard({ active }: { active: boolean }) {
       <div className="space-y-6 px-5 py-4">
         <MarkAccountForm
           marked={markedSet}
-          onMarked={refresh}
+          onMarked={() => void refresh()}
           onEdit={(pubkey) => setEditing(rows.find((r) => r.pubkey === pubkey) ?? null)}
         />
 
@@ -712,15 +717,15 @@ export function CompromisedCard({ active }: { active: boolean }) {
               successorName={row.successor_pubkey ? profiles.get(row.successor_pubkey)?.name : undefined}
               onEdit={() => setEditing(row)}
               onUnmark={() => setUnmarking(row)}
-              onRezero={() => rezero(row)}
+              onRezero={() => void rezero(row)}
               rezeroing={rezeroing === row.pubkey}
             />
           ))}
         </div>
       </div>
 
-      {editing && <EditDialog row={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
-      {unmarking && <UnmarkDialog row={unmarking} onClose={() => setUnmarking(null)} onDone={refresh} />}
+      {editing && <EditDialog row={editing} onClose={() => setEditing(null)} onSaved={() => void refresh()} />}
+      {unmarking && <UnmarkDialog row={unmarking} onClose={() => setUnmarking(null)} onDone={() => void refresh()} />}
     </div>
   );
 }

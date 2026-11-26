@@ -175,8 +175,8 @@ export function RecentFailuresCard({
                                     title: "Request Queued",
                                     description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...`,
                                   });
-                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
-                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                                  void queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+                                  void queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
                                   onTriggered();
                                 } catch (err: unknown) {
                                   const msg = err instanceof Error ? err.message : "Unknown error";

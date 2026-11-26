@@ -37,7 +37,7 @@ function lookup(address: string, opts: Opts): Promise<AppEndorsements> {
   if (!p) {
     p = new Promise<AppEndorsements>((resolve) => {
       queue.push(() => {
-        fetchAppEndorsements(address, opts)
+        void fetchAppEndorsements(address, opts)
           .catch((): AppEndorsements => ({
             address,
             reviews: [],

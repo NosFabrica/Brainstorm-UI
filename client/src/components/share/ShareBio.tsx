@@ -4,6 +4,7 @@ import { decodeNostrEntity } from "@/lib/noteRefs";
 import { HOUSE_POV, suggestProfiles } from "@/services/search";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { nameIn, resultName } from "@/lib/displayName";
+import { asyncHandler } from "@/lib/asyncHandler";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
@@ -39,7 +40,7 @@ function PlainMention({ name }: { name: string }) {
       type="button"
       disabled={busy}
       data-testid="bio-orgmention"
-      onClick={async (e) => {
+      onClick={asyncHandler(async (e) => {
         e.stopPropagation();
         if (busy) return;
         setBusy(true);
@@ -57,7 +58,7 @@ function PlainMention({ name }: { name: string }) {
           /* ignore — leave as plain text on failure */
         }
         setBusy(false);
-      }}
+      })}
       className="font-medium text-brand-link hover:underline disabled:opacity-60"
     >
       @{name}

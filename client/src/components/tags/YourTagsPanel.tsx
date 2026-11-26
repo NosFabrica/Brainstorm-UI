@@ -38,6 +38,7 @@ import { ContentSectionHeading, SECTION_ICON } from "@/components/tags/ContentSe
 import type { ItemPresentation } from "@/lib/itemPresentation";
 import type { KindEvent } from "@/lib/kindLabel";
 import { proxiedSrc } from "@/lib/imageProxy";
+import { asyncHandler } from "@/lib/asyncHandler";
 
 /**
  * Everything tagging-related about you — the body of `/tags/mine`, the "Yours"
@@ -514,7 +515,12 @@ function TagOnMeRow({
           you — and until now the only button on it said "Agree". */}
       {canAct && (
         <div className="mt-0.5">
-          <StanceButtons stance={tag.myStance} pending={busy} onVote={setStance} testId="my-tag-stance" />
+          <StanceButtons
+            stance={tag.myStance}
+            pending={busy}
+            onVote={(polarity) => void setStance(polarity)}
+            testId="my-tag-stance"
+          />
         </div>
       )}
     </div>
@@ -979,14 +985,14 @@ function PinnedRow({
       )}
       <button
         type="button"
-        onClick={async () => {
+        onClick={asyncHandler(async () => {
           try {
             await toggle.mutateAsync({ pinEventId: pin.pinEventId });
             toast({ title: `Removed "${pin.name}"` });
           } catch {
             toast({ title: "Couldn't remove that", variant: "destructive" });
           }
-        }}
+        })}
         disabled={toggle.isPending}
         aria-label={`Remove ${pin.name}`}
         className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800"

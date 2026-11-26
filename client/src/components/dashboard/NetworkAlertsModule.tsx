@@ -298,7 +298,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
             <AlertDialogAction
               onClick={(ev) => {
                 ev.preventDefault();
-                runAction();
+                void runAction();
               }}
               disabled={busy}
             >
@@ -395,7 +395,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
             <AlertDialogAction
               onClick={(ev) => {
                 ev.preventDefault();
-                submitReport();
+                void submitReport();
               }}
               disabled={reporting || !reportType}
               className="bg-red-600 hover:bg-red-700 focus-visible:ring-red-400"

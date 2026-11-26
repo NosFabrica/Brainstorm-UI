@@ -83,8 +83,13 @@ export function AccountOverviewStrip({
               <button
                 className="flex items-center gap-1 font-mono text-xs text-white/80 transition-colors hover:text-white"
                 onClick={() => {
-                  copyToClipboard(npub);
-                  toast({ title: "Copied!", description: "npub copied to clipboard" });
+                  void copyToClipboard(npub).then((ok) =>
+                    toast(
+                      ok
+                        ? { title: "Copied!", description: "npub copied to clipboard" }
+                        : { title: "Couldn't copy", variant: "destructive" },
+                    ),
+                  );
                 }}
                 data-testid="button-overview-copy-npub"
               >
@@ -150,8 +155,13 @@ export function AccountOverviewStrip({
                 <button
                   className="flex items-center gap-1 truncate font-mono text-xs text-white/80 transition-colors hover:text-white"
                   onClick={() => {
-                    copyToClipboard(npub);
-                    toast({ title: "Copied!", description: "npub copied to clipboard" });
+                    void copyToClipboard(npub).then((ok) =>
+                      toast(
+                        ok
+                          ? { title: "Copied!", description: "npub copied to clipboard" }
+                          : { title: "Couldn't copy", variant: "destructive" },
+                      ),
+                    );
                   }}
                   data-testid="button-overview-copy-npub-mobile"
                 >
@@ -267,12 +277,14 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
     }
   };
 
-  const handleCopyInviteLink = async () => {
-    if (await copyToClipboard(publicOrigin())) {
-      toast({ title: "Invite link copied!", description: "Share this link to grow the network." });
-    } else {
-      toast({ variant: "destructive", title: "Couldn't copy the invite link", description: publicOrigin() });
-    }
+  const handleCopyInviteLink = () => {
+    void copyToClipboard(publicOrigin()).then((ok) =>
+      toast(
+        ok
+          ? { title: "Invite link copied!", description: "Share this link to grow the network." }
+          : { variant: "destructive", title: "Couldn't copy the invite link", description: publicOrigin() },
+      ),
+    );
   };
 
   return (
@@ -330,13 +342,13 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
               placeholder="npub1... or hex pubkey"
               value={npubInput}
               onChange={(e) => setNpubInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLookupNpub()}
+              onKeyDown={(e) => e.key === "Enter" && void handleLookupNpub()}
               className="text-sm"
               data-testid="input-add-npub"
             />
             <Button
               size="sm"
-              onClick={handleLookupNpub}
+              onClick={() => void handleLookupNpub()}
               disabled={lookupLoading}
               className="shrink-0 gap-1.5 bg-brand-deep text-white hover:bg-[#292873]"
               data-testid="button-add-npub"
@@ -380,7 +392,7 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={handleFollowLookedUp}
+                    onClick={() => void handleFollowLookedUp()}
                     disabled={socialActions.isPending("follow", lookedUpUser.pubkey)}
                     className="gap-1 text-xs"
                     data-testid="button-follow-looked-up"

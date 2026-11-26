@@ -118,6 +118,7 @@ export function PolicyFormDialog({ open, mode, initial, submitting, onOpenChange
       return;
     }
     setErrors({});
+    // `void`: the parent reports its own failure.
     if (mode === "edit" && initial) {
       const diff: UpdateSchedulingBody = {};
       (Object.keys(body) as Array<keyof Body>).forEach((k) => {
@@ -125,9 +126,9 @@ export function PolicyFormDialog({ open, mode, initial, submitting, onOpenChange
           (diff as Record<string, unknown>)[k] = body[k];
         }
       });
-      onSubmit(diff);
+      void onSubmit(diff);
     } else {
-      onSubmit(body);
+      void onSubmit(body);
     }
   }
 

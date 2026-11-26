@@ -88,7 +88,7 @@ export function TriggerConfirmDialog({
                 onClick={() => {
                   const pk = triggerConfirmPubkey;
                   setTriggerConfirmPubkey(null);
-                  triggerGraperank(pk);
+                  void triggerGraperank(pk);
                 }}
                 className="no-default-hover-elevate no-default-active-elevate gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                 data-testid="button-confirm-trigger"

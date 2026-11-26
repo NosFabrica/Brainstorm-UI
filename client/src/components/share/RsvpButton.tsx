@@ -84,7 +84,7 @@ export function RsvpButton({
   return (
     <button
       type="button"
-      onClick={onTap}
+      onClick={(e) => void onTap(e)}
       disabled={busy}
       aria-pressed={going}
       title={going ? "You're going — tap to withdraw" : me ? "RSVP on Nostr" : "Sign in to RSVP"}

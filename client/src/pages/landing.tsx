@@ -409,7 +409,7 @@ export default function Landing() {
     setQuery(q);
     setFilters(f);
     didInitFromUrlRef.current = true;
-    handleSearch(q, f, "pop");
+    void handleSearch(q, f, "pop");
     // `submitted` is read, not a trigger: a change in it is the search this effect started.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, handleSearch]);
@@ -425,7 +425,7 @@ export default function Landing() {
       didInitFromUrlRef.current = true;
       // Back/forward: the URL is the truth for the filters too.
       setFilters(f);
-      if (q.trim()) handleSearch(q, f, "pop");
+      if (q.trim()) void handleSearch(q, f, "pop");
       else resetResults();
     };
     window.addEventListener("popstate", onPopState);
@@ -440,7 +440,7 @@ export default function Landing() {
     const q = params.get("q") || "";
     if (q.trim()) {
       didInitFromUrlRef.current = true;
-      handleSearch(q, params.get("f") || "", "init");
+      void handleSearch(q, params.get("f") || "", "init");
     }
   }, [handleSearch]);
 

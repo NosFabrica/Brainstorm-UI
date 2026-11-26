@@ -136,7 +136,13 @@ export function BackupPrompt({ need, onDelivered }: { need: BackupNeed | null; o
           >
             <Download className="h-4 w-4" /> Download again
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={copyKey} data-testid="backup-prompt-copy">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void copyKey()}
+            data-testid="backup-prompt-copy"
+          >
             <Copy className="h-4 w-4" /> Copy recovery key
           </Button>
         </div>

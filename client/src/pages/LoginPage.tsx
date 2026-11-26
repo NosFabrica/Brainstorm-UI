@@ -150,7 +150,7 @@ export default function LoginPage() {
 
   const handleRetryExtension = () => {
     setFailureOpen(false);
-    setTimeout(() => onLogin(), 100);
+    setTimeout(() => void onLogin(), 100);
   };
 
   return (
@@ -279,7 +279,7 @@ export default function LoginPage() {
               />
               {!installedApp && (
                 <Button
-                  onClick={onLogin}
+                  onClick={() => void onLogin()}
                   disabled={loading}
                   variant={passkeyLeads ? "outline" : "neutral"}
                   size="lg"

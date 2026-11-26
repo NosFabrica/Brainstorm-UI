@@ -148,7 +148,7 @@ export function PasskeySignInButton({
       <div className="space-y-1.5">
         <Button
           type="button"
-          onClick={signIn}
+          onClick={() => void signIn()}
           disabled={busy}
           variant={primary ? "neutral" : "outline"}
           size="lg"

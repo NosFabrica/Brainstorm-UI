@@ -71,7 +71,7 @@ export function useSectionRows(hexPubkey: string, profileResult: ProfileResultDa
           .filter((pk) => !expandProfileCache.has(pk) && !eventStore.getReplaceable(0, pk));
         if (nextBatch.length > 0) {
           nextBatch.forEach((pk) => prefetchedRef.current.add(pk));
-          fetchProfiles(nextBatch, (pubkey, profile) => {
+          void fetchProfiles(nextBatch, (pubkey, profile) => {
             expandProfileCache.set(pubkey, profile);
           });
         }

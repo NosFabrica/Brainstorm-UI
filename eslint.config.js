@@ -258,8 +258,8 @@ export default tseslint.config(
     ignores: ["client/src/**/*.test.{ts,tsx}", "client/src/test/**", "client/src/**/__*__.{ts,tsx}"],
     languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
     rules: {
-      "@typescript-eslint/no-floating-promises": "warn",
-      "@typescript-eslint/no-misused-promises": "warn",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/switch-exhaustiveness-check": ["error", {}],
       "@typescript-eslint/await-thenable": "error",
     },

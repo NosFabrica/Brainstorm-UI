@@ -116,7 +116,7 @@ export function useFountainItem(url: string): { loading: boolean; item: Fountain
       return;
     }
     setState({ loading: true, item: null });
-    fetchFountainItem(url).then((item) => {
+    void fetchFountainItem(url).then((item) => {
       if (!cancelled) setState({ loading: false, item });
     });
     return () => {

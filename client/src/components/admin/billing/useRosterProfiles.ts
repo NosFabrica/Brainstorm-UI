@@ -27,7 +27,7 @@ export function useRosterProfiles(pubkeys: string[]): Map<string, ProfileBits> {
     const targets = (key ? key.split(",") : []).filter((pk) => !asked.current.has(pk));
     if (!targets.length) return;
     for (const pk of targets) asked.current.add(pk);
-    (async () => {
+    void (async () => {
       try {
         const map = await fetchProfileMap(targets);
         // Not dropped when the list changes meanwhile: these people were asked

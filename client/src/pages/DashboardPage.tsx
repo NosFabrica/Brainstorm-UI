@@ -266,7 +266,7 @@ export default function DashboardPage() {
       if (data?.data && typeof data.data === "object") {
         queryClient.setQueryData(GRAPERANK_RESULT_KEY, data);
       }
-      queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
+      void queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
       wasAutoTriggeredRef.current = false;
       // First-time calc vs a true recalculation reads very differently — don't
       // tell a never-scored user we're "refreshing" / "recalculating".
@@ -400,7 +400,7 @@ export default function DashboardPage() {
     setJustFollowed(true);
     // Their own reads only: other people's cached overviews didn't move.
     if (user?.pubkey) invalidateOwnScoreReads(queryClient, user.pubkey);
-    queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
+    void queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
   };
 
   // A run finishing refetches the reader's own reads from the status pill

@@ -38,7 +38,7 @@ export function ConfirmRetriggerButton({
   };
   return (
     <button
-      onClick={handleClick}
+      onClick={(e) => void handleClick(e)}
       disabled={state === "running"}
       className={`inline-flex items-center gap-1 text-[10px] font-semibold transition-colors ${
         state === "confirming"

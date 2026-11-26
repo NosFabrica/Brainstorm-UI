@@ -112,7 +112,7 @@ function RequesterCell({
         onClick={(e) => {
           e.stopPropagation();
           try {
-            copyToClipboard(npubFromPubkey(pubkey));
+            void copyToClipboard(npubFromPubkey(pubkey));
           } catch {
             /* malformed pubkey — nothing to copy */
           }

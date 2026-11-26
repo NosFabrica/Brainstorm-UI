@@ -17,7 +17,7 @@ export function useProfileBits(pubkeys: (string | null | undefined)[]): Map<stri
     const targets = key ? key.split(",") : [];
     if (!targets.length) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const map = await fetchProfileMap(targets);
         if (cancelled) return;

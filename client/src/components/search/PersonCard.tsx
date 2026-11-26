@@ -214,7 +214,7 @@ export const PersonCard = memo(function PersonCard({
                 data-testid={`button-copy-npub-${idx}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  copyToClipboard(result.npub);
+                  void copyToClipboard(result.npub);
                 }}
               >
                 <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" />

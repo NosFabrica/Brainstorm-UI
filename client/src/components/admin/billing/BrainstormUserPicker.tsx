@@ -46,7 +46,7 @@ export function BrainstormUserPicker({
     let cancelled = false;
     setSearching(true);
     setError(null);
-    const timer = setTimeout(async () => {
+    const search = async () => {
       try {
         const out = await searchBrainstormUsers(q);
         if (cancelled) return;
@@ -60,7 +60,8 @@ export function BrainstormUserPicker({
       } finally {
         if (!cancelled) setSearching(false);
       }
-    }, 300);
+    };
+    const timer = setTimeout(() => void search(), 300);
     return () => {
       cancelled = true;
       clearTimeout(timer);

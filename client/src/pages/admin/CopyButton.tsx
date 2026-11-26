@@ -9,8 +9,13 @@ export function CopyButton({ text }: { text: string }) {
       className="rounded p-1 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
       onClick={(e) => {
         e.stopPropagation();
-        copyToClipboard(text);
-        toast({ title: "Copied", description: text.slice(0, 20) + "...", duration: 1500 });
+        void copyToClipboard(text).then((ok) =>
+          toast(
+            ok
+              ? { title: "Copied", description: text.slice(0, 20) + "...", duration: 1500 }
+              : { title: "Couldn't copy", variant: "destructive" },
+          ),
+        );
       }}
       data-testid="button-copy-npub"
     >

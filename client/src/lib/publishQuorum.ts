@@ -39,7 +39,7 @@ export function publishUntilEnough(
         failed.push({ ok: false, from: relay, message: "timed out" });
         if (++settled === total) finish();
       }, timeoutMs);
-      send(relay)
+      void send(relay)
         .catch((e): PublishOutcome => ({ ok: false, from: relay, message: e instanceof Error ? e.message : String(e) }))
         .then((out) => {
           if (answered) return;

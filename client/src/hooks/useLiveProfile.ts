@@ -42,7 +42,7 @@ export function __resetAskedProfiles(): void {
 
 /** Start the ask a profile page would make on mount, ahead of it — e.g. on a search click. */
 export function warmProfile(pubkey: string, relayHints: string[] = []): void {
-  askOnce(pubkey, relayHints);
+  void askOnce(pubkey, relayHints);
 }
 
 function askOnce(pubkey: string, relayHints: string[]): Promise<unknown> | undefined {
@@ -176,7 +176,7 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
       setFetched((current) => new Map([...current, ...(found as Map<string, ProfileContent>)]));
     };
     // Asks already out for some of these people answer this list too.
-    joined.forEach((ask) => ask.then(take, () => {}));
+    joined.forEach((ask) => void ask.then(take, () => {}));
     queueProfiles(pubkeys.filter((pk) => !inFlightFor(askKey(pk)))).then(take, () => {});
     return () => {
       alive = false;

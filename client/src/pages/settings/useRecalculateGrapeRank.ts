@@ -20,7 +20,7 @@ export function useRecalculateGrapeRank() {
       if (data?.data && typeof data.data === "object") {
         queryClient.setQueryData(GRAPERANK_RESULT_KEY, data);
       }
-      queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
+      void queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
       toast({
         title: "Recalculation started",
         description: "Recalculating now — redirecting to your dashboard.",

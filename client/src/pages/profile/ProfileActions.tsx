@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { useSocialActions } from "@/hooks/useSocialActions";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import type { MyReport } from "@/services/socialActions";
+import { asyncHandler } from "@/lib/asyncHandler";
 
 export function ProfileActions({
   hexPubkey,
@@ -81,7 +82,7 @@ export function ProfileActions({
                   disabled={pending || social.isAnyPending}
                   onMouseEnter={() => following && setFollowHovered(true)}
                   onMouseLeave={() => setFollowHovered(false)}
-                  onClick={async () => {
+                  onClick={asyncHandler(async () => {
                     const result = following ? await social.unfollow(hexPubkey) : await social.follow(hexPubkey);
                     // A declined unlock is a deliberate no — say nothing.
                     if (result.cancelled) {
@@ -101,7 +102,7 @@ export function ProfileActions({
                       });
                     }
                     setFollowHovered(false);
-                  }}
+                  })}
                   className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
                     following
                       ? followHovered
@@ -180,7 +181,7 @@ export function ProfileActions({
                 return (
                   <DropdownMenuItem
                     className="cursor-pointer"
-                    onClick={async () => {
+                    onClick={asyncHandler(async () => {
                       const result = muted ? await social.unmute(hexPubkey) : await social.mute(hexPubkey);
                       if (result.cancelled) return;
                       if (result.success) {
@@ -195,7 +196,7 @@ export function ProfileActions({
                           variant: "destructive",
                         });
                       }
-                    }}
+                    })}
                     data-testid="button-mute-toggle"
                   >
                     {muted ? (
@@ -210,7 +211,7 @@ export function ProfileActions({
               {myReport ? (
                 <DropdownMenuItem
                   className="cursor-pointer text-amber-700 focus:text-amber-800 dark:text-amber-400 dark:focus:text-amber-300"
-                  onClick={async () => {
+                  onClick={asyncHandler(async () => {
                     setUnreporting(hexPubkey); // optimistic: chip + menu flip instantly
                     const result = await social.unreport(hexPubkey);
                     setUnreporting(null);
@@ -227,7 +228,7 @@ export function ProfileActions({
                         variant: "destructive",
                       });
                     }
-                  }}
+                  })}
                   data-testid="button-unreport"
                 >
                   <Flag className="mr-2 h-4 w-4" /> Undo report

@@ -92,7 +92,7 @@ export function UsersBulkBar({
               </span>
               {canSelectAllMatching && (
                 <button
-                  onClick={handleSelectAllMatching}
+                  onClick={() => void handleSelectAllMatching()}
                   disabled={bulkRunning || fetchingMatching}
                   className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-deep hover:underline disabled:opacity-40"
                   data-testid="button-bulk-select-all-matching-users"

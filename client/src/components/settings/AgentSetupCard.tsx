@@ -191,8 +191,13 @@ export function AgentSetupCard({ internal = false }: { internal?: boolean }) {
                 type="button"
                 onClick={() => {
                   const url = `${publicOrigin()}/developers`;
-                  copyToClipboard(url);
-                  toast({ title: "Copied!", description: "Guide link copied to clipboard" });
+                  void copyToClipboard(url).then((ok) =>
+                    toast(
+                      ok
+                        ? { title: "Copied!", description: "Guide link copied to clipboard" }
+                        : { title: "Couldn't copy", description: url, variant: "destructive" },
+                    ),
+                  );
                 }}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 data-testid="button-agent-copy-guide"

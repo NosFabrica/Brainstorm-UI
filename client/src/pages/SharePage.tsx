@@ -1701,7 +1701,7 @@ export default function SharePage() {
               open={editing}
               draft={draft}
               onChange={updateDraft}
-              onSave={saveCustomize}
+              onSave={() => void saveCustomize()}
               onCancel={cancelCustomize}
               saving={savingPrefs}
               error={prefsError}

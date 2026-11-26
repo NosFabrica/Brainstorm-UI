@@ -174,7 +174,7 @@ export function BrainstormAssistantCard({
     // The profile-default POST publishes for this server's key, so only for `ta_pubkey`.
     if (!taPubkey || published?.pubkey !== taPubkey || !assistantProfile) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const next = toAssistantProfile(assistantProfile);
         setProfile(next);
@@ -253,14 +253,14 @@ export function BrainstormAssistantCard({
 
   const handleCopyNpub = useCallback(() => {
     if (!published?.npub) return;
-    copyToClipboard(published.npub).then(
-      () => toast({ title: "Copied!", description: "Assistant npub copied to clipboard." }),
-      () =>
-        toast({
-          title: "Copy failed",
-          description: "Could not copy to clipboard. Please copy manually.",
-          variant: "destructive",
-        }),
+    void copyToClipboard(published.npub).then((ok) =>
+      ok
+        ? toast({ title: "Copied!", description: "Assistant npub copied to clipboard." })
+        : toast({
+            title: "Copy failed",
+            description: "Could not copy to clipboard. Please copy manually.",
+            variant: "destructive",
+          }),
     );
   }, [published?.npub, toast]);
 

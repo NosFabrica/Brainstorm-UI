@@ -94,7 +94,7 @@ export function usePolicyMembers(policyId: number, enabled = true) {
 
     let cancelled = false;
     setEnriching(true);
-    (async () => {
+    void (async () => {
       for (let i = 0; i < target.length; i += ENRICH_CHUNK) {
         if (cancelled) return;
         const chunk = target.slice(i, i + ENRICH_CHUNK);

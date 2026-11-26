@@ -11,20 +11,17 @@ export function CodeBlock({ code, testId }: { code: string; testId: string }) {
   const [copied, setCopied] = useState(false);
 
   const onCopy = async () => {
-    try {
-      await copyToClipboard(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* clipboard unavailable */
-    }
+    // copyToClipboard reports a failure as false; it never rejects.
+    if (!(await copyToClipboard(code))) return;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   };
 
   return (
     <div className="group/code relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <button
         type="button"
-        onClick={onCopy}
+        onClick={() => void onCopy()}
         className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
         data-testid={`button-copy-${testId}`}
         aria-label="Copy code"

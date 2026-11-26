@@ -382,7 +382,7 @@ export function SearchBox({
         typedSinceSearchRef.current = true;
         setIsSuggesting(true);
         setShowSuggestions(true);
-        suggestTimerRef.current = window.setTimeout(async () => {
+        const suggestPeople = async () => {
           try {
             suggestRequestRef.current = new AbortController();
             const people = await suggestProfiles(
@@ -402,7 +402,8 @@ export function SearchBox({
           } finally {
             if (suggestAbortRef.current === reqId) setIsSuggesting(false);
           }
-        }, typeaheadPause(speed));
+        };
+        suggestTimerRef.current = window.setTimeout(() => void suggestPeople(), typeaheadPause(speed));
         return;
       }
       // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
@@ -433,7 +434,7 @@ export function SearchBox({
       typedSinceSearchRef.current = true;
       setIsSuggesting(true);
       setShowSuggestions(true);
-      suggestTimerRef.current = window.setTimeout(async () => {
+      const suggest = async () => {
         try {
           suggestRequestRef.current = new AbortController();
           const signal = suggestRequestRef.current.signal;
@@ -479,7 +480,8 @@ export function SearchBox({
         } finally {
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
-      }, typeaheadPause(speed));
+      };
+      suggestTimerRef.current = window.setTimeout(() => void suggest(), typeaheadPause(speed));
     },
     [effectivePov, user?.pubkey, speed],
   );

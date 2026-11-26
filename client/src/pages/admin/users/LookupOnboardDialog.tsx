@@ -169,7 +169,11 @@ export function LookupOnboardDialog({
 
           {lookupMode === "lookup" ? (
             <div className="space-y-3 overflow-hidden pt-1">
-              <LookupQueryInput running={lookupRunning} onSubmit={handleLookup} onEdit={resetLookup} />
+              <LookupQueryInput
+                running={lookupRunning}
+                onSubmit={(text) => void handleLookup(text)}
+                onEdit={resetLookup}
+              />
 
               {lookupNameResults.length > 0 && (
                 <div className="space-y-1" data-testid="lookup-name-results">

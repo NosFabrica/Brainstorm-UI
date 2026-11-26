@@ -194,7 +194,7 @@ function UserPanel() {
     if (followingList.length === 0) return;
     const pubkeys = followingList.map((e) => e.pubkey).slice(0, 100);
     if (pubkeys.length === 0) return;
-    fetchProfiles(pubkeys, (pubkey, profile) => {
+    void fetchProfiles(pubkeys, (pubkey, profile) => {
       setFollowedProfiles((prev) => {
         const next = new Map(prev);
         next.set(pubkey, { name: nameIn(profile), picture: profile.picture || profile.image });

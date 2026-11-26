@@ -454,7 +454,7 @@ export default function ProfilePage() {
       });
       if (unique.length > 0) {
         unique.forEach((pk) => prefetchedRef.current.add(pk));
-        fetchProfiles(unique, (pubkey, profile) => {
+        void fetchProfiles(unique, (pubkey, profile) => {
           expandProfileCache.set(pubkey, profile);
         });
       }
@@ -626,10 +626,10 @@ export default function ProfilePage() {
                 : toPubkeys(getSection(profileResult, key));
         if (pubkeys.length > 0) {
           seedTrustForSection(key, pubkeys);
-          fetchSectionProfiles(key, pubkeys);
+          void fetchSectionProfiles(key, pubkeys);
         }
         if (["reported_by", "reporting", "muted_by", "muting"].includes(key)) {
-          fetchSectionMetadata(key);
+          void fetchSectionMetadata(key);
         }
       } else {
         setSectionVisibleCount((vc) => {
@@ -714,7 +714,7 @@ export default function ProfilePage() {
   }, []);
   const handleEnsureVisibleFetched = useCallback(
     (k: string, visiblePubkeys: string[]) => {
-      fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
+      void fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
     },
     [fetchSectionProfiles],
   );
@@ -740,10 +740,10 @@ export default function ProfilePage() {
   const handleShowMore = useCallback(
     (k: string, processed: string[], currentVisible: number) => {
       setSectionVisibleCount((prev) => ({ ...prev, [k]: currentVisible + 10 }));
-      fetchSectionProfiles(k, processed, currentVisible, 10);
+      void fetchSectionProfiles(k, processed, currentVisible, 10);
       if (k === "muted_by") {
         const nextBatch = processed.slice(currentVisible, currentVisible + 10);
-        if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
+        if (nextBatch.length > 0) void fetchSectionMetadata("muted_by", nextBatch);
       }
       // If we're approaching the end of what's loaded server-side, fetch the
       // next page. The connection query will append items; profileResult

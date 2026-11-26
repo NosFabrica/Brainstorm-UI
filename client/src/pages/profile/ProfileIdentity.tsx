@@ -147,7 +147,7 @@ export function ProfileIdentity({
                 {displayNpub}
               </code>
               <button
-                onClick={() => handleCopyNpub(displayNpub)}
+                onClick={() => void handleCopyNpub(displayNpub)}
                 className="shrink-0 p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
                 data-testid="button-copy-profile-npub"
               >

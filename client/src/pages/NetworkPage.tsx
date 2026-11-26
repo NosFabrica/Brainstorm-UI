@@ -463,7 +463,7 @@ export default function NetworkPage() {
       return;
     }
     const abortId = ++searchAbortRef.current;
-    const timer = setTimeout(async () => {
+    const search = async () => {
       const allPks = getGroupPubkeys(activeGroup);
       const uncached = allPks.filter((pk) => !profileCache.current.has(pk));
       if (uncached.length === 0) return;
@@ -480,7 +480,9 @@ export default function NetworkPage() {
       if (searchAbortRef.current === abortId) {
         setSearchLoading(false);
       }
-    }, 500);
+    };
+    // fetchProfiles never rejects: whoever isn't found keeps their npub.
+    const timer = setTimeout(() => void search(), 500);
 
     return () => {
       clearTimeout(timer);
@@ -496,11 +498,10 @@ export default function NetworkPage() {
   };
 
   const handleCopyNpub = useCallback(async (npub: string, pubkey: string) => {
-    try {
-      await copyToClipboard(npub);
-      setCopiedPubkey(pubkey);
-      setTimeout(() => setCopiedPubkey(null), 2000);
-    } catch {}
+    // copyToClipboard reports a failure as false; it never rejects.
+    if (!(await copyToClipboard(npub))) return;
+    setCopiedPubkey(pubkey);
+    setTimeout(() => setCopiedPubkey(null), 2000);
   }, []);
 
   const handleCloseDetail = useCallback(() => {
@@ -615,13 +616,13 @@ export default function NetworkPage() {
   useEffect(() => {
     const pageItems = visiblePubkeyPage.items;
     if (pageItems.length > 0) {
-      fetchProfilesCallback(pageItems);
-      fetchTrustScores(pageItems);
+      void fetchProfilesCallback(pageItems);
+      void fetchTrustScores(pageItems);
     }
     if (visiblePubkeyPage.nextPage) {
       if (visiblePubkeyPage.nextPage.items.length > 0) {
-        fetchProfilesCallback(visiblePubkeyPage.nextPage.items);
-        fetchTrustScores(visiblePubkeyPage.nextPage.items);
+        void fetchProfilesCallback(visiblePubkeyPage.nextPage.items);
+        void fetchTrustScores(visiblePubkeyPage.nextPage.items);
       }
     }
 
@@ -637,7 +638,7 @@ export default function NetworkPage() {
       }
     }
     if (muterReporterPks.size > 0) {
-      fetchTrustScores(Array.from(muterReporterPks));
+      void fetchTrustScores(Array.from(muterReporterPks));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run on page change only; fetchers are cache-guarded
   }, [visiblePubkeyPage]);

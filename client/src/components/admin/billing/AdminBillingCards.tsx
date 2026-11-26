@@ -185,7 +185,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         profiles={profiles}
         policyName={policyName}
         busyKeys={busyKeys}
-        onResync={handleResyncPubkey}
+        onResync={(pubkey) => void handleResyncPubkey(pubkey)}
         onReset={setConfirmReset}
         handlesByEventId={handlesByEventId}
         signupActions={signupActions}
@@ -195,8 +195,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
 
   const rowActions: SubscriberRowActions = {
     onBlock: setConfirmBlock,
-    onUnblock: (sub) => handleSetBlock(sub, false),
-    onResync: handleResync,
+    onUnblock: (sub) => void handleSetBlock(sub, false),
+    onResync: (sub) => void handleResync(sub),
     onViewFlashRecord: (sub) =>
       setFlashRecordFor({
         key: sub.pubkey,
