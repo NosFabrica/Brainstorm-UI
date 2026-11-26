@@ -182,7 +182,6 @@ export function fetchAppReviews(
   ).then(() => reviews.sort((a, b) => b.at - a.at));
 }
 
-/** One zap to an app — a micro-endorsement, sometimes with a memo. */
 /** What a NIP-57 zap receipt (kind 9735) says, read once for every caller. */
 export interface ZapReceipt {
   /** The zapper: the receipt's `P` tag, else the embedded zap request's pubkey — only a 64-hex key. */
@@ -230,6 +229,7 @@ export function parseZapReceipt(e: NostrEvent): ZapReceipt {
   };
 }
 
+/** One zap to an app — a micro-endorsement, sometimes with a memo. */
 export interface AppZap {
   id: string;
   /** The zapper (receipt `P` tag, else the embedded zap request's pubkey). */
@@ -263,18 +263,6 @@ export function fetchAppZaps(address: string, opts: { limit?: number; timeoutMs?
   ).then(() => zaps.sort((a, b) => b.at - a.at));
 }
 
-/**
- * The numbers on an app card: reviews (kinds 1111/1), zaps (9735) and how
- * many curated app collections (kind 30267) feature it — three NIP-45
- * COUNTs keyed by the listing address. Counts off the wire, never pages of
- * events: a results page full of cards must stay cheap.
- */
-/**
- * Engagement the relay can count today (probed 2026-09-03): zaps (9735) and
- * replies (1 / 1111) that e-tag the note. Reactions and reposts aren't
- * indexed (RELAY-ASKS). Two NIP-45 COUNTs, never a page of events; a failed
- * or slow count reads as zero.
- */
 /**
  * App listings (kind 32267) by address `32267:<pubkey>:<d>` — one REQ on the
  * search relay for however many addresses, keyed back by address. The home
@@ -312,6 +300,12 @@ export function fetchAppsByAddress(addresses: string[], timeoutMs = 5000): Promi
   ).then(() => out);
 }
 
+/**
+ * Engagement the relay can count today (probed 2026-09-03): zaps (9735) and
+ * replies (1 / 1111) that e-tag the note. Reactions and reposts aren't
+ * indexed (RELAY-ASKS). Two NIP-45 COUNTs, never a page of events; a failed
+ * or slow count reads as zero.
+ */
 export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zaps: number; replies: number }> {
   return new Promise((resolve) => {
     // A row's question: on the shared side socket, never in front of the search's own REQs.
@@ -354,6 +348,12 @@ export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zap
   });
 }
 
+/**
+ * The numbers on an app card: reviews (kinds 1111/1), zaps (9735) and how
+ * many curated app collections (kind 30267) feature it — three NIP-45
+ * COUNTs keyed by the listing address. Counts off the wire, never pages of
+ * events: a results page full of cards must stay cheap.
+ */
 export function fetchAppEndorsementCounts(
   address: string,
   timeoutMs = 5000,
