@@ -341,13 +341,13 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
               placeholder="npub1... or hex pubkey"
               value={npubInput}
               onChange={(e) => setNpubInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLookupNpub()}
+              onKeyDown={(e) => e.key === "Enter" && void handleLookupNpub()}
               className="text-sm"
               data-testid="input-add-npub"
             />
             <Button
               size="sm"
-              onClick={handleLookupNpub}
+              onClick={() => void handleLookupNpub()}
               disabled={lookupLoading}
               className="shrink-0 gap-1.5 bg-brand-deep text-white hover:bg-[#292873]"
               data-testid="button-add-npub"
@@ -391,7 +391,7 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={handleFollowLookedUp}
+                    onClick={() => void handleFollowLookedUp()}
                     disabled={socialActions.isPending("follow", lookedUpUser.pubkey)}
                     className="gap-1 text-xs"
                     data-testid="button-follow-looked-up"
