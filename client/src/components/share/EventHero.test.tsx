@@ -52,7 +52,7 @@ const calendarsMock = vi.hoisted(() => vi.fn(async (_filters: unknown[]) => [] a
 
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
-import { EventHero } from "./EventHero";
+import { EventHero, icsRecordOf } from "./EventHero";
 
 const NOW = Math.floor(Date.now() / 1000);
 const v4v = {
@@ -396,6 +396,20 @@ describe("EventHero — issue #243 (NIP-52)", () => {
     fireEvent.click(screen.getByTestId("event-hero-cal-ics"));
     expect(open).toHaveBeenCalledWith("https://api.eventindex.space/api/1.0/events/abc.ics", "_blank", "noopener");
     open.mockRestore();
+  });
+
+  it("opens an .ics record only from Event Index's API: any other host's file is built on the device instead", () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<EventHero event={at([["r", "https://elsewhere.example/events/abc.ics"]])} />);
+    fireEvent.click(screen.getByTestId("event-hero-calendar-more"));
+    fireEvent.click(screen.getByTestId("event-hero-cal-ics"));
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
+    expect(icsRecordOf({ tags: [["r", "https://api.eventindex.space.evil.example/x.ics"]] })).toBeNull();
+    expect(icsRecordOf({ tags: [["r", "http://api.eventindex.space/x.ics"]] })).toBeNull();
+    expect(icsRecordOf({ tags: [["r", "https://API.EventIndex.space/api/1.0/events/abc.ics"]] })).toBe(
+      "https://api.eventindex.space/api/1.0/events/abc.ics",
+    );
   });
 
   it("a title that says Cancelled: is cancelled — the title without it, no RSVP; a status tag is not NIP-52's", () => {

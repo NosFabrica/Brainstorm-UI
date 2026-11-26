@@ -43,18 +43,24 @@ import { nameIn } from "@/lib/displayName";
 
 type Profile = { name?: string; display_name?: string; picture?: string };
 
+/** Where Event Index serves each event's iCalendar record (issue #243). */
+export const EVENT_INDEX_API_HOST = "api.eventindex.space";
+
 /**
  * The event's own iCalendar record, when one of its `r` links (NIP-52: links to
- * web pages, documents…) is a `.ics` on the web — Event Index links each event's
- * record so. It carries the organizer's time zone, description and UID, so a
- * reader who follows the calendar elsewhere doesn't get the event twice.
+ * web pages, documents…) is a `.ics` on Event Index's API, which links each
+ * event's record so. It carries the organizer's time zone, description and UID,
+ * so a reader who follows the calendar elsewhere doesn't get the event twice.
+ * Only that host: Add to calendar opens the file in a new tab, and an `r` is
+ * whatever the event's author wrote, so any other `.ics` is not taken for the
+ * event's record (the file built on the device stands instead).
  */
 export function icsRecordOf(event: { tags: string[][] }): string | null {
   for (const t of event.tags) {
     if (t[0] !== "r" || !t[1]) continue;
     try {
       const u = new URL(t[1].trim());
-      if (u.protocol === "https:" && /\.ics$/i.test(u.pathname)) return u.toString();
+      if (u.protocol === "https:" && u.host === EVENT_INDEX_API_HOST && /\.ics$/i.test(u.pathname)) return u.toString();
     } catch {
       /* not a link */
     }
