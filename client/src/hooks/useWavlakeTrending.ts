@@ -15,7 +15,7 @@ export function useWavlakeTrending(genre: string | null, enabled: boolean): { so
     }
     let cancelled = false;
     setState({ songs: [], loading: true });
-    fetchWavlakeTrending(genre ? { genre } : {}).then((songs) => {
+    void fetchWavlakeTrending(genre ? { genre } : {}).then((songs) => {
       if (!cancelled) setState({ songs, loading: false });
     });
     return () => {

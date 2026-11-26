@@ -21,7 +21,7 @@ export function useWavlakeSongs(term: string, enabled: boolean): { songs: Wavlak
     }
     let cancelled = false;
     setState({ term: q, songs: [], loading: true });
-    searchWavlakeTracks(q).then((songs) => {
+    void searchWavlakeTracks(q).then((songs) => {
       if (!cancelled) setState({ term: q, songs, loading: false });
     });
     return () => {
@@ -52,7 +52,7 @@ export function useWavlakeSearch(term: string, enabled: boolean): WavlakeCatalog
     }
     let cancelled = false;
     setState({ term: q, hits: NO_HITS, loading: true });
-    searchWavlake(q).then((hits) => {
+    void searchWavlake(q).then((hits) => {
       if (!cancelled) setState({ term: q, hits, loading: false });
     });
     return () => {

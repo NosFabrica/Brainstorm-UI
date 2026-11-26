@@ -31,7 +31,7 @@ export function useArtistCatalogue(
     }
     let alive = true;
     setState({ artist: null, songs: [], loading: true });
-    (async () => {
+    void (async () => {
       let who = name ?? null;
       if (!who) {
         const map = await fetchProfileMap([pubkey]).catch(

@@ -176,7 +176,7 @@ export function usePostTagComment(authorPubkey: string | undefined, slug: string
       if (ctx?.previous !== undefined) queryClient.setQueryData(key, ctx.previous);
     },
     onSuccess: () => {
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: key }), 2500);
+      setTimeout(() => void queryClient.invalidateQueries({ queryKey: key }), 2500);
     },
   });
 }
@@ -323,7 +323,7 @@ export function useTogglePin() {
       void queryClient.invalidateQueries({ queryKey: key });
       // Relays settle a beat after the publish resolves — and a deletion needs
       // longer to propagate than a write does.
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: key }), 2500);
+      setTimeout(() => void queryClient.invalidateQueries({ queryKey: key }), 2500);
     },
   });
 }
@@ -383,7 +383,7 @@ export function useApplyEventTag(eventId: string | undefined, relayHint?: string
       void queryClient.invalidateQueries({ queryKey: key });
       // Relays settle a beat after the publish resolves; one delayed re-read
       // stops a just-applied tag from appearing to not have worked.
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: key }), 2500);
+      setTimeout(() => void queryClient.invalidateQueries({ queryKey: key }), 2500);
       // The tag's own page now lists this note.
       void queryClient.invalidateQueries({ queryKey: ["tag-notes"] });
     },
@@ -482,9 +482,9 @@ export function useTagVote(authorPubkey: string | undefined, slug: string | unde
 
     onSuccess: (_r, { targetPubkey }) => {
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: key });
-        queryClient.invalidateQueries({ queryKey: ["profile-tags", targetPubkey] });
-        queryClient.invalidateQueries({ queryKey: tagIndexKey });
+        void queryClient.invalidateQueries({ queryKey: key });
+        void queryClient.invalidateQueries({ queryKey: ["profile-tags", targetPubkey] });
+        void queryClient.invalidateQueries({ queryKey: tagIndexKey });
       }, 2500);
     },
   });
@@ -663,7 +663,7 @@ export function useApplyTag(targetPubkey: string | undefined) {
         addToCatalogues(queryClient, viewerPubkey, args);
       }
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: key });
+        void queryClient.invalidateQueries({ queryKey: key });
       }, 2500);
     },
   });
