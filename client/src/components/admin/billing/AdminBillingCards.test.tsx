@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { timeZoneSetter } from "@/test/utils";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,6 +16,8 @@ import { AdminBillingCards } from "./AdminBillingCards";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import { stubControllableIntersectionObserver } from "@/test/controllableIntersectionObserver";
 import { __resetNearViewport } from "@/hooks/useNearViewport";
+import { __resetAskedProfiles } from "@/hooks/useLiveProfile";
+import { eventStore } from "@/lib/eventStore";
 
 const getAdminBillingSubscriptions =
   vi.fn<
@@ -126,6 +128,8 @@ beforeEach(() => {
   // back to its typed-id fields; the roster's service tests resolve it.
   getAdminBillingFlashServices.mockReset().mockRejectedValue(new Error("Flash list unavailable in this test"));
   fetchProfileMap.mockResolvedValue(new Map());
+  // The roster's names come through the shared profile queue (useLiveProfiles): a fresh one per test.
+  __resetAskedProfiles();
 });
 
 describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", () => {
@@ -969,7 +973,18 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
   });
 
   // A roster profile fetch per change of who is on screen, not per change of the list.
+  // The shared queue asks again only for someone it hasn't found: here the profile is found.
   it("asks for each subscriber's profile once, not again when the list around them changes", async () => {
+    const realVerify = eventStore.verifyEvent;
+    eventStore.verifyEvent = undefined;
+    fetchProfileMap.mockImplementation(async (pubkeys: string[]) => {
+      for (const pubkey of pubkeys)
+        eventStore.add({ id: pubkey, kind: 0, pubkey, created_at: 1, tags: [], content: "{}", sig: "s" });
+      return new Map(pubkeys.map((pk) => [pk, {}]));
+    });
+    onTestFinished(() => {
+      eventStore.verifyEvent = realVerify;
+    });
     const SUB = { flash_status: "active", scheduling_source: "billing", billing_blocked: false };
     getAdminBillingSubscriptions.mockResolvedValue({
       total: 1,
@@ -1565,8 +1580,8 @@ describe("cancelling and pausing from the billing tab", () => {
 
     const dialog = await screen.findByTestId("dialog-billing-cancel-confirm");
     expect(cancelAdminBillingSubscription).not.toHaveBeenCalled();
-    const who = screen.getByTestId("billing-cancel-confirm-who");
-    expect(who.textContent).toContain("Lira Flint");
+    // Names come through the shared profile queue, which batches its asks.
+    await waitFor(() => expect(screen.getByTestId("billing-cancel-confirm-who").textContent).toContain("Lira Flint"));
     // Never the raw hex — the same rule the tier picker holds to.
     expect(dialog.textContent).not.toContain(PUBKEY);
 

@@ -125,12 +125,117 @@ export function relayFetchers(root = SOURCE_ROOT, reads = RELAY_READS) {
 }
 
 const RELAY_FETCHERS = `^(${relayFetchers().join("|")})$`;
+
+/**
+ * The write primitives: what signs or publishes an event. A function that
+ * reaches one is a write, whatever it reads on the way (a contact list read
+ * before a follow is republished, relay-first per docs/adr/0005): it is called
+ * from an event handler, and its answer is the store's once a relay takes it.
+ */
+export const RELAY_WRITES = ["publishToRelays", "publish", "signAs"];
+
+/** The relay reads that are not writes: grown from the primitives, less every write. */
+export function relayReadsOnly(root = SOURCE_ROOT) {
+  const writes = new Set(relayFetchers(root, RELAY_WRITES));
+  return relayFetchers(root).filter((name) => !writes.has(name));
+}
+const RELAY_READS_ONLY = `^(${relayReadsOnly().join("|")})$`;
 const QUERY_HOOKS =
   "^(useQuery|useQueries|useInfiniteQuery|useSuspenseQuery|prefetchQuery|fetchQuery|ensureQueryData)$";
 const relayReadInQuery = (callee) => ({
   selector: `CallExpression[${callee}=/${QUERY_HOOKS}/] Property[key.name="queryFn"] CallExpression[callee.name=/${RELAY_FETCHERS}/]`,
   message:
     "Relay reads render from the EventStore (useStoreEvents / useStoreReplaceable / useLiveProfile), not react-query. See docs/adr.",
+});
+
+/**
+ * Outside react-query too: in components/ and hooks/, a relay fetcher is called
+ * only as the ask a store read makes (the callback handed to `useStoreEvents`,
+ * `useStoreReplaceable`, `askOnce` and the hooks built on them), so what it
+ * brings in renders from the EventStore. Called anywhere else (an effect, an
+ * event handler, a plain call) its answer lands in component state, a second
+ * copy of Nostr data beside the store. A write's read-modify-write and a relay
+ * probe say so: `eslint-disable-next-line no-restricted-syntax -- relay probe`.
+ */
+export const STORE_ASKS = [
+  "useStoreEvents",
+  "useStoreReplaceable",
+  "askOnce",
+  "askAnswer",
+  "useFiledItems",
+  "useLensRanks",
+  "useSearchEvents",
+  "useStandingReviews",
+  "useDictionaryEntries",
+];
+const STORE_ASK = `CallExpression[callee.name=/^(${STORE_ASKS.join("|")})$/]`;
+
+/**
+ * The store's own read layer: these files are the asks the hooks above run
+ * (the profile queue, the batched addressable ask, a publication's entries),
+ * called as a store ask from where they are used rather than inside one here.
+ */
+const STORE_READ_LAYER = ["hooks/useLiveProfile.ts", "hooks/useAddressedEvents.ts", "hooks/usePublication.ts"];
+
+/**
+ * Reads not yet on the store (docs/adr/0005, "Deferred"), by why. Each still
+ * holds a relay answer in component state; lib/relayReadLint.test.ts fails for
+ * an entry that no longer does, so the list only shrinks.
+ */
+export const DEFERRED_STORE_READS = {
+  /** NIP-50 searches answered per keystroke or streamed in snapshots: the search page, its panel and the typeaheads. */
+  search: [
+    "components/FollowPicker.tsx",
+    "components/FollowToCalculateCard.tsx",
+    "components/admin/billing/brainstormUserSearch.ts",
+    "components/admin/scheduling/AssignUsersDialog.tsx",
+    "components/messages/usePeopleSearch.tsx",
+    "components/search/AllResults.tsx",
+    "components/search/KnowledgePanel.tsx",
+    "components/search/SearchBox.tsx",
+    "components/search/SearchField.tsx",
+    "components/search/SearchResults.tsx",
+    "components/search/sections.tsx",
+    "components/share/ShareBio.tsx",
+    "hooks/useListRibbon.ts",
+    "hooks/useOnboardingPeople.ts",
+  ],
+  /** Tag reads, with hooks/useTags (services/tags interleaves them with the asserters' trust). */
+  tags: [
+    "components/search/TagTabResults.tsx",
+    "hooks/useNamedTags.ts",
+    "hooks/useResultTags.ts",
+    "hooks/useSearchTags.ts",
+    "hooks/useTabCounts.ts",
+    "hooks/useTagMembers.ts",
+    "hooks/useTaggedMusicians.ts",
+  ],
+  /** One-shot reads in an effect: each to become a store read with its answer (useStoreEvents' `answer`). */
+  effects: [
+    "components/admin/scheduling/usePolicyMembers.ts",
+    "components/search/NowPlayingBar.tsx",
+    "components/share/DesignationHero.tsx",
+    "components/share/EventHero.tsx",
+    "components/share/ListingRelated.tsx",
+    "components/share/RsvpButton.tsx",
+    "components/share/TrustReviews.tsx",
+    "hooks/useAppEndorsements.ts",
+    "hooks/useArtistCatalogue.ts",
+    "hooks/useClientLink.ts",
+    "hooks/useEventRsvps.ts",
+    "hooks/useHandlePointers.ts",
+    "hooks/useListDefinitions.ts",
+    "hooks/usePersonContent.ts",
+    "hooks/usePersonEndorsements.ts",
+    "hooks/usePodcastIndexMusic.ts",
+    "hooks/useSpecsForKind.ts",
+  ],
+};
+const underSrc = (file) => `client/src/${file}`;
+const relayReadOutsideStore = (callee) => ({
+  selector: `CallExpression[${callee}=/${RELAY_READS_ONLY}/]:not(${STORE_ASK} CallExpression)`,
+  message:
+    "Relay reads render from the EventStore: call a relay fetcher as the ask of useStoreEvents / useStoreReplaceable / askOnce (docs/adr/0005). A write's read or a relay probe says so with `-- relay probe`.",
 });
 
 /**
@@ -262,6 +367,27 @@ export default tseslint.config(
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/switch-exhaustiveness-check": ["error", {}],
       "@typescript-eslint/await-thenable": "error",
+    },
+  },
+  // Components and hooks: a relay fetcher only as a store read's ask, anywhere (docs/adr/0005),
+  // but in the store's read layer and the reads still deferred.
+  {
+    files: ["client/src/components/**/*.{ts,tsx}", "client/src/hooks/**/*.{ts,tsx}"],
+    ignores: [
+      "client/src/**/*.test.{ts,tsx}",
+      ...STORE_READ_LAYER.map(underSrc),
+      ...Object.values(DEFERRED_STORE_READS).flat().map(underSrc),
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        relayReadInQuery("callee.name"),
+        relayReadInQuery("callee.property.name"),
+        relayReadOutsideStore("callee.name"),
+        relayReadOutsideStore("callee.property.name"),
+        ...RAW_TAG_LINKS,
+        ...HAND_WRITTEN_NAMES,
+      ],
     },
   },
   // Tags (deferred): docs/adr/0005 keeps hooks/useTags' relay reads in react-query for now.

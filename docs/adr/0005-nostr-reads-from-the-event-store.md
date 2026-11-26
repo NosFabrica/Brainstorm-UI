@@ -60,15 +60,59 @@ invalidates, rollbacks).
 
 ## Guardrail
 
-`eslint.config.js` rejects a relay fetcher called inside a react-query `queryFn`
-(`no-restricted-syntax`, at error everywhere but `hooks/useTags.ts`, pinned by
-`lib/relayReadLint.test.ts`). The fetchers it knows are grown from the
-primitives in `RELAY_READS`: every function in `services/` and `lib/` that calls
-one, however many hops down, is a relay read too, so a wrapper (an item's
-reactions, a concept's items, a lens's ranks) needs nothing. A new primitive
-joins `RELAY_READS`.
+`eslint.config.js` enforces two rules, both `no-restricted-syntax` at error and
+pinned by `lib/relayReadLint.test.ts`:
 
-Nothing else is deferred (2026-11-26). The last reads moved, and how:
+- **No relay fetcher called in a react-query `queryFn`**, anywhere under
+  `client/src` but `hooks/useTags.ts`. It sees a fetcher the `queryFn` names;
+  a wrapper written in the same file is not one it knows.
+- **In `components/` and `hooks/`, a relay fetcher is called only as a store
+  read's ask**: inside the callback handed to `useStoreEvents`,
+  `useStoreReplaceable`, `askOnce`, `askAnswer` or a hook built on them
+  (`STORE_ASKS`). In an effect, an event handler or a plain call it is flagged.
+  Not flagged: a write (a function that reaches `publishToRelays`, a `publish`
+  or `signAs`, whatever it reads first: `RELAY_WRITES`), and a call marked
+  `eslint-disable-next-line no-restricted-syntax -- relay probe: <why>` (a
+  probe, a relay-first read before a republish, a read a write needs). Not
+  checked: `pages/`, `services/` and `lib/` (where the fetchers live), the
+  store's own read layer (`STORE_READ_LAYER`: the profile queue, the batched
+  addressable ask, a publication's entries) and the files in
+  `DEFERRED_STORE_READS` below.
+
+The fetchers the rules know are grown from the primitives in `RELAY_READS`:
+every function in `services/` and `lib/` that calls one, however many hops
+down, is a relay read too, so a wrapper (an item's reactions, a concept's
+items, a lens's ranks) needs nothing. A new primitive joins `RELAY_READS`. A
+fetcher whose answer is derived from the events it read (a status map, a tally)
+is still asked through the store's asks; its answer is `useStoreEvents`'
+`answer`, or `askAnswer`'s when it is asked batch by batch from an effect.
+
+## Deferred (2026-11-26)
+
+Not every read is on the store yet. `DEFERRED_STORE_READS` in
+`eslint.config.js` names each file that still keeps a relay answer in component
+state, and the lint test fails for an entry that no longer does, so the list
+only shrinks:
+
+- **Search** (14 files): the search page's streams (`searchStream` snapshots),
+  its knowledge panel, and the typeaheads (people, listings, groups) asked per
+  keystroke. A NIP-50 search is no store filter, and a stream is not a one-shot
+  ask.
+- **Tags** (7 files), with `hooks/useTags.ts` below.
+- **One-shot reads in an effect** (17 files): RSVPs, a listing's similar ones,
+  vouch replies, endorsements, a client link, a kind's specs and the like. Each
+  becomes a store read with its answer.
+
+Moved on 2026-11-26: the git item and repo pages' statuses, comment counts,
+activity, counts, forks and announcement (`hooks/useRepoAsks`,
+`components/share/GitItemHero`), an app's releases, similar apps and release
+asset (`AppHero`), the Issues and Fundraisers tabs' statuses, comments and goal
+progress (`useGitItemAsks`, `useGoalProgress`, through `askAnswer`), a list's
+tags (`useListTags`), the admin tables' names (`useProfileBits`,
+`useRosterProfiles`, `TrustedListsCard`, through `useLiveProfiles`) and the
+profile form's prefill (`ProfileEditForm`; its merge base stays relay-first).
+
+Before that, these reads moved:
 
 - **Reviews of a place or a book** (`hooks/usePlaceReviews`, `useBookReviews`).
   Which reviews stand depends on the kind-5 removals, and the store keeps none:

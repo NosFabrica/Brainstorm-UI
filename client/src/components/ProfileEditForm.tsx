@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { Loader2, Check, AlertCircle, Pencil, Link2, ChevronDown, Plus, X, UserRound, AtSign } from "lucide-react";
-import { publishProfile, fetchProfile, fetchProfileEvent } from "@/services/nostr";
+import { publishProfile, fetchProfileEvent } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { IDENTITY_PLATFORMS, splitIdentityClaim, formatIdentityClaim } from "@/lib/externalIdentity";
 import { useToast } from "@/hooks/use-toast";
@@ -125,21 +126,10 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
       const forPubkey = display.pubkey;
       const stale = () => forPubkey !== pubkeyRef.current;
 
-      fetchProfile(forPubkey)
-        .then((c) => {
-          if (!c || stale()) return;
-          const x = c as Record<string, string | undefined>;
-          setName((v) => v || nameIn(x) || "");
-          setAbout((v) => v || x.about || "");
-          setPicture((v) => v || x.picture || x.image || "");
-          setBanner((v) => v || x.banner || "");
-          setNip05((v) => v || x.nip05 || "");
-          setWebsite((v) => v || x.website || "");
-          setLud16((v) => v || x.lud16 || x.lud06 || "");
-        })
-        .catch(() => {});
       // Capture the raw kind-0 (content + tags) so save MERGES, and pre-fill the
-      // linked-accounts editor from the existing NIP-39 `i` tags.
+      // linked-accounts editor from the existing NIP-39 `i` tags. Relay-first: it is
+      // the base of the version this form republishes (docs/adr/0005).
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: the base a profile edit republishes
       fetchProfileEvent(forPubkey)
         .then((ev) => {
           if (!ev || stale()) return;
@@ -163,6 +153,23 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
     // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill on account switch only, see above
   }, [display?.pubkey]);
 
+  // Every gap the display cache left, filled from the profile as the EventStore holds it
+  // (useLiveProfile, docs/adr/0005): at once when held, else as it arrives. Only gaps: a
+  // field the reader has typed in is theirs. The hook is keyed on this Account, so a
+  // switch never fills one Account's form from another's profile.
+  const live = useLiveProfile(display?.pubkey).profile;
+  useEffect(() => {
+    if (!live) return;
+    const x = live as Record<string, string | undefined>;
+    setName((v) => v || nameIn(x) || "");
+    setAbout((v) => v || x.about || "");
+    setPicture((v) => v || x.picture || x.image || "");
+    setBanner((v) => v || x.banner || "");
+    setNip05((v) => v || x.nip05 || "");
+    setWebsite((v) => v || x.website || "");
+    setLud16((v) => v || x.lud16 || x.lud06 || "");
+  }, [live]);
+
   const busy = state === "saving";
 
   const handleSubmit = async (e?: FormEvent) => {
@@ -183,6 +190,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
     if (!baseLoaded) {
       try {
         const pk = display?.pubkey;
+        // eslint-disable-next-line no-restricted-syntax -- relay probe: the base a profile edit republishes
         const ev = pk ? await fetchProfileEvent(pk) : undefined;
         if (ev) {
           mergeTags = ev.tags || [];

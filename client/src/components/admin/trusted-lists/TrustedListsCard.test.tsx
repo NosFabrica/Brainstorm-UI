@@ -36,6 +36,7 @@ vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => HOU
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchProfileMap: async () => new Map(),
+  refreshProfileEvent: async () => null,
 }));
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));

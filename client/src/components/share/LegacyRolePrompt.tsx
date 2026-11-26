@@ -74,6 +74,7 @@ export function LegacyRolePrompt({
     // parallel means a burst of signer prompts that reads as a hijack.
     for (const role of pending) {
       try {
+        // eslint-disable-next-line no-restricted-syntax -- relay probe: the tag a write applies, minted when none exists
         const tag = await resolveOrMintTag(role);
         const result = await applyTag.mutateAsync({ tag, displayName: role });
         if (!result.failedAt) added++;

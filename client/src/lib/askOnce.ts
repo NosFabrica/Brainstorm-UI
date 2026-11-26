@@ -158,6 +158,16 @@ export function askOnce<T>(key: string, window: AskWindow, ask: () => Promise<T>
   return track([key], ask());
 }
 
+/**
+ * The answer for `key`: the ask's, if it is due or out, else the one kept from
+ * its window. For an ask whose answer is derived (a tally, a status map) and is
+ * asked batch by batch from an effect, where useStoreEvents' one key per mount
+ * doesn't fit.
+ */
+export function askAnswer<T>(key: string, window: AskWindow, ask: () => Promise<T>): Promise<T | undefined> {
+  return (askOnce(key, window, ask) ?? Promise.resolve(lastAnswer(key))) as Promise<T | undefined>;
+}
+
 /** Drop what is kept of `key`: its answer and its window. For a key that will not be asked again. */
 export function forget(key: string): void {
   const k = compactKey(key);

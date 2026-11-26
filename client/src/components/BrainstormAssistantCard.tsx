@@ -225,6 +225,7 @@ export function BrainstormAssistantCard({
     onSuccess: ({ state, name }) => {
       setError(null);
       // Fetch the kind 0 just published, so its link and age replace the old one's.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: the kind 0 just published, read back into the store
       void refreshProfileEvent(state.pubkey).catch(() => {});
 
       const isFirst = !readFirstPublishDone();

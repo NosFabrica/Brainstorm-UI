@@ -5,6 +5,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { fetchGoalProgress, type GoalProgress, type SearchHit, type SearchTab } from "@/services/search";
+import { askAnswer } from "@/lib/askOnce";
+
+/** A batch's progress is asked again at most this often. */
+const WINDOW = { minMs: 5 * 60_000 };
 
 /** A goal a complete answer found no receipt for: one object, so a memoised card sees no change. */
 const NO_RAISED: GoalProgress = { sats: 0, zappers: [] };
@@ -53,13 +57,18 @@ export function useGoalProgress(
     if (ids.length === 0) return;
     for (const id of ids) seen.ids.add(id);
     const gen = seen.gen;
-    void fetchGoalProgress(ids, undefined, goalCloses.current).then(({ byGoal, complete }) => {
-      if (goalFetched.current.gen !== gen) return;
-      setGoalProgress((prev) => ({
-        byGoal: new Map([...prev.byGoal, ...byGoal]),
-        settled: complete ? new Set([...prev.settled, ...ids]) : prev.settled,
-      }));
-    });
+    const closes = goalCloses.current;
+    // One ask per batch per window, shared with any other mount asking the same (lib/askOnce).
+    void askAnswer(`goal-progress:${ids.join(",")}`, WINDOW, () => fetchGoalProgress(ids, undefined, closes)).then(
+      (answer) => {
+        if (goalFetched.current.gen !== gen || !answer) return;
+        const { byGoal, complete } = answer;
+        setGoalProgress((prev) => ({
+          byGoal: new Map([...prev.byGoal, ...byGoal]),
+          settled: complete ? new Set([...prev.settled, ...ids]) : prev.settled,
+        }));
+      },
+    );
   }, [goalIdsKey]);
   return (e: NostrEvent): GoalProgress | undefined =>
     tab !== "fundraisers" || e.kind !== 9041

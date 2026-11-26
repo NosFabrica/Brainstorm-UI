@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import type { ResultTag } from "@/lib/resultTags";
 import type { SearchPov } from "@/services/search";
 import { fetchListTags } from "@/services/tagLists";
@@ -19,28 +19,19 @@ export function useListTags(
     pov === "mywot" && userPubkey ? userPubkey : "house",
     ...asked.map((l) => `${l.coordinate}=${l.name}`),
   ].join("\n");
-  const [answer, setAnswer] = useState<{ key: string; tags: ResultTag[] } | null>(null);
-
-  useEffect(() => {
-    if (!asked.length) return;
-    let current = true;
-    void Promise.all(asked.map((l) => fetchListTags(l, { pov, userPubkey }).catch(() => []))).then((each) => {
-      if (!current) return;
-      const seen = new Set<string>();
-      const tags = each
-        .flat()
-        .sort((a, b) => b.items - a.items)
-        .filter((t) => !seen.has(t.key) && seen.add(t.key))
-        .map(({ items: _items, ...t }) => t);
-      setAnswer({ key, tags });
-    });
-    return () => {
-      current = false;
-    };
-    // `key` is the question: the lists and the perspective.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  // One ask per lists and perspective per window, shared by every mount (useStoreEvents over
+  // lib/askOnce, docs/adr/0005); the tags are what the ask derives from the assertions it read.
+  const read = useStoreEvents(asked.length ? `list-tags:${key}` : null, null, async () => {
+    const each = await Promise.all(asked.map((l) => fetchListTags(l, { pov, userPubkey }).catch(() => [])));
+    const seen = new Set<string>();
+    return each
+      .flat()
+      .sort((a, b) => b.items - a.items)
+      .filter((t) => !seen.has(t.key) && seen.add(t.key))
+      .map(({ items: _items, ...t }) => t);
+  });
 
   if (!asked.length) return { tags: NONE, settled: true };
-  return answer?.key === key ? { tags: answer.tags, settled: true } : { tags: NONE, settled: false };
+  const tags = read.answer as ResultTag[] | undefined;
+  return tags ? { tags, settled: true } : { tags: NONE, settled: read.settled };
 }

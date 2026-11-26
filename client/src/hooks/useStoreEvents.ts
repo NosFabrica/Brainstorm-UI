@@ -62,13 +62,17 @@ const DEFAULT_WINDOW: AskWindow = { minMs: 5 * 60_000 };
  * `settled` once that ask has finished. Asks keyed on these events (their
  * parents, their reactions) wait for `settled`: a key that changes with every
  * arriving event would be a REQ per event.
+ *
+ * `answer` is what the ask itself answered for this key (lib/askOnce keeps it
+ * per window), for a fetcher whose answer is derived from the events it read
+ * (a tally, a status map) rather than the events: undefined until it has.
  */
 export function useStoreEvents(
   key: string | null,
   filters: Filter[] | null,
   ask: () => Promise<unknown>,
   { stream = true, ...window }: AskWindow & { stream?: boolean } = DEFAULT_WINDOW,
-): { events: NostrEvent[]; loading: boolean; settled: boolean } {
+): { events: NostrEvent[]; loading: boolean; settled: boolean; answer: unknown } {
   const filtersKey = filters ? JSON.stringify(filters) : "";
   const stored = use$(() => (filters?.length ? eventStore.timeline(filters) : undefined), [filtersKey]) ?? NONE;
   const [settled, setSettled] = useState<{ key: string; answer: unknown }>();
@@ -130,5 +134,5 @@ export function useStoreEvents(
   // What was held when this key mounted, kept until its ask settles.
   const atMount = useMemo(() => events, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = stream || done ? events : atMount;
-  return { events: shown, loading: !!key && !shown.length && !done, settled: done };
+  return { events: shown, loading: !!key && !shown.length && !done, settled: done, answer };
 }

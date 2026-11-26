@@ -7,6 +7,10 @@ import type { NostrEvent } from "nostr-tools";
 import { fetchGitCommentCounts, fetchGitStatuses, type SearchHit, type SearchTab } from "@/services/search";
 import { isGitItem } from "@/lib/gitStatus";
 import { isGitItemTab } from "@/components/search/tabKinds";
+import { askAnswer } from "@/lib/askOnce";
+
+/** A batch's statuses and comment counts are asked again at most this often. */
+const WINDOW = { minMs: 5 * 60_000 };
 
 /**
  * Issues and PRs tabs: what became of each issue and patch — one request per page,
@@ -48,11 +52,13 @@ export function useGitItemAsks(
     const gen = seen.gen;
     // The items themselves: whose status counts is their author's and their repo's (NIP-34).
     const items = ids.map((id) => gitItems.current.get(id) ?? id);
-    void fetchGitStatuses(items).then((m) => {
-      if (gitFetched.current.gen === gen && m.size) setGitStatuses((prev) => new Map([...prev, ...m]));
+    // One ask per batch per window, shared with any other mount asking the same (lib/askOnce).
+    const batch = ids.join(",");
+    void askAnswer(`git-statuses:${batch}`, WINDOW, () => fetchGitStatuses(items)).then((m) => {
+      if (gitFetched.current.gen === gen && m?.size) setGitStatuses((prev) => new Map([...prev, ...m]));
     });
-    void fetchGitCommentCounts(ids).then((m) => {
-      if (gitFetched.current.gen === gen && m.size) setGitComments((prev) => new Map([...prev, ...m]));
+    void askAnswer(`git-comments:${batch}`, WINDOW, () => fetchGitCommentCounts(ids)).then((m) => {
+      if (gitFetched.current.gen === gen && m?.size) setGitComments((prev) => new Map([...prev, ...m]));
     });
   }, [gitIdsKey]);
   return { gitStatuses, gitComments };

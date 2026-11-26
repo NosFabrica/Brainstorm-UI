@@ -4,6 +4,8 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { renderWithProviders } from "@/test/utils";
 import { ProfileEditForm } from "./ProfileEditForm";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools";
+import { eventStore } from "@/lib/eventStore";
 
 const ALICE = "a".repeat(64);
 const BOB = "b".repeat(64);
@@ -151,5 +153,23 @@ describe("switching accounts while the profile form is open", () => {
 
     expect(content.lud06).toBe("alice-lnurl");
     expect(tags).toContainEqual(["alias", "alice-only"]);
+  });
+});
+
+/** The fields the display cache doesn't hold (about, banner, …) fill from the store's profile. */
+describe("prefill from the EventStore", () => {
+  it("fills the bio from the profile the store holds", async () => {
+    const key = generateSecretKey();
+    const pubkey = getPublicKey(key);
+    eventStore.add(
+      finalizeEvent(
+        { kind: 0, created_at: 1000, tags: [], content: JSON.stringify({ name: "Bo", about: "Held bio" }) },
+        key,
+      ),
+    );
+    display.mockReturnValue({ pubkey, displayName: "Bo" });
+    renderWithProviders(<ProfileEditForm />);
+    fireEvent.click(screen.getByTestId("button-edit-profile"));
+    await waitFor(() => expect(screen.getByTestId("input-edit-about")).toHaveValue("Held bio"));
   });
 });

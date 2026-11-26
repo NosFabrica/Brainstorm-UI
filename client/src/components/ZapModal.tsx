@@ -99,6 +99,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       // SECURITY: verify the recipient's signed kind-0 and take the lightning
       // address from THAT verified event — never pay an unverified / forged
       // address served by a relay.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: the address paid is the one in the signed kind 0 the relays hold now
       const v = await getVerifiedProfileLud16(recipientPubkey);
       if (cancelled) return;
       if (!v.verified || !v.lud16) {
@@ -142,6 +143,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       // our defaults. Sending our five back meant the receipt landed somewhere
       // the person being zapped may never look, and the zap never showed up on
       // their profile in their own client.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: where this zap request is sent (a write)
       const relays = await inboxRelays([recipientPubkey], PROFILE_RELAYS);
       // The `p` hint is where the recipient WRITES — where a reader of the
       // receipt goes to find them — which is not the same as the `relays` tag

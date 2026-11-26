@@ -5,10 +5,9 @@
  * feed — the "is anyone working on this?" signal nostrhub doesn't have.
  */
 import { useCopied } from "@/hooks/useCopied";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import type { NostrEvent } from "nostr-tools";
 import { ExternalLink, FolderGit2, GitBranch, GitFork } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -18,15 +17,8 @@ import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
-import {
-  fetchGitCommentCounts,
-  fetchGitStatuses,
-  fetchRepoActivity,
-  fetchRepoCounts,
-  fetchRepoForks,
-  kind0ToSearchResult,
-  type RepoCounts,
-} from "@/services/search";
+import { kind0ToSearchResult } from "@/services/search";
+import { useRepoActivity, useRepoCounts, useRepoForks } from "@/hooks/useRepoAsks";
 import { repoLineageOf } from "@/lib/gitStatus";
 import { Favicon } from "@/components/share/LinkPreview";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitStateOf, peopleBeforeAgents } from "@/lib/gitStatus";
@@ -94,32 +86,10 @@ export function RepoHero({ event }: { event: RepoEvent }) {
     }
   };
 
-  const [activityItems, setActivityItems] = useState<NostrEvent[]>([]);
-  const [activityStatuses, setActivityStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
-  const [activityComments, setActivityComments] = useState<Map<string, number>>(new Map());
   const [activityOpen, setActivityOpen] = useState(false);
   const address = d ? `30617:${event.pubkey}:${d}` : null;
-  useEffect(() => {
-    if (!address) return;
-    let alive = true;
-    void fetchRepoActivity(address).then((items) => {
-      if (!alive) return;
-      setActivityItems(items);
-      // What became of each, and how much talk it drew — one request each for the page.
-      const ids = items.map((i) => i.id);
-      if (ids.length) {
-        void fetchGitStatuses(ids).then((m) => {
-          if (alive) setActivityStatuses(m);
-        });
-        void fetchGitCommentCounts(ids).then((m) => {
-          if (alive) setActivityComments(m);
-        });
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, [address]);
+  // What became of each, and how much talk it drew — one ask each for the page (hooks/useRepoAsks).
+  const { items: activityItems, statuses: activityStatuses, comments: activityComments } = useRepoActivity(address);
   // Who filed each one — the profile says "agent" when the event does not.
   const activityProfiles = useLiveProfiles(activityItems.map((i) => i.pubkey));
   const activityAuthors = useMemo(() => {
@@ -136,29 +106,9 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   );
 
   // The numbers: issues, patches, who contributed, when anything last happened.
-  const [counts, setCounts] = useState<RepoCounts | null>(null);
-  useEffect(() => {
-    if (!address) return;
-    let alive = true;
-    void fetchRepoCounts(address).then((c) => {
-      if (alive) setCounts(c);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [address]);
+  const counts = useRepoCounts(address);
   // Forks on Nostr — announcements sharing this repo's earliest commit.
-  const [forks, setForks] = useState<NostrEvent[]>([]);
-  useEffect(() => {
-    if (!address || !lineage) return;
-    let alive = true;
-    void fetchRepoForks(lineage, address).then((f) => {
-      if (alive) setForks(f);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [address, lineage]);
+  const forks = useRepoForks(lineage, address);
   const contributors = counts?.contributors ?? [];
   const faces = contributors.slice(0, 3);
   const hasNumbers =

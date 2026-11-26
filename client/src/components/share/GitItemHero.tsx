@@ -1,11 +1,12 @@
 import { useCopied } from "@/hooks/useCopied";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { Link } from "wouter";
 import { Bot, GitBranch, GitCommitHorizontal, MessageSquare } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Chip } from "@/components/ui/chip";
 import { fetchGitCommentCounts, fetchGitStatuses, fetchRepoByAddress } from "@/services/search";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import {
   GIT_STATE_LABEL,
   GIT_STATE_TONE,
@@ -40,27 +41,10 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
   const labels = gitLabelsOf(event);
   const agent = gitAgentOf(event, author);
 
-  const [statusKind, setStatusKind] = useState<number | undefined | null>(null);
-  const [comments, setComments] = useState<number>(0);
-  const [repo, setRepo] = useState<NostrEvent | null>(null);
-  useEffect(() => {
-    let alive = true;
-    setStatusKind(null);
-    void fetchGitStatuses([event.id]).then((m) => {
-      if (alive) setStatusKind(m.get(event.id)?.kind);
-    });
-    void fetchGitCommentCounts([event.id]).then((m) => {
-      if (alive) setComments(m.get(event.id) ?? 0);
-    });
-    if (address) {
-      void fetchRepoByAddress(address).then((r) => {
-        if (alive) setRepo(r);
-      });
-    }
-    return () => {
-      alive = false;
-    };
-  }, [event.id, address]);
+  // From the store and the asks' answers (docs/adr/0005): what became of it, how much talk it
+  // drew, and the repo it belongs to, linked once the announcement is held.
+  const { statusKind, comments } = useGitItemFacts(event);
+  const repo = useRepoAnnouncement(address);
 
   const patch = useMemo(
     () => (event.kind === 1617 ? parsePatch(event.content || "") : null),
@@ -251,4 +235,35 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
       )}
     </div>
   );
+}
+
+type GitStatuses = Map<string, { kind: number; at: number }>;
+
+/**
+ * An item's newest status that counts (null while asking; undefined for none,
+ * which means open) and its comment count: the asks' answers (services/search
+ * fetchGitStatuses, fetchGitCommentCounts), each one per item per window.
+ */
+function useGitItemFacts(event: GitItem): { statusKind: number | undefined | null; comments: number } {
+  const statuses = useStoreEvents(`git-item-status:${event.id}`, null, () => fetchGitStatuses([event]));
+  const talk = useStoreEvents(`git-item-comments:${event.id}`, null, () => fetchGitCommentCounts([event.id]));
+  const answered = statuses.answer as GitStatuses | undefined;
+  return {
+    statusKind: answered ? answered.get(event.id)?.kind : statuses.settled ? undefined : null,
+    comments: (talk.answer as Map<string, number> | undefined)?.get(event.id) ?? 0,
+  };
+}
+
+/** A repo's announcement by its address (30617:<owner>:<d>), the newest the store holds; null for none yet. */
+export function useRepoAnnouncement(address: string | null): NostrEvent | null {
+  const filters = useMemo(() => {
+    const [kind, pubkey, ...d] = (address ?? "").split(":");
+    return kind === "30617" && /^[0-9a-f]{64}$/i.test(pubkey ?? "")
+      ? [{ kinds: [30617], authors: [pubkey.toLowerCase()], "#d": [d.join(":")] }]
+      : null;
+  }, [address]);
+  const read = useStoreEvents(filters && address ? `repo:${address}` : null, filters, () =>
+    address ? fetchRepoByAddress(address) : Promise.resolve(null),
+  );
+  return read.events[0] ?? null;
 }

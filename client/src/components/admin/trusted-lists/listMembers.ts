@@ -89,6 +89,7 @@ export async function loadTrustedList({
   const relay = await listRelay(observer);
   if (!relay) throw new Error("The server didn't say which relay holds this observer's lists.");
   const listKind = TRUSTED_LIST_KINDS.has(kind) ? kind : TRUSTED_PEOPLE_KIND;
+  // eslint-disable-next-line no-restricted-syntax -- relay probe: is the list on the observer's relay right now (docs/adr/0005)
   const event = await requestNewest([relay], { kinds: [listKind], authors: [signingPubkey], "#d": [dTag] }, 8000);
   if (!event) return null;
   const list = readTrustedList(event);

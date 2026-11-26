@@ -121,6 +121,7 @@ export function useReplaceableListDraft<T>(
     if (!pubkey) return;
     let alive = true;
     setReading({ key: readKey, probe: null });
+    // eslint-disable-next-line no-restricted-syntax -- relay probe: relay-first: the list a draft republishes (docs/adr/0005)
     void probeReplaceable(kind, pubkey, at, { relays, also }).then((probe) => {
       if (alive) setReading({ key: readKey, probe });
     });
@@ -192,6 +193,7 @@ export function useReplaceableListDraft<T>(
       setPublishing(true);
       try {
         // Once more from the relays: a version published elsewhere since the read.
+        // eslint-disable-next-line no-restricted-syntax -- relay probe: relay-first: the newest version, read again just before publishing over it
         const now = await probeReplaceable(kind, pubkey, d, { relays, also });
         const newest = newestVersion([latestRef.current, now.event], kind, pubkey, d);
         if (newest && newest.id !== base?.id && beats(newest, base ?? undefined)) {

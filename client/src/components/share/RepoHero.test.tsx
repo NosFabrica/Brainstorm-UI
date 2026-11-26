@@ -256,7 +256,10 @@ describe("RepoHero", () => {
     expect(within(activity).getByTestId(`repo-activity-state-${items[1].id}`)).toHaveTextContent("Closed");
     expect(within(activity).getByTestId(`repo-activity-state-${items[2].id}`)).toHaveTextContent("Open");
     expect(within(activity).getByTestId(`repo-activity-comments-${items[1].id}`)).toHaveTextContent("4");
-    expect(statusesMock).toHaveBeenCalledWith(expect.arrayContaining(items.map((i) => i.id)));
+    // The items themselves: whose status counts is their author's and their repo's (NIP-34).
+    expect(statusesMock).toHaveBeenCalledWith(
+      expect.arrayContaining(items.map((i) => expect.objectContaining({ id: i.id }))),
+    );
     // Eight rows, then the rest on request.
     expect(
       activity.querySelectorAll(

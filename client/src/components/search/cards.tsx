@@ -8,7 +8,7 @@ import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRa
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, memo, useContext, useMemo, useRef, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -54,7 +54,8 @@ import { kindLabel, kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
-import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
+import { zapStoreUrl, type RepoCounts } from "@/services/search";
+import { useRepoCounts } from "@/hooks/useRepoAsks";
 import { eventPath } from "@/lib/shareId";
 import { TRUSTED_LIST_KINDS, TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
@@ -337,6 +338,9 @@ export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
 import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf, mediaItemsOf } from "@/lib/mediaKind";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { nameIn, displayNameOf, resultName } from "@/lib/displayName";
+
+/** A repo card before its counts have answered. */
+const NO_REPO_COUNTS: RepoCounts = { issues: 0, patches: 0, contributors: [], lastAt: null };
 
 export const MediaCard = memo(function MediaCard({
   event,
@@ -725,28 +729,9 @@ export const RepoCard = memo(function RepoCard({
   // questions each on mount, most of them for cards nobody scrolled to.
   const nearRef = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(nearRef, REPO_COUNTS_NEAR);
-  const [counts, setCounts] = useState<{
-    issues: number;
-    patches: number;
-    contributors: string[];
-    lastAt: number | null;
-  }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
-  useEffect(() => {
-    if (!askCounts || !isRepo || !d || !near) return;
-    let alive = true;
-    void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
-      if (alive)
-        setCounts({
-          issues: c.issues,
-          patches: c.patches,
-          contributors: c.contributors ?? [],
-          lastAt: c.lastAt ?? null,
-        });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [askCounts, isRepo, d, event.pubkey, near]);
+  // Shared with the repo's page: one ask per repo per window (hooks/useRepoAsks).
+  const answered = useRepoCounts(isRepo && d ? `30617:${event.pubkey}:${d}` : null, askCounts && near);
+  const counts = answered ?? NO_REPO_COUNTS;
   // Who stands behind it: up to three contributors, ringed by trust, and
   // their names when a profile is at hand.
   const faces = counts.contributors.slice(0, 3);

@@ -61,8 +61,10 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 
 ## What the store trusts
 
-Every event reaches the screen through the `eventStore` (ADR 0005), and the store and the
-pool check it on the way in, so no caller has to:
+The pool and the `eventStore` check what relays send on the way in, so no caller has to.
+Screens render Nostr data from the store (ADR 0005); the reads that still keep a relay
+answer in component state are listed in `eslint.config.js` (`DEFERRED_STORE_READS`), and lint
+refuses any other relay read in `components/` or `hooks/` outside a store ask.
 
 - **An answer must match its question.** The pool drops any EVENT a relay sent that the
   REQ's filters (as sent on the wire) don't match (`onlyWhatWasAsked` in

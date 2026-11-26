@@ -43,6 +43,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     void (async () => {
       if (!user?.pubkey) return;
       // "unknown"/"none" fall back to the generic disclaimer — best-effort.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: what the relays hold now, before a 10040 is written over it
       const status = await checkExistingTrustProvider(user.pubkey, serviceKey);
       if (!cancelled && status === "other") setHasOtherProvider(true);
     })();
