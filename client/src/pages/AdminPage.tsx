@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue, Fragment } from "react";
+import { useState, useEffect, useMemo, useCallback, useDeferredValue, Fragment } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -109,7 +109,6 @@ import {
   POLL_ACTIVITY_MS,
   POLL_STATS_MS,
   BOOST_INTERVAL_MS,
-  BOOST_DURATION_MS,
   PRIMARY_RELAY,
   NONE,
 } from "./admin/constants";
@@ -143,6 +142,9 @@ import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { ActivityRow } from "./admin/activity/ActivityRow";
 import { FailureBreakdownCard } from "./admin/activity/FailureBreakdownCard";
 import { UserHistoryRow } from "./admin/users/UserHistoryRow";
+import { type BulkSource, useBulkRetrigger } from "@/components/admin/users/useBulkRetrigger";
+import { BulkConfirmDialog } from "./admin/BulkConfirmDialog";
+import { useRefreshBoost } from "./admin/useRefreshBoost";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
@@ -198,35 +200,12 @@ export default function AdminPage() {
     return hl ? new Set([hl]) : new Set();
   });
   const { inFlight: triggeringPubkeys, claim: claimTriggers, release: releaseTrigger } = useInFlightTriggers();
-  const [isBoostActive, setIsBoostActive] = useState(false);
-  const boostTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const triggerRefreshBoost = useCallback(() => {
-    setIsBoostActive(true);
-    if (boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current);
-    boostTimeoutRef.current = setTimeout(() => setIsBoostActive(false), BOOST_DURATION_MS);
-  }, []);
-  useEffect(
-    () => () => {
-      if (boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current);
-    },
-    [],
-  );
+  const { isBoostActive, triggerRefreshBoost } = useRefreshBoost();
   const [triggerConfirmPubkey, setTriggerConfirmPubkey] = useState<string | null>(null);
 
   const [selectedUserPubkeys, setSelectedUserPubkeys] = useState<Set<string>>(new Set());
   const [selectedActivityRows, setSelectedActivityRows] = useState<Map<number, string>>(new Map());
-  const [bulkRunning, setBulkRunning] = useState(false);
-  const [bulkStatuses, setBulkStatuses] = useState<Map<string, "queued" | "running" | "success" | "failed">>(new Map());
-  const [, setBulkErrors] = useState<Map<string, string>>(new Map());
-  const [bulkConfirm, setBulkConfirm] = useState<{ pubkeys: string[]; source: "users" | "activity" | "retry" } | null>(
-    null,
-  );
   const [fetchingMatching, setFetchingMatching] = useState(false);
-  const [bulkLastResult, setBulkLastResult] = useState<{
-    source: "users" | "activity";
-    successes: string[];
-    failures: { pubkey: string; error: string }[];
-  } | null>(null);
   const SELECT_ALL_MATCHING_CAP = 200;
   const [lookupOpen, setLookupOpen] = useState(false);
   const [lookupMode, setLookupMode] = useState<"lookup" | "onboard">("lookup");
@@ -495,113 +474,28 @@ export default function AdminPage() {
     [claimTriggers, releaseTrigger],
   );
 
-  const runBulkRetrigger = useCallback(
-    async (rawPubkeys: string[], source: "users" | "activity" | "retry") => {
-      // Claimed before anything is sent: a row's own trigger stays disabled
-      // until this run's request for that person is answered.
-      const unique = Array.from(new Set(rawPubkeys.filter(Boolean)));
-      const toRun = claimTriggers(unique);
-      const claimed = new Set(toRun);
-      const skipped = unique.filter((pk) => !claimed.has(pk));
-      if (toRun.length === 0) {
-        toast({
-          title: "Nothing to re-trigger",
-          description: skipped.length
-            ? `${skipped.length} pubkey(s) already in flight.`
-            : "No valid pubkeys in selection.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setBulkRunning(true);
-      setBulkLastResult(null);
-      setBulkErrors(new Map());
-      const initial = new Map<string, "queued" | "running" | "success" | "failed">();
-      toRun.forEach((pk) => initial.set(pk, "queued"));
-      setBulkStatuses(initial);
-
-      const concurrency = 5;
-      let cursor = 0;
-      const successes: string[] = [];
-      const failures: { pubkey: string; error: string }[] = [];
-      let firstSuccessFired = false;
-
-      const worker = async () => {
-        while (true) {
-          const i = cursor++;
-          if (i >= toRun.length) return;
-          const pk = toRun[i];
-          setBulkStatuses((prev) => {
-            const next = new Map(prev);
-            next.set(pk, "running");
-            return next;
-          });
-          try {
-            await apiClient.triggerUserGraperank(pk);
-            releaseTrigger(pk);
-            successes.push(pk);
-            setBulkStatuses((prev) => {
-              const next = new Map(prev);
-              next.set(pk, "success");
-              return next;
-            });
-            if (!firstSuccessFired) {
-              firstSuccessFired = true;
-              triggerRefreshBoost();
-            }
-          } catch (err: unknown) {
-            const msg =
-              err instanceof Error
-                ? err.message
-                : typeof err === "object" && err !== null
-                  ? JSON.stringify(err)
-                  : "Unknown error";
-            releaseTrigger(pk);
-            failures.push({ pubkey: pk, error: msg });
-            setBulkStatuses((prev) => {
-              const next = new Map(prev);
-              next.set(pk, "failed");
-              return next;
-            });
-            setBulkErrors((prev) => {
-              const next = new Map(prev);
-              next.set(pk, msg);
-              return next;
-            });
-          }
-        }
-      };
-      const workers = Array.from({ length: Math.min(concurrency, toRun.length) }, () => worker());
-      await Promise.all(workers);
-
-      setBulkRunning(false);
-      const resultSource: "users" | "activity" = source === "retry" ? (bulkLastResult?.source ?? "users") : source;
-      setBulkLastResult({ source: resultSource, successes, failures });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({
-        title:
-          failures.length === 0
-            ? `Re-triggered ${successes.length} user${successes.length !== 1 ? "s" : ""}`
-            : `${successes.length} succeeded, ${failures.length} failed`,
-        description: skipped.length ? `${skipped.length} skipped (already in flight).` : undefined,
-        variant: failures.length === 0 ? "default" : "destructive",
-      });
-      if (resultSource === "users") setSelectedUserPubkeys(new Set());
-      else setSelectedActivityRows(new Map());
-    },
-    [claimTriggers, releaseTrigger, toast, triggerRefreshBoost, queryClient, bulkLastResult],
-  );
+  const clearSelection = useCallback((source: BulkSource) => {
+    if (source === "users") setSelectedUserPubkeys(new Set());
+    else setSelectedActivityRows(new Map());
+  }, []);
+  const bulk = useBulkRetrigger({
+    claim: claimTriggers,
+    release: releaseTrigger,
+    onFirstSuccess: triggerRefreshBoost,
+    onSettled: clearSelection,
+  });
+  const { running: bulkRunning, statuses: bulkStatuses, lastResult: bulkLastResult } = bulk;
+  const { dismissFrom: dismissBulkFrom } = bulk;
 
   useEffect(() => {
     setSelectedUserPubkeys(new Set());
-    setBulkLastResult((prev) => (prev?.source === "users" ? null : prev));
-  }, [userSearch, debouncedSearch, kpiFilter]);
+    dismissBulkFrom("users");
+  }, [userSearch, debouncedSearch, kpiFilter, dismissBulkFrom]);
 
   useEffect(() => {
     setSelectedActivityRows(new Map());
-    setBulkLastResult((prev) => (prev?.source === "activity" ? null : prev));
-  }, [range]);
+    dismissBulkFrom("activity");
+  }, [range, dismissBulkFrom]);
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
     const start = performance.now();
@@ -2442,7 +2336,7 @@ export default function AdminPage() {
                             <div className="ml-auto flex items-center gap-2">
                               <Button
                                 size="sm"
-                                onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "users" })}
+                                onClick={() => bulk.ask({ pubkeys: dedupePubkeys, source: "users" })}
                                 disabled={bulkRunning || dedupePubkeys.length === 0}
                                 className="no-default-hover-elevate no-default-active-elevate h-7 gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-accent"
                                 data-testid="button-bulk-retrigger-users"
@@ -2485,7 +2379,7 @@ export default function AdminPage() {
                               size="sm"
                               variant="outline"
                               onClick={() =>
-                                setBulkConfirm({
+                                bulk.ask({
                                   pubkeys: bulkLastResult.failures.map((f) => f.pubkey),
                                   source: "retry",
                                 })
@@ -2498,7 +2392,7 @@ export default function AdminPage() {
                             </Button>
                           )}
                           <button
-                            onClick={() => setBulkLastResult(null)}
+                            onClick={bulk.dismiss}
                             className="text-[10px] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                             data-testid="button-bulk-dismiss-users"
                           >
@@ -3746,7 +3640,7 @@ export default function AdminPage() {
                             <div className="ml-auto flex items-center gap-2">
                               <Button
                                 size="sm"
-                                onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "activity" })}
+                                onClick={() => bulk.ask({ pubkeys: dedupePubkeys, source: "activity" })}
                                 disabled={bulkRunning || dedupePubkeys.length === 0}
                                 className="no-default-hover-elevate no-default-active-elevate h-7 gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-accent"
                                 data-testid="button-bulk-retrigger-activity"
@@ -3789,7 +3683,7 @@ export default function AdminPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  setBulkConfirm({
+                                  bulk.ask({
                                     pubkeys: bulkLastResult.failures.map((f) => f.pubkey),
                                     source: "retry",
                                   })
@@ -3802,7 +3696,7 @@ export default function AdminPage() {
                               </Button>
                             )}
                             <button
-                              onClick={() => setBulkLastResult(null)}
+                              onClick={bulk.dismiss}
                               className="text-[10px] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                               data-testid="button-bulk-dismiss-activity"
                             >
@@ -4471,99 +4365,7 @@ export default function AdminPage() {
 
       <Footer />
 
-      <Dialog
-        open={bulkConfirm !== null}
-        onOpenChange={(open) => {
-          if (!open && !bulkRunning) setBulkConfirm(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-brand-deep" />
-              Confirm Bulk Re-trigger
-            </DialogTitle>
-            <DialogDescription className="pt-1 text-sm text-slate-600 dark:text-slate-300">
-              Re-trigger GrapeRank calculation for multiple users at once.
-            </DialogDescription>
-          </DialogHeader>
-          {bulkConfirm &&
-            (() => {
-              const inFlight = bulkConfirm.pubkeys.filter((pk) => triggeringPubkeys.has(pk));
-              return (
-                <div className="space-y-4 pt-2">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 dark:border-amber-500/25 dark:bg-amber-500/10">
-                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                      What happens when you confirm
-                    </p>
-                    <ul className="list-inside list-disc space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
-                      <li>
-                        One GrapeRank calculation request is sent{" "}
-                        <span className="font-semibold">per unique pubkey</span>
-                      </li>
-                      <li>Requests fire in parallel batches (5 at a time) to avoid hammering the server</li>
-                      <li>Already in-flight users will be skipped automatically</li>
-                      <li>Progress will appear inline; failures can be retried individually</li>
-                    </ul>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Targets
-                    </p>
-                    <p className="text-xs text-slate-800 dark:text-slate-200" data-testid="text-bulk-confirm-count">
-                      <span className="font-bold">{bulkConfirm.pubkeys.length}</span> unique pubkey
-                      {bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  {inFlight.length > 0 && (
-                    <div
-                      className="rounded-xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-500/25 dark:bg-orange-500/10"
-                      data-testid="text-bulk-confirm-inflight"
-                    >
-                      <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300">
-                        Heads up
-                      </p>
-                      <p className="text-xs text-orange-900 dark:text-orange-200">
-                        {inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and
-                        will be skipped.
-                      </p>
-                    </div>
-                  )}
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setBulkConfirm(null)}
-                      disabled={bulkRunning}
-                      className="no-default-hover-elevate no-default-active-elevate text-xs"
-                      data-testid="button-cancel-bulk"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        const target = bulkConfirm;
-                        setBulkConfirm(null);
-                        if (target)
-                          runBulkRetrigger(
-                            target.pubkeys,
-                            target.source === "retry" ? (bulkLastResult?.source ?? "users") : target.source,
-                          );
-                      }}
-                      disabled={bulkRunning || bulkConfirm.pubkeys.length === 0}
-                      className="no-default-hover-elevate no-default-active-elevate gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-accent"
-                      data-testid="button-confirm-bulk"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      Re-trigger {bulkConfirm.pubkeys.length} user{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })()}
-        </DialogContent>
-      </Dialog>
+      <BulkConfirmDialog bulk={bulk} triggering={triggeringPubkeys} />
     </div>
   );
 }
