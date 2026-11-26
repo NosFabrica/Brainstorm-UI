@@ -126,7 +126,7 @@ export function ShareModal({
               {native && (
                 <button
                   type="button"
-                  onClick={() => navigator.share?.({ title, url }).catch(() => {})}
+                  onClick={() => void navigator.share?.({ title, url }).catch(() => {})}
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   data-testid="share-native"
                 >

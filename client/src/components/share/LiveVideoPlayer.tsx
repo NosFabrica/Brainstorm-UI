@@ -184,7 +184,7 @@ export function LiveVideoPlayer({
       {!started && (
         <button
           type="button"
-          onClick={start}
+          onClick={() => void start()}
           aria-label="Watch live"
           className="group absolute inset-0 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
           data-testid="live-play"

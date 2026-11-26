@@ -82,7 +82,7 @@ export function TagComments({
             </span>
             <button
               type="button"
-              onClick={submit}
+              onClick={() => void submit()}
               disabled={!draft.trim() || post.isPending}
               className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
               data-testid="tag-comment-post"

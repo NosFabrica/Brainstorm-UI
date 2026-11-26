@@ -214,7 +214,7 @@ function VouchComposer({
         data-testid="vouch-text"
       />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={submit} disabled={busy} data-testid="vouch-publish">
+        <Button size="sm" onClick={() => void submit()} disabled={busy} data-testid="vouch-publish">
           {existing ? "Update review" : "Publish review"}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
@@ -224,7 +224,7 @@ function VouchComposer({
           <Button
             size="sm"
             variant="ghost"
-            onClick={remove}
+            onClick={() => void remove()}
             disabled={busy}
             className="ml-auto text-red-600 dark:text-red-400"
             data-testid="vouch-remove"
