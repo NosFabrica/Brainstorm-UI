@@ -5,7 +5,7 @@ import { finePointer, prefetchSharePage } from "@/services/queries/sharePage";
 import { warmProfile } from "@/hooks/useLiveProfile";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { pushRecentProfile } from "@/lib/recentSearches";
-import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
+import { setProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import type { AccountDisplay } from "@/accounts/display";
 import type { ActivePerspective } from "@/hooks/useActivePerspective";
 
@@ -62,38 +62,11 @@ export function useOpenProfile(user: AccountDisplay | null | undefined, effectiv
         nip05: result.nip05,
       });
       seedAndPrefetch(result);
-      const hex = (result.pubkey || "").toLowerCase();
-      const hasNosfabricaRank =
-        typeof result.wotRankNosfabrica === "number" && Number.isFinite(result.wotRankNosfabrica);
-      const persistNosfabrica = hasNosfabricaRank && !!hex;
-      if (persistNosfabrica) {
-        setStoredSearchSeed(hex, {
-          pubkey: hex,
-          npub: result.npub,
-          name: result.name,
-          displayName: result.displayName,
-          picture: result.picture,
-          about: result.about,
-          nip05: result.nip05,
-          banner: result.banner,
-          website: result.website,
-          lud16: result.lud16,
-          wotRank: result.wotRank ?? null,
-          wotFollowers: result.wotFollowers ?? null,
-          wotRankNosfabrica: result.wotRankNosfabrica ?? null,
-          wotRankMywot: result.wotRankMywot ?? null,
-          povFromSearch: effectivePov,
-        });
-      }
-      // Anonymous searchers go to the clean public /p page; members carry the house rank
-      // along so the page can show where the search found them.
-      if (!user || !persistNosfabrica) {
-        setLocation(`/p/${result.npub}`);
-        return;
-      }
-      setLocation(`/p/${result.npub}?showNosfabricaResult=1`);
+      // Everyone opens the public /p page; it reads its own ranks (the admin-only
+      // /profile view that read a search-time seed from sessionStorage is gone).
+      setLocation(`/p/${result.npub}`);
     },
-    [seedAndPrefetch, setLocation, effectivePov, user],
+    [seedAndPrefetch, setLocation],
   );
 
   const prefetchEnter = useCallback(
