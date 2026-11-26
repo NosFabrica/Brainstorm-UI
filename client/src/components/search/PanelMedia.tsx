@@ -101,7 +101,8 @@ export function PanelLatestMedia({
       setPodcasts([]);
       return;
     }
-    Promise.all(
+    // fetchFountainItem never rejects: an unreadable page is null.
+    void Promise.all(
       podcastLinks.map(async ({ event, url }) => {
         const item: FountainItem | null = await fetchFountainItem(url);
         return item
