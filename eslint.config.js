@@ -218,10 +218,11 @@ export default tseslint.config(
   // Type-aware rules: promises nobody waits on or that land where a void
   // callback is expected, a `switch` that misses a case of its union, and
   // `await` on something that isn't a promise. Sources only: the tests are
-  // outside tsconfig.json's project.
+  // outside tsconfig.json's project, and so is the code lib/relayReadLint.test.ts
+  // lints as text under a made-up `__name__` file.
   {
     files: ["client/src/**/*.{ts,tsx}"],
-    ignores: ["client/src/**/*.test.{ts,tsx}", "client/src/test/**"],
+    ignores: ["client/src/**/*.test.{ts,tsx}", "client/src/test/**", "client/src/**/__*__.{ts,tsx}"],
     languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
     rules: {
       "@typescript-eslint/no-floating-promises": "warn",
