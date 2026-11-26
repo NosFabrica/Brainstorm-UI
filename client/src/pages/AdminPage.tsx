@@ -101,47 +101,57 @@ import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { useToast } from "@/hooks/use-toast";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
-
-type SortDir = "asc" | "desc";
-type PageSizeOption = 25 | 50 | 100;
-
-function formatTimestamp(dateStr?: string): string {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
-    if (isNaN(d.getTime())) return dateStr;
-    return (
-      d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
-      " " +
-      d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-    );
-  } catch {
-    return dateStr;
-  }
-}
-
-/**
- * The whole-table reads (every user, every run in the range) are paged in
- * full each time, so they poll once a minute and only on the tabs that draw
- * them; elsewhere the header's figures read the last answer.
- */
-const POLL_OVERVIEW_MS = 60_000;
-const POLL_USERS_MS = 10_000;
-const POLL_ACTIVITY_MS = 10_000;
-const POLL_STATS_MS = 30_000;
-const BOOST_INTERVAL_MS = 4_000;
-const BOOST_DURATION_MS = 60_000;
-
-function formatRelativeAge(timestamp: number, now: number): string {
-  if (!timestamp) return "—";
-  const diff = Math.max(0, Math.floor((now - timestamp) / 1000));
-  if (diff < 5) return "just now";
-  if (diff < 60) return `${diff}s ago`;
-  const m = Math.floor(diff / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  return `${h}h ago`;
-}
+import {
+  type PageSizeOption,
+  type SortState,
+  type GrapeRankData,
+  type GrapeRankApiResponse,
+  type AdminUsersPage,
+  type BrainstormRequestInstance,
+  type AdminUserHistoryPage,
+  type AdminSortKey,
+  type RelayLatency,
+} from "./admin/types";
+import {
+  POLL_OVERVIEW_MS,
+  POLL_USERS_MS,
+  POLL_ACTIVITY_MS,
+  POLL_STATS_MS,
+  BOOST_INTERVAL_MS,
+  BOOST_DURATION_MS,
+  PRIMARY_RELAY,
+  NONE,
+} from "./admin/constants";
+import {
+  formatTimestamp,
+  formatRelativeAge,
+  formatNumber,
+  timeAgo,
+  truncateError,
+  formatLatencyMs,
+} from "./admin/format";
+import {
+  computePipelineMetrics,
+  computeTrends,
+  countQueued,
+  getUserHealth,
+  getWindowConfig,
+  parseActivityTs,
+  queuePositions,
+} from "./admin/metrics";
+import {
+  isWarningItem,
+  isFailedActivity,
+  FAILURE_STAGE_HINTS,
+  pickFailureStage,
+  parseIsoMs,
+  getActivityPipelineState,
+  isFailedStatus,
+  isItemFailed,
+  getFailureStage,
+  extractErrorMessage,
+  normalizeErrorKey,
+} from "./admin/failures";
 
 function LiveBadge({
   updatedAt,
@@ -184,140 +194,6 @@ function LiveBadge({
   );
 }
 
-interface SortState {
-  key: AdminSortKey;
-  dir: SortDir;
-}
-
-interface GrapeRankData {
-  internal_publication_status?: string;
-  ta_status?: string;
-  status?: string;
-  how_many_others_with_priority?: number;
-  updated_at?: string;
-  created_at?: string;
-  count_values?: string | Record<string, Record<string, number>>;
-  average?: number;
-  score?: number;
-  graperank?: number;
-  result?: number;
-  confidence?: number;
-  value?: number;
-}
-
-interface GrapeRankApiResponse {
-  data?: GrapeRankData;
-}
-
-interface AdminUserListItem {
-  pubkey: string;
-  ta_pubkey: string | null;
-  times_calculated: number;
-  last_triggered: string;
-  last_updated: string;
-  latest_status: string | null;
-  latest_ta_status: string | null;
-  latest_algorithm: string | null;
-  scheduling_id: number | null;
-  scheduling_name: string;
-}
-
-interface AdminUsersPage {
-  items: AdminUserListItem[];
-  total: number;
-  page: number;
-  size: number;
-  pages: number;
-}
-
-interface GrapeRankError {
-  code: string;
-  message: string | null;
-  /** "warning": caused by the user's own graph (e.g. no follows), not a fault of ours. */
-  severity?: "warning" | "error";
-}
-
-interface BrainstormRequestInstance {
-  created_at: string;
-  updated_at: string;
-  private_id: number;
-  status: string;
-  ta_status: string | null;
-  internal_publication_status: string | null;
-  error: GrapeRankError | null;
-  count_values: string | null;
-  password: string;
-  algorithm: string;
-  parameters: string;
-  how_many_others_with_priority: number;
-  pubkey: string | null;
-  trigger_source: string | null;
-}
-
-interface AdminUserHistoryPage {
-  items: BrainstormRequestInstance[];
-  total: number;
-  page: number;
-  size: number;
-  pages: number;
-}
-
-type AdminSortKey = "pubkey" | "times_calculated" | "last_triggered" | "last_updated";
-
-interface RelayLatency {
-  url: string;
-  latencyMs: number | null;
-  status: "connected" | "degraded" | "disconnected";
-  checkedAt: Date;
-}
-
-const PRIMARY_RELAY = "wss://dcosl.brainstorm.world";
-const NONE: never[] = [];
-
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString();
-}
-
-function timeAgo(dateStr?: string): string {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
-    if (isNaN(d.getTime())) return "";
-    const diff = Date.now() - d.getTime();
-    if (diff < 0) return "just now";
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d ago`;
-    if (days < 30) return `${Math.floor(days / 7)}w ago`;
-    if (days < 365) return `${Math.floor(days / 30)}mo ago`;
-    return `${Math.floor(days / 365)}y ago`;
-  } catch {
-    return "";
-  }
-}
-
-function getUserHealth(
-  status: string | null,
-  taStatus: string | null,
-  timesCalc: number,
-): "green" | "amber" | "red" | "gray" {
-  if (timesCalc === 0) return "gray";
-  const s = status?.toLowerCase();
-  const t = taStatus?.toLowerCase();
-  const sFail = s === "failed" || s === "failure";
-  const tFail = t === "failed" || t === "failure";
-  if (sFail && tFail) return "red";
-  if (sFail || tFail) return "amber";
-  if (s === "success") return "green";
-  return "gray";
-}
-
 function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnected" }) {
   const config = {
     connected: { tone: "emerald" as const, label: "Connected" },
@@ -336,217 +212,6 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
       {config.label}
     </Chip>
   );
-}
-
-type HourlyBucket = { t: number; success: number; failed: number; total: number };
-
-type TrendWindow = AdminRange;
-
-type WindowConfig = {
-  windowMs: number;
-  bucketCount: number;
-  bucketSizeMs: number;
-  shortLabel: string;
-  windowPhrase: string;
-  longLabel: string;
-  priorLabel: string;
-  bucketLabelFn: (ts: number) => string;
-  bucketTooltipFn: (ts: number) => string;
-  xAxisInterval: number;
-  bucketUnitLabel: string;
-};
-
-function getWindowConfig(w: TrendWindow): WindowConfig {
-  const HOUR = 3600000;
-  const DAY = 24 * HOUR;
-  switch (w) {
-    case "1h":
-      return {
-        windowMs: HOUR,
-        bucketCount: 12,
-        bucketSizeMs: 5 * 60000,
-        shortLabel: "1h",
-        windowPhrase: "the last hour",
-        longLabel: "Last hour",
-        priorLabel: "vs prior 1h",
-        bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        bucketTooltipFn: (ts) =>
-          new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }),
-        xAxisInterval: 1,
-        bucketUnitLabel: "calcs / 5min",
-      };
-    case "24h":
-      return {
-        windowMs: 24 * HOUR,
-        bucketCount: 24,
-        bucketSizeMs: HOUR,
-        shortLabel: "24h",
-        windowPhrase: "the last 24h",
-        longLabel: "Last 24 hours",
-        priorLabel: "vs prior 24h",
-        bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit" }),
-        bucketTooltipFn: (ts) =>
-          new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }),
-        xAxisInterval: 3,
-        bucketUnitLabel: "calcs / hr",
-      };
-    case "72h":
-      return {
-        windowMs: 3 * DAY,
-        bucketCount: 36,
-        bucketSizeMs: 2 * HOUR,
-        shortLabel: "72h",
-        windowPhrase: "the last 72h",
-        longLabel: "Last 72 hours",
-        priorLabel: "vs prior 72h",
-        bucketLabelFn: (ts) => new Date(ts).toLocaleString([], { weekday: "short", hour: "2-digit" }),
-        bucketTooltipFn: (ts) =>
-          new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }),
-        xAxisInterval: 5,
-        bucketUnitLabel: "calcs / 2h",
-      };
-    case "7d":
-      return {
-        windowMs: 7 * DAY,
-        bucketCount: 7,
-        bucketSizeMs: DAY,
-        shortLabel: "7d",
-        windowPhrase: "the last 7d",
-        longLabel: "Last 7 days",
-        priorLabel: "vs prior 7d",
-        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short" }),
-        bucketTooltipFn: (ts) =>
-          new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
-        xAxisInterval: 0,
-        bucketUnitLabel: "calcs / day",
-      };
-    case "30d":
-      return {
-        windowMs: 30 * DAY,
-        bucketCount: 30,
-        bucketSizeMs: DAY,
-        shortLabel: "30d",
-        windowPhrase: "the last 30d",
-        longLabel: "Last 30 days",
-        priorLabel: "vs prior 30d",
-        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
-        bucketTooltipFn: (ts) =>
-          new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
-        xAxisInterval: 4,
-        bucketUnitLabel: "calcs / day",
-      };
-    case "all":
-      return {
-        windowMs: Number.POSITIVE_INFINITY,
-        bucketCount: 12,
-        bucketSizeMs: DAY, // overridden dynamically from the loaded-data span
-        shortLabel: "All",
-        windowPhrase: "all time",
-        longLabel: "All time",
-        priorLabel: "vs prior period",
-        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
-        bucketTooltipFn: (ts) =>
-          new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
-        xAxisInterval: 2,
-        bucketUnitLabel: "calcs",
-      };
-    default: {
-      // A custom "last N days": a bucket a day.
-      const days = customDays(w) ?? 1;
-      return {
-        windowMs: days * DAY,
-        bucketCount: days,
-        bucketSizeMs: DAY,
-        shortLabel: `${days}d`,
-        windowPhrase: `the last ${days} days`,
-        longLabel: `Last ${days} days`,
-        priorLabel: `vs prior ${days}d`,
-        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
-        bucketTooltipFn: (ts) =>
-          new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
-        xAxisInterval: Math.max(0, Math.ceil(days / 8) - 1),
-        bucketUnitLabel: "calcs / day",
-      };
-    }
-  }
-}
-
-type ActivityOutcomeItem = { updated_at: string; status?: string | null; error?: GrapeRankError | null };
-
-function isWarningItem(item: { error?: GrapeRankError | null }): boolean {
-  return item.error?.severity === "warning";
-}
-
-/** A failed calc that isn't a warning: what the dashboard counts as a failure. */
-function isFailedActivity(item: { status?: string | null; error?: GrapeRankError | null }): boolean {
-  return isFailedStatus(item.status) && !isWarningItem(item);
-}
-
-function parseActivityTs(s: string | undefined | null): number {
-  if (!s) return 0;
-  try {
-    const d = new Date(s.endsWith("Z") ? s : s + "Z");
-    const t = d.getTime();
-    return isNaN(t) ? 0 : t;
-  } catch {
-    return 0;
-  }
-}
-
-function bucketActivity(
-  activity: ActivityOutcomeItem[],
-  bucketCount: number,
-  bucketSizeMs: number,
-  now: number,
-): HourlyBucket[] {
-  const buckets: HourlyBucket[] = Array.from({ length: bucketCount }, (_, i) => ({
-    t: now - (bucketCount - 1 - i) * bucketSizeMs,
-    success: 0,
-    failed: 0,
-    total: 0,
-  }));
-  for (const a of activity) {
-    const t = parseActivityTs(a.updated_at);
-    if (!t) continue;
-    const ageBuckets = Math.floor((now - t) / bucketSizeMs);
-    if (ageBuckets < 0 || ageBuckets >= bucketCount) continue;
-    const idx = bucketCount - 1 - ageBuckets;
-    buckets[idx].total++;
-    if ((a.status || "").toLowerCase() === "success") buckets[idx].success++;
-    else if (isFailedActivity(a)) buckets[idx].failed++;
-  }
-  return buckets;
-}
-
-function compareActivityWindows(activity: ActivityOutcomeItem[], windowMs: number, now: number) {
-  const cur: typeof activity = [];
-  const prev: typeof activity = [];
-  for (const a of activity) {
-    const t = parseActivityTs(a.updated_at);
-    if (!t) continue;
-    const age = now - t;
-    if (age < 0) continue;
-    if (age < windowMs) cur.push(a);
-    else if (age < windowMs * 2) prev.push(a);
-  }
-  const countSuccess = (arr: typeof activity) => arr.filter((a) => (a.status || "").toLowerCase() === "success").length;
-  const countFailed = (arr: typeof activity) => arr.filter(isFailedActivity).length;
-  const sr = (arr: typeof activity): number | null => {
-    const s = countSuccess(arr);
-    const f = countFailed(arr);
-    return s + f === 0 ? null : Math.round((s / (s + f)) * 100);
-  };
-  return {
-    curTotal: cur.length,
-    prevTotal: prev.length,
-    curFailed: countFailed(cur),
-    prevFailed: countFailed(prev),
-    curSuccess: countSuccess(cur),
-    prevSuccess: countSuccess(prev),
-    curSR: sr(cur),
-    prevSR: sr(prev),
-    hasPrev: prev.length > 0,
-  };
 }
 
 function MiniSparkline({
@@ -939,34 +604,6 @@ function CopyButton({ text }: { text: string }) {
       <Copy className="h-3 w-3 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" />
     </button>
   );
-}
-
-type FailureStage = "calculation" | "ta" | "publication";
-
-const FAILURE_STAGE_HINTS: Record<FailureStage, { label: string; hint: string }> = {
-  calculation: {
-    label: "Calculation",
-    hint: "Common causes: user has too few trusted follows for graperank to converge, invalid algorithm parameters, or a calculation timeout. Re-trigger first; if it fails again, check server logs for the algorithm worker.",
-  },
-  ta: {
-    label: "Trust Attestation",
-    hint: "Common causes: TA pubkey unreachable or not configured. Check relay status and TA service health.",
-  },
-  publication: {
-    label: "Publication",
-    hint: "Common causes: relay outage, signing failure, or rate limiting. Check that the publisher is reaching at least one configured relay.",
-  },
-};
-
-function pickFailureStage(opts: { statusFailed: boolean; taFailed: boolean; pubFailed: boolean }): FailureStage | null {
-  if (opts.statusFailed) return "calculation";
-  if (opts.taFailed) return "ta";
-  if (opts.pubFailed) return "publication";
-  return null;
-}
-
-function parseIsoMs(iso: string): number {
-  return new Date(iso.endsWith("Z") ? iso : iso + "Z").getTime();
 }
 
 /**
@@ -1578,80 +1215,6 @@ function TriggerSourceBadge({ value }: { value: string | null }) {
       {value}
     </span>
   );
-}
-
-function getActivityPipelineState(item: BrainstormRequestInstance) {
-  const s = item.status?.toLowerCase() ?? "";
-  if (s === "ongoing" || s === "in_progress" || s === "processing") return "active" as const;
-  if (s === "waiting" || s === "queued" || s === "pending") return "waiting" as const;
-  if (s === "failure" || s === "failed" || s === "error")
-    return isWarningItem(item) ? ("warning" as const) : ("failed" as const);
-  return "complete" as const;
-}
-
-function isFailedStatus(value: string | null | undefined): boolean {
-  if (!value) return false;
-  const v = value.toLowerCase();
-  return v === "failure" || v === "failed" || v === "error";
-}
-
-function isItemFailed(item: BrainstormRequestInstance): boolean {
-  if (isWarningItem(item)) return false;
-  return (
-    isFailedStatus(item.status) || isFailedStatus(item.ta_status) || isFailedStatus(item.internal_publication_status)
-  );
-}
-
-function getFailureStage(item: BrainstormRequestInstance): "Calculation" | "Trust Attestation" | "Publication" | null {
-  if (isFailedStatus(item.status)) return "Calculation";
-  if (isFailedStatus(item.ta_status)) return "Trust Attestation";
-  if (isFailedStatus(item.internal_publication_status)) return "Publication";
-  return null;
-}
-
-function extractErrorMessage(item: BrainstormRequestInstance): string {
-  const raw = item.error?.message?.trim();
-  if (raw) return raw;
-  const stage = getFailureStage(item);
-  if (stage)
-    return `No error details recorded for the ${stage} stage. Re-trigger this user to capture a fresh error message, or open the full request to inspect server logs.`;
-  return "No error details recorded. Re-trigger this user to capture a fresh error message, or open the full request to inspect server logs.";
-}
-
-function truncateError(text: string, maxLen = 140): string {
-  const cleaned = text.replace(/\s+/g, " ").trim();
-  if (cleaned.length <= maxLen) return cleaned;
-  return cleaned.slice(0, maxLen) + "…";
-}
-
-/** Human latency between a request's start and finish ISO timestamps. */
-function formatLatencyMs(startIso: string, endIso: string): string | null {
-  const parse = (s: string) => new Date(s.endsWith("Z") ? s : s + "Z").getTime();
-  const start = parse(startIso);
-  const end = parse(endIso);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  const ms = end - start;
-  if (ms < 0) return null;
-  if (ms < 1000) return "<1s";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rs = s % 60;
-  if (m < 60) return rs ? `${m}m ${rs}s` : `${m}m`;
-  const h = Math.floor(m / 60);
-  const rm = m % 60;
-  return rm ? `${h}h ${rm}m` : `${h}h`;
-}
-
-function normalizeErrorKey(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/0x[0-9a-f]{6,}/g, "<hex>")
-    .replace(/\b[0-9a-f]{16,}\b/g, "<hex>")
-    .replace(/\b\d{4,}\b/g, "<n>")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200);
 }
 
 function ConfirmRetriggerButton({
@@ -2978,182 +2541,23 @@ export default function AdminPage() {
     return list;
   }, [adminUsersList, allUsers, kpiFilter, deferredUserSearch, isNameSearch, userProfiles]);
 
-  const computePipelineMetrics = (
-    users: AdminUsersPage["items"],
-    activity: AdminUserHistoryPage["items"],
-    totalUsers: number,
-  ) => {
-    const total = users.length;
-    if (total === 0) return null;
-
-    const successCount = users.filter((u) => u.latest_status?.toLowerCase() === "success").length;
-    const failedCount = users.filter((u) => isFailedStatus(u.latest_status)).length;
-    const pendingCount = total - successCount - failedCount;
-    const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
-
-    const taSuccessCount = users.filter((u) => u.latest_ta_status?.toLowerCase() === "success").length;
-    const taFailedCount = users.filter((u) => isFailedStatus(u.latest_ta_status)).length;
-    const taAdoptionRate = total > 0 ? Math.round((taSuccessCount / total) * 100) : 0;
-
-    const withTaPubkey = users.filter((u) => u.ta_pubkey).length;
-
-    const totalCalcs = users.reduce((sum, u) => sum + (u.times_calculated || 0), 0);
-    const avgCalcs = total > 0 ? (totalCalcs / total).toFixed(1) : "0";
-
-    const algoCounts: Record<string, number> = {};
-    users.forEach((u) => {
-      const algo = u.latest_algorithm || "unknown";
-      algoCounts[algo] = (algoCounts[algo] || 0) + 1;
-    });
-
-    const now = Date.now();
-    const last24h = activity.filter((a) => {
-      try {
-        const t = new Date(a.updated_at.endsWith("Z") ? a.updated_at : a.updated_at + "Z").getTime();
-        return now - t < 86400000;
-      } catch {
-        return false;
-      }
-    });
-    const recentSuccess = last24h.filter((a) => a.status?.toLowerCase() === "success").length;
-    const recentFailed = last24h.filter(isFailedActivity).length;
-
-    const sortedByUpdate = [...users].sort((a, b) => {
-      const ta = new Date(a.last_updated || "").getTime() || 0;
-      const tb = new Date(b.last_updated || "").getTime() || 0;
-      return tb - ta;
-    });
-    const lastPlatformActivity = sortedByUpdate[0]?.last_updated ?? null;
-
-    const neverCalc = users.filter((u) => !u.times_calculated || u.times_calculated === 0).length;
-
-    return {
-      total: totalUsers,
-      successCount,
-      failedCount,
-      pendingCount,
-      successRate,
-      taSuccessCount,
-      taFailedCount,
-      taAdoptionRate,
-      withTaPubkey,
-      totalCalcs,
-      avgCalcs,
-      algoCounts,
-      recentSuccess,
-      recentFailed,
-      lastPlatformActivity,
-      neverCalc,
-    };
-  };
   // Everyone, now: the header cards.
   const nowMetrics = useMemo(
     () => computePipelineMetrics(allUsers, overviewLoadedActivity, allUsersTotal),
     [allUsers, overviewLoadedActivity, allUsersTotal],
   );
 
-  const computedQueueDepth = useMemo(() => {
-    if (allUsers.length === 0) return null;
-    return allUsers.filter((u) => {
-      const s = u.latest_status?.toLowerCase();
-      return s === "waiting" || s === "ongoing" || s === "queued" || s === "pending";
-    }).length;
-  }, [allUsers]);
+  const computedQueueDepth = useMemo(() => countQueued(allUsers), [allUsers]);
 
-  // Assign a live "queue position" to every in-flight request so the
-  // Platform Activity table's Queue column reflects real ordering instead
-  // of one shared concurrency count. Waiting rows are numbered 1..N in
-  // FIFO order (oldest created_at first = next to run); the actively
-  // processing row(s) are tagged as "active". Terminated rows get no
-  // entry and fall back to the per-record backend value.
-  const queuePositionByPrivateId = useMemo(() => {
-    const map = new Map<number, number | "active">();
-    // Prefer the broader overview snapshot for ordering, but merge in any
-    // current-page rows that the snapshot may have missed (it is capped to
-    // 100 records and may lag the live page).
-    const seen = new Set<number>();
-    const merged: BrainstormRequestInstance[] = [];
-    for (const it of overviewAllActivity) {
-      if (typeof it.private_id === "number" && !seen.has(it.private_id)) {
-        seen.add(it.private_id);
-        merged.push(it);
-      }
-    }
-    for (const it of activityItems) {
-      if (typeof it.private_id === "number" && !seen.has(it.private_id)) {
-        seen.add(it.private_id);
-        merged.push(it);
-      }
-    }
-    const tsOf = (s: string | null | undefined) => {
-      if (!s) return 0;
-      try {
-        const d = new Date(s.endsWith("Z") ? s : s + "Z");
-        const t = d.getTime();
-        return isNaN(t) ? 0 : t;
-      } catch {
-        return 0;
-      }
-    };
-    const active = merged.filter((i) => getActivityPipelineState(i) === "active");
-    const waiting = merged
-      .filter((i) => getActivityPipelineState(i) === "waiting")
-      .sort((a, b) => tsOf(a.created_at) - tsOf(b.created_at));
-    for (const a of active) {
-      if (typeof a.private_id === "number") map.set(a.private_id, "active");
-    }
-    waiting.forEach((w, idx) => {
-      if (typeof w.private_id === "number") map.set(w.private_id, idx + 1);
-    });
-    return map;
-  }, [overviewAllActivity, activityItems]);
+  const queuePositionByPrivateId = useMemo(
+    () => queuePositions(overviewAllActivity, activityItems),
+    [overviewAllActivity, activityItems],
+  );
 
-  const trends = useMemo(() => {
-    const now = Date.now();
-    const HOUR = 3600000;
-    const oldestActivityTs = overviewLoadedActivity.reduce((min, a) => {
-      const t = parseActivityTs(a.updated_at);
-      if (!t) return min;
-      return min === 0 ? t : Math.min(min, t);
-    }, 0);
-    const dataAgeMs = oldestActivityTs > 0 ? now - oldestActivityTs : 0;
-    let cfg = getWindowConfig(range);
-    if (range === "all") {
-      // Bucket the whole loaded span so "All" reads well no matter the range.
-      const spanMs = Math.max(dataAgeMs, HOUR);
-      const bucketCount = 12;
-      cfg = { ...cfg, bucketCount, bucketSizeMs: Math.ceil(spanMs / bucketCount) };
-    }
-    const dataCoversWindow = range === "all" ? true : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
-    const dataCoversPriorWindow = range === "all" ? false : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
-    const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
-    const cmp = compareActivityWindows(overviewLoadedActivity, cfg.windowMs, now);
-    const cmp1h = compareActivityWindows(overviewLoadedActivity, HOUR, now);
-    const totalSeries = buckets.map((b) => b.total);
-    const successSeries = buckets.map((b) => b.success);
-    const failedSeries = buckets.map((b) => b.failed);
-    const bucketTimestamps = buckets.map((b) => b.t);
-    const rateSeries = buckets.map((b) => {
-      const d = b.success + b.failed;
-      return d === 0 ? 0 : Math.round((b.success / d) * 100);
-    });
-    return {
-      cfg,
-      buckets,
-      bucketTimestamps,
-      totalSeries,
-      successSeries,
-      failedSeries,
-      rateSeries,
-      cmp,
-      cmp1h,
-      hasPriorWindow: cmp.hasPrev,
-      hasPriorHourWindow: cmp1h.hasPrev,
-      hasAnyActivity: cmp.curTotal > 0,
-      dataCoversWindow,
-      dataCoversPriorWindow,
-    };
-  }, [overviewAllActivity, overviewLoadedActivity, range]);
+  const trends = useMemo(
+    () => computeTrends(overviewLoadedActivity, overviewAllActivity, range, Date.now()),
+    [overviewAllActivity, overviewLoadedActivity, range],
+  );
 
   // The header's six figures — the system now — drawn once for the cards and
   // for the one-line strip the other tabs show.
