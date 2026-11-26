@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from "react";
-import { scopedSearchHref } from "@/lib/searchSyntax";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { useMyReport, useTheyFollowMe } from "@/hooks/useRelationship";
 import { AppHeader } from "@/components/AppHeader";
@@ -8,36 +7,12 @@ import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ProfileRecentPosts } from "@/components/profile/ProfileRecentPosts";
-import {
-  Loader2,
-  Copy,
-  Check,
-  ArrowLeft,
-  ChevronDown,
-  Search as SearchIcon,
-  ShieldCheck,
-  Shield,
-  ShieldAlert,
-  ShieldX,
-  UserPlus,
-  UserCheck,
-  UserMinus,
-  VolumeX,
-  Volume2,
-  Flag,
-  MoreVertical,
-  Share2,
-  Globe,
-  Eye,
-  AlertTriangle,
-} from "lucide-react";
+import { Copy, Check, ArrowLeft, ChevronDown } from "lucide-react";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { ZapModal } from "@/components/ZapModal";
-import { MessageButton } from "@/components/messages/MessageButton";
-import { FlashIcon } from "@/components/FlashIcon";
 import { WotStrengthCard } from "@/components/WotStrengthCard";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -48,13 +23,6 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchProfiles,
@@ -68,14 +36,6 @@ import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
@@ -107,7 +67,6 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { DegreeChip } from "@/components/DegreeChip";
 import { SignInButton } from "@/components/SignInButton";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import { useToast } from "@/hooks/use-toast";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -124,7 +83,6 @@ import {
   MutualIcon,
   ReportedByIcon,
   ReportingIcon,
-  SharedConnectionIcon,
 } from "./profile/icons";
 import { AdminHistoryCard, useAdminUserHistory } from "./profile/AdminHistory";
 
@@ -140,6 +98,10 @@ import {
 import { ExpandedPanel } from "./profile/ExpandedPanel";
 import { ProfileBackButton } from "./profile/ProfileBackButton";
 import { ProfileErrorCard, ProfileSeedPreview, ProfileSkeleton } from "./profile/ProfileStates";
+import { ProfileAbout } from "./profile/ProfileAbout";
+import { ProfileActions } from "./profile/ProfileActions";
+import { ProfileVerdictBanner, SharedConnectionsBanner } from "./profile/ProfileBanners";
+import { ReportDialog } from "./profile/ReportDialog";
 import { TIER_DISPLAY_CONFIG, confidenceGuidanceFor, grTierCountsToUI, tierBreakdownRows } from "./profile/tiers";
 export default function ProfilePage() {
   const tierRing = useTierRing();
@@ -179,9 +141,6 @@ export default function ProfilePage() {
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportReason, setReportReason] = useState("spam");
-  const [followHovered, setFollowHovered] = useState(false);
-  const { toast } = useToast();
 
   const hexPubkey = useMemo(() => {
     try {
@@ -512,34 +471,6 @@ export default function ProfilePage() {
   const handleLogout = () => {
     logout();
     navigate("/");
-  };
-
-  const renderLinkedText = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s<>"')\]]+)/g;
-    const parts = text.split(urlRegex);
-    return parts.map((part, i) => {
-      if (urlRegex.test(part)) {
-        urlRegex.lastIndex = 0;
-        const display = part.replace(/^https?:\/\//, "").replace(/\/$/, "");
-        return (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noopener"
-            className="break-all text-brand-primary underline decoration-brand-primary/25 underline-offset-2"
-            data-testid={`link-about-url-${i}`}
-          >
-            {display}
-          </a>
-        );
-      }
-      return (
-        <span key={i}>
-          <EmojiText text={part} tags={liveNostrProfile.event} />
-        </span>
-      );
-    });
   };
 
   const fetchAbortRef = useRef<number>(0);
@@ -1357,534 +1288,57 @@ export default function ProfilePage() {
                       </div>
                       {/* One tidy action bar — full-width, aligned with the stats above.
                     Follow is primary; the rest tuck into a "more" menu. */}
-                      <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="row-profile-actions">
-                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
-                          <>
-                            {social.listsLoading ? (
-                              <div
-                                className="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800"
-                                data-testid="skeleton-follow-button"
-                              />
-                            ) : (
-                              (() => {
-                                const following = social.isFollowing(hexPubkey);
-                                const pending =
-                                  social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
-                                return (
-                                  <button
-                                    type="button"
-                                    disabled={pending || social.isAnyPending}
-                                    onMouseEnter={() => following && setFollowHovered(true)}
-                                    onMouseLeave={() => setFollowHovered(false)}
-                                    onClick={async () => {
-                                      const result = following
-                                        ? await social.unfollow(hexPubkey)
-                                        : await social.follow(hexPubkey);
-                                      // A declined unlock is a deliberate no — say nothing.
-                                      if (result.cancelled) {
-                                        setFollowHovered(false);
-                                        return;
-                                      }
-                                      if (result.success) {
-                                        toast({
-                                          title: following ? "Unfollowed" : "Followed",
-                                          description: following
-                                            ? "Removed from your contact list"
-                                            : "Added to your contact list",
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Error",
-                                          description: result.error || "Action failed",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                      setFollowHovered(false);
-                                    }}
-                                    className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
-                                      following
-                                        ? followHovered
-                                          ? "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
-                                          : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700"
-                                        : "bg-brand-primary text-white shadow-sm hover:bg-brand-primary-hover"
-                                    }`}
-                                    data-testid="button-follow-toggle"
-                                  >
-                                    {following ? (
-                                      followHovered ? (
-                                        <UserMinus className="h-3.5 w-3.5" />
-                                      ) : (
-                                        <UserCheck className="h-3.5 w-3.5" />
-                                      )
-                                    ) : (
-                                      <UserPlus className="h-3.5 w-3.5" />
-                                    )}
-                                    <span>{following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
-                                  </button>
-                                );
-                              })()
-                            )}
-                            <MessageButton pubkey={hexPubkey} name={searchPostsName} />
-                            <button
-                              type="button"
-                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "top"))}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                              aria-label={searchPostsLabel}
-                              title={searchPostsLabel}
-                              data-testid="button-search-posts"
-                            >
-                              <SearchIcon className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/p/${displayNpub}`)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                              data-testid="link-public-page"
-                              title="See the public, shareable version of this profile"
-                            >
-                              <Globe className="h-3.5 w-3.5 shrink-0" /> Public page
-                            </button>
-                            {displayNostrProfile?.lud16 && (
-                              <button
-                                type="button"
-                                onClick={() => setZapOpen(true)}
-                                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                                data-testid="button-zap"
-                                title="Send a zap"
-                              >
-                                <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
-                              </button>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                                  aria-label="More actions"
-                                  data-testid="button-profile-more"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="start"
-                                className="w-44 bg-white/95 backdrop-blur-xl dark:bg-slate-900/95"
-                              >
-                                <DropdownMenuItem
-                                  className="cursor-pointer"
-                                  onClick={() => setShareOpen(true)}
-                                  data-testid="button-share-profile"
-                                >
-                                  <Share2 className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" /> Share
-                                </DropdownMenuItem>
-                                {(() => {
-                                  const muted = social.isMuted(hexPubkey);
-                                  return (
-                                    <DropdownMenuItem
-                                      className="cursor-pointer"
-                                      onClick={async () => {
-                                        const result = muted
-                                          ? await social.unmute(hexPubkey)
-                                          : await social.mute(hexPubkey);
-                                        if (result.cancelled) return;
-                                        if (result.success) {
-                                          toast({
-                                            title: muted ? "Unmuted" : "Muted",
-                                            description: muted
-                                              ? "Removed from your mute list"
-                                              : "Added to your mute list",
-                                          });
-                                        } else {
-                                          toast({
-                                            title: "Error",
-                                            description: result.error || "Action failed",
-                                            variant: "destructive",
-                                          });
-                                        }
-                                      }}
-                                      data-testid="button-mute-toggle"
-                                    >
-                                      {muted ? (
-                                        <Volume2 className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" />
-                                      ) : (
-                                        <VolumeX className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" />
-                                      )}
-                                      {muted ? "Unmute" : "Mute"}
-                                    </DropdownMenuItem>
-                                  );
-                                })()}
-                                {myReport ? (
-                                  <DropdownMenuItem
-                                    className="cursor-pointer text-amber-700 focus:text-amber-800 dark:text-amber-400 dark:focus:text-amber-300"
-                                    onClick={async () => {
-                                      setUnreporting(hexPubkey); // optimistic: chip + menu flip instantly
-                                      const result = await social.unreport(hexPubkey);
-                                      setUnreporting(null);
-                                      if (result.cancelled) return;
-                                      if (result.success) {
-                                        toast({
-                                          title: "Report removed",
-                                          description: "Scores may take a little while to reflect this.",
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Error",
-                                          description: result.error || "Couldn't remove report",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }}
-                                    data-testid="button-unreport"
-                                  >
-                                    <Flag className="mr-2 h-4 w-4" /> Undo report
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    className="cursor-pointer text-red-600 focus:text-red-700 dark:text-red-400 dark:focus:text-red-300"
-                                    onClick={() => setReportDialogOpen(true)}
-                                    data-testid="button-report"
-                                  >
-                                    <Flag className="mr-2 h-4 w-4" /> Report
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            {myReport && (
-                              <Chip
-                                tone="amber"
-                                icon={Flag}
-                                className="text-[11px]"
-                                title="Your report is published. Undo it from the ⋯ menu. Scores may take a little while to reflect changes."
-                                data-testid="chip-you-reported"
-                              >
-                                You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
-                              </Chip>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "top"))}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                              aria-label={searchPostsLabel}
-                              title={searchPostsLabel}
-                              data-testid="button-search-posts"
-                            >
-                              <SearchIcon className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/p/${displayNpub}`)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-brand-primary/20 bg-white px-3 text-xs font-semibold text-brand-primary transition-colors hover:border-brand-primary/25 hover:bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-slate-900 dark:text-brand-link dark:hover:border-brand-primary/[0.4] dark:hover:bg-brand-primary/10"
-                              data-testid="link-public-page"
-                              title="See the public, shareable version of this profile"
-                            >
-                              <Globe className="h-3.5 w-3.5 shrink-0" /> Public page
-                            </button>
-                            {!isOwnProfile && displayNostrProfile?.lud16 && (
-                              <button
-                                type="button"
-                                onClick={() => setZapOpen(true)}
-                                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                                data-testid="button-zap"
-                                title="Send a zap"
-                              >
-                                <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setShareOpen(true)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-primary"
-                              data-testid="button-share-profile"
-                            >
-                              <Share2 className="h-3.5 w-3.5 shrink-0" /> Share
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      <ProfileActions
+                        hexPubkey={hexPubkey}
+                        isAnon={isAnon}
+                        isOwnProfile={isOwnProfile}
+                        social={social}
+                        myReport={myReport}
+                        setUnreporting={setUnreporting}
+                        displayNpub={displayNpub}
+                        displayNostrProfile={displayNostrProfile}
+                        searchPostsName={searchPostsName}
+                        searchPostsLabel={searchPostsLabel}
+                        setShareOpen={setShareOpen}
+                        setZapOpen={setZapOpen}
+                        setReportDialogOpen={setReportDialogOpen}
+                      />
                     </div>
                     {/* Web of Trust — desktop right sidebar, top-aligned beside the identity. */}
                     <div className="mt-1 hidden md:block md:w-64 md:shrink-0">{renderTrustBadge()}</div>
                   </div>
                   {displayNostrProfile?.about && (
-                    <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
-                      <p
-                        className={`overflow-wrap-anywhere whitespace-pre-line break-words text-xs leading-relaxed text-slate-500 dark:text-slate-400 ${!aboutExpanded ? "line-clamp-3" : ""}`}
-                        style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                      >
-                        {renderLinkedText(displayNostrProfile.about)}
-                      </p>
-                      {displayNostrProfile.about.length > 140 && (
-                        <button
-                          onClick={() => setAboutExpanded(!aboutExpanded)}
-                          className="mt-1 text-xs font-medium text-brand-primary"
-                          data-testid="button-about-toggle"
-                        >
-                          {aboutExpanded ? "Show less" : "Show more"}
-                        </button>
-                      )}
-                    </div>
+                    <ProfileAbout
+                      about={displayNostrProfile.about}
+                      aboutExpanded={aboutExpanded}
+                      setAboutExpanded={setAboutExpanded}
+                      emojiTags={liveNostrProfile.event}
+                    />
                   )}
 
-                  {isOwnProfile ? (
-                    <div
-                      className="mb-4 flex items-start gap-3 rounded-xl border border-brand-primary/20 bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 px-3 py-3 backdrop-blur-sm dark:border-brand-primary/25 dark:bg-brand-primary/10 dark:bg-none sm:px-4"
-                      data-testid="banner-own-profile"
-                    >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-primary/15 dark:bg-brand-primary/15 sm:h-8 sm:w-8">
-                        <Eye className="h-4 w-4 text-brand-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        {/* Was "This is how others see you" / "the score people see",
-                          which promises a single universal number. The card shows the
-                          HOUSE score — Brainstorm's vantage point, the default before
-                          a viewer's own web of trust applies. The old copy even
-                          contradicted itself by adding "scores are
-                          personalized" one sentence later. */}
-                        <span className="text-xs font-bold text-brand-primary dark:text-brand-link sm:text-sm">
-                          This is how Brainstorm sees you
-                        </span>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
-                          {houseInfluence01 != null
-                            ? "Your public score card — the default view before someone's own network applies. Everyone computes their own number for you, and to yourself you always score 100."
-                            : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so more trusted accounts vouch for you."}
-                        </p>
-                        {houseInfluence01 == null && (
-                          <button
-                            type="button"
-                            onClick={() => setShareOpen(true)}
-                            className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-brand-primary transition-colors hover:text-brand-primary dark:text-brand-link dark:hover:text-brand-link sm:text-xs"
-                            data-testid="button-own-profile-invite"
-                          >
-                            <UserPlus className="h-3.5 w-3.5" /> Invite friends
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ) : isFlaggedProfile ? (
-                    /* Flagged leads — the same verdict the public page and the
-                     dashboard's Network Alerts show, so a member who clicks
-                     "View" from an alert doesn't land on a profile that looks
-                     clean. Worded "your network" here: this is the signed-in,
-                     personalized surface (the public page says "the network"). */
-                    <div
-                      className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-3 dark:border-red-500/30 dark:bg-red-500/10 sm:px-4"
-                      data-testid="banner-profile-flagged"
-                    >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-500/15 sm:h-8 sm:w-8">
-                        <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div className="min-w-0 flex-1 text-xs leading-relaxed">
-                        <span className="text-xs font-bold text-red-700 dark:text-red-300 sm:text-sm">
-                          Flagged by your network
-                        </span>
-                        <p className="mt-0.5 text-[11px] text-red-700/90 dark:text-red-300/90 sm:text-xs">
-                          Reported by {verifiedCounts.reportedBy} verified{" "}
-                          {verifiedCounts.reportedBy === 1 ? "account" : "accounts"} in your network
-                          {verifiedCounts.mutedBy > 0 ? ` · muted by ${verifiedCounts.mutedBy}` : ""}.
-                        </p>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/p/${npubParam}/reporters`)}
-                            className="rounded font-semibold text-red-700 underline underline-offset-2 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 dark:text-red-300 dark:hover:text-red-200"
-                            data-testid="banner-profile-flagged-who"
-                          >
-                            See who reported
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate("/what-is-wot")}
-                            className="rounded font-medium text-red-700/80 underline underline-offset-2 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 dark:text-red-300/80 dark:hover:text-red-200"
-                            data-testid="banner-profile-flagged-why"
-                          >
-                            Why am I seeing this?
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    confidenceGuidance && (
-                      <div
-                        className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} flex items-start gap-3 px-3 py-3 backdrop-blur-sm sm:px-4`}
-                        data-testid="banner-confidence-guidance"
-                      >
-                        <div
-                          className={`h-7 w-7 rounded-lg sm:h-8 sm:w-8 ${confidenceGuidance.iconBg} flex shrink-0 items-center justify-center`}
-                        >
-                          {confidenceGuidance.icon === "check" && (
-                            <ShieldCheck className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                          {confidenceGuidance.icon === "shield" && (
-                            <Shield className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                          {confidenceGuidance.icon === "alert" && (
-                            <ShieldAlert className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                          {confidenceGuidance.icon === "x" && (
-                            <ShieldX className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-xs font-bold sm:text-sm ${confidenceGuidance.color}`}
-                              data-testid="text-confidence-label"
-                            >
-                              {confidenceGuidance.label}
-                            </span>
-                            <span
-                              className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${confidenceGuidance.iconBg} ${confidenceGuidance.iconColor}`}
-                            >
-                              {confidenceGuidance.pct}%
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
-                            {confidenceGuidance.message}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  )}
+                  <ProfileVerdictBanner
+                    isOwnProfile={isOwnProfile}
+                    houseInfluence01={houseInfluence01}
+                    setShareOpen={setShareOpen}
+                    isFlaggedProfile={isFlaggedProfile}
+                    verifiedCounts={verifiedCounts}
+                    npubParam={npubParam}
+                    confidenceGuidance={confidenceGuidance}
+                  />
 
-                  {(() => {
-                    if (!profileResult || (selfFollowedByList.length === 0 && selfFollowingList.length === 0))
-                      return null;
-                    const sharedUnique = new Set([...sharedFollowerPubkeys, ...sharedFollowingPubkeys]);
-                    const sharedCount = sharedUnique.size;
-                    const mutualFollowersCount = sharedFollowerPubkeys.length;
-                    const mutualFollowingCount = sharedFollowingPubkeys.length;
-                    const isExpandable = sharedCount > 0;
-                    const capHit = followedByQuery.hasNextPage || followingQuery.hasNextPage;
-                    const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
-
-                    return (
-                      <div
-                        className="mb-4 overflow-hidden rounded-xl border border-brand-primary/15 bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-brand-primary/10"
-                        data-testid="banner-shared-connections"
-                      >
-                        <div
-                          className={`flex items-start gap-3 px-4 py-3 ${isExpandable ? "cursor-pointer transition-colors hover:bg-brand-primary/10 dark:hover:bg-brand-primary/15" : ""}`}
-                          onClick={
-                            isExpandable
-                              ? () => {
-                                  if (isAnyExpanded) {
-                                    setExpandedSections((prev) => ({
-                                      ...prev,
-                                      shared_followers: false,
-                                      shared_following: false,
-                                    }));
-                                  } else {
-                                    toggleSection("shared_followers");
-                                    if (mutualFollowingCount > 0) {
-                                      setTimeout(() => toggleSection("shared_following"), 0);
-                                    }
-                                  }
-                                }
-                              : undefined
-                          }
-                        >
-                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-primary/20 bg-brand-primary/15 dark:border-brand-primary/25 dark:bg-brand-primary/15">
-                            <SharedConnectionIcon className="h-4 w-4 text-brand-primary" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            {sharedCount > 0 ? (
-                              <>
-                                <p className="text-sm font-semibold text-brand-primary dark:text-brand-link">
-                                  You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with
-                                  this person
-                                </p>
-                                <p className="mt-0.5 text-xs text-brand-primary dark:text-brand-link">
-                                  {mutualFollowersCount.toLocaleString()} mutual follower
-                                  {mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()}{" "}
-                                  mutual following
-                                </p>
-                                {capHit && (
-                                  <p
-                                    className="mt-1 text-[11px] italic text-brand-primary/60 dark:text-brand-link"
-                                    data-testid="text-shared-connections-cap-notice"
-                                  >
-                                    Based on top 200 connections — full overlap may be larger
-                                  </p>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
-                                  No shared connections
-                                </p>
-                                {capHit && (
-                                  <p
-                                    className="mt-1 text-[11px] italic text-slate-400/70 dark:text-slate-500/70"
-                                    data-testid="text-shared-connections-cap-notice"
-                                  >
-                                    Based on top 200 connections — overlap may exist beyond this sample
-                                  </p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          {isExpandable && (
-                            <ChevronDown
-                              className={`mt-1 h-4 w-4 shrink-0 text-brand-link transition-transform ${isAnyExpanded ? "rotate-180" : ""}`}
-                            />
-                          )}
-                        </div>
-                        {isAnyExpanded && (
-                          <div className="border-t border-brand-primary/15 dark:border-brand-primary/25">
-                            {mutualFollowersCount > 0 && (
-                              <div>
-                                <div
-                                  className="flex cursor-pointer items-center justify-between bg-brand-primary/10 px-4 py-2 transition-colors hover:bg-brand-primary/10 dark:bg-brand-primary/[0.06] dark:hover:bg-brand-primary/10"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleSection("shared_followers");
-                                  }}
-                                  data-testid="toggle-shared-followers"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <FollowersIcon className="h-3.5 w-3.5 text-brand-link" />
-                                    <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
-                                      Mutual Followers ({mutualFollowersCount.toLocaleString()})
-                                    </span>
-                                  </div>
-                                  <ChevronDown
-                                    className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_followers"] ? "rotate-180" : ""}`}
-                                  />
-                                </div>
-                                {renderExpandedPanel("shared_followers", sharedFollowerPubkeys)}
-                              </div>
-                            )}
-                            {mutualFollowingCount > 0 && (
-                              <div>
-                                <div
-                                  className="flex cursor-pointer items-center justify-between border-t border-brand-primary/15 bg-brand-primary/10 px-4 py-2 transition-colors hover:bg-brand-primary/10 dark:border-brand-primary/20 dark:bg-brand-primary/[0.06] dark:hover:bg-brand-primary/10"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleSection("shared_following");
-                                  }}
-                                  data-testid="toggle-shared-following"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <FollowingIcon className="h-3.5 w-3.5 text-brand-link" />
-                                    <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
-                                      Mutual Following ({mutualFollowingCount.toLocaleString()})
-                                    </span>
-                                  </div>
-                                  <ChevronDown
-                                    className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_following"] ? "rotate-180" : ""}`}
-                                  />
-                                </div>
-                                {renderExpandedPanel("shared_following", sharedFollowingPubkeys)}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <SharedConnectionsBanner
+                    profileResult={profileResult}
+                    selfFollowedByList={selfFollowedByList}
+                    selfFollowingList={selfFollowingList}
+                    sharedFollowerPubkeys={sharedFollowerPubkeys}
+                    sharedFollowingPubkeys={sharedFollowingPubkeys}
+                    followedByQuery={followedByQuery}
+                    followingQuery={followingQuery}
+                    expandedSections={expandedSections}
+                    setExpandedSections={setExpandedSections}
+                    toggleSection={toggleSection}
+                    renderExpandedPanel={renderExpandedPanel}
+                  />
 
                   {hexPubkey && <ProfileRecentPosts pubkey={hexPubkey} />}
 
@@ -2634,85 +2088,12 @@ export default function ProfilePage() {
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
-      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="rounded-2xl border-slate-200/80 shadow-xl dark:border-slate-800/80 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle
-              className="text-base font-bold text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Report User
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
-              This will publish a kind 1984 report event to Nostr relays. Choose a reason below.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-3">
-            {[
-              { value: "spam", label: "Spam", desc: "Unsolicited or repetitive content" },
-              { value: "impersonation", label: "Impersonation", desc: "Pretending to be someone else" },
-              { value: "nudity", label: "Inappropriate Content", desc: "Offensive or explicit material" },
-              { value: "other", label: "Other", desc: "Another reason not listed above" },
-            ].map((opt) => (
-              <label
-                key={opt.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all duration-200 ${
-                  reportReason === opt.value
-                    ? "border-brand-primary/25 bg-brand-primary/10 shadow-sm dark:border-brand-primary/[0.3] dark:bg-brand-primary/10 dark:shadow-none"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:bg-slate-900/50"
-                }`}
-                data-testid={`report-option-${opt.value}`}
-              >
-                <input
-                  type="radio"
-                  name="report-reason"
-                  value={opt.value}
-                  checked={reportReason === opt.value}
-                  onChange={() => setReportReason(opt.value)}
-                  className="mt-0.5 accent-brand-link"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{opt.label}</p>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{opt.desc}</p>
-                </div>
-              </label>
-            ))}
-          </div>
-          <DialogFooter className="flex gap-2 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setReportDialogOpen(false)}
-              className="h-9 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 sm:flex-none"
-              data-testid="button-report-cancel"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={social.isPending("report", hexPubkey) || social.isAnyPending}
-              onClick={async () => {
-                const result = await social.report(hexPubkey, reportReason);
-                if (result.cancelled) return;
-                if (result.success) {
-                  toast({ title: "Reported", description: "Report published to Nostr relays" });
-                  setReportDialogOpen(false);
-                } else {
-                  toast({ title: "Error", description: result.error || "Failed to report", variant: "destructive" });
-                }
-              }}
-              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:pointer-events-none disabled:opacity-50 sm:flex-none"
-              data-testid="button-report-confirm"
-            >
-              {social.isPending("report", hexPubkey) ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Flag className="h-3.5 w-3.5" />
-              )}
-              Submit Report
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReportDialog
+        reportDialogOpen={reportDialogOpen}
+        setReportDialogOpen={setReportDialogOpen}
+        social={social}
+        hexPubkey={hexPubkey}
+      />
 
       {isAnon ? (
         <footer
