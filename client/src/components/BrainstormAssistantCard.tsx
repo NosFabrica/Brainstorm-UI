@@ -252,14 +252,14 @@ export function BrainstormAssistantCard({
 
   const handleCopyNpub = useCallback(() => {
     if (!published?.npub) return;
-    copyToClipboard(published.npub).then(
-      () => toast({ title: "Copied!", description: "Assistant npub copied to clipboard." }),
-      () =>
-        toast({
-          title: "Copy failed",
-          description: "Could not copy to clipboard. Please copy manually.",
-          variant: "destructive",
-        }),
+    void copyToClipboard(published.npub).then((ok) =>
+      ok
+        ? toast({ title: "Copied!", description: "Assistant npub copied to clipboard." })
+        : toast({
+            title: "Copy failed",
+            description: "Could not copy to clipboard. Please copy manually.",
+            variant: "destructive",
+          }),
     );
   }, [published?.npub, toast]);
 

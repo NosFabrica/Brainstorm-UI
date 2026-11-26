@@ -142,8 +142,13 @@ function MiniCopy({ text, testId }: { text: string; testId: string }) {
       className="shrink-0 rounded p-0.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
       onClick={(e) => {
         e.stopPropagation();
-        copyToClipboard(text);
-        toast({ title: "Copied", description: text.slice(0, 24) + (text.length > 24 ? "…" : ""), duration: 1500 });
+        void copyToClipboard(text).then((ok) =>
+          toast(
+            ok
+              ? { title: "Copied", description: text.slice(0, 24) + (text.length > 24 ? "…" : ""), duration: 1500 }
+              : { title: "Couldn't copy", variant: "destructive" },
+          ),
+        );
       }}
       data-testid={testId}
       aria-label="Copy to clipboard"

@@ -493,11 +493,10 @@ export default function NetworkPage() {
   };
 
   const handleCopyNpub = useCallback(async (npub: string, pubkey: string) => {
-    try {
-      await copyToClipboard(npub);
-      setCopiedPubkey(pubkey);
-      setTimeout(() => setCopiedPubkey(null), 2000);
-    } catch {}
+    // copyToClipboard reports a failure as false; it never rejects.
+    if (!(await copyToClipboard(npub))) return;
+    setCopiedPubkey(pubkey);
+    setTimeout(() => setCopiedPubkey(null), 2000);
   }, []);
 
   const handleCloseDetail = useCallback(() => {

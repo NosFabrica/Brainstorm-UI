@@ -82,8 +82,13 @@ export function AccountOverviewStrip({
               <button
                 className="flex items-center gap-1 font-mono text-xs text-white/80 transition-colors hover:text-white"
                 onClick={() => {
-                  copyToClipboard(npub);
-                  toast({ title: "Copied!", description: "npub copied to clipboard" });
+                  void copyToClipboard(npub).then((ok) =>
+                    toast(
+                      ok
+                        ? { title: "Copied!", description: "npub copied to clipboard" }
+                        : { title: "Couldn't copy", variant: "destructive" },
+                    ),
+                  );
                 }}
                 data-testid="button-overview-copy-npub"
               >
@@ -149,8 +154,13 @@ export function AccountOverviewStrip({
                 <button
                   className="flex items-center gap-1 truncate font-mono text-xs text-white/80 transition-colors hover:text-white"
                   onClick={() => {
-                    copyToClipboard(npub);
-                    toast({ title: "Copied!", description: "npub copied to clipboard" });
+                    void copyToClipboard(npub).then((ok) =>
+                      toast(
+                        ok
+                          ? { title: "Copied!", description: "npub copied to clipboard" }
+                          : { title: "Couldn't copy", variant: "destructive" },
+                      ),
+                    );
                   }}
                   data-testid="button-overview-copy-npub-mobile"
                 >
@@ -267,8 +277,13 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
   };
 
   const handleCopyInviteLink = () => {
-    copyToClipboard(publicOrigin());
-    toast({ title: "Invite link copied!", description: "Share this link to grow the network." });
+    void copyToClipboard(publicOrigin()).then((ok) =>
+      toast(
+        ok
+          ? { title: "Invite link copied!", description: "Share this link to grow the network." }
+          : { title: "Couldn't copy", variant: "destructive" },
+      ),
+    );
   };
 
   return (

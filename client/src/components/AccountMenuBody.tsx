@@ -328,9 +328,14 @@ export function AccountMenuBody({
         <button
           type="button"
           className="ml-[3.75rem] mt-1 flex items-center gap-1 text-xs text-slate-500 transition-colors hover:text-brand-deep dark:text-slate-400 dark:hover:text-brand-link"
-          onClick={async () => {
-            await copyToClipboard(user.npub);
-            toast({ title: "Copied!", description: "npub copied to clipboard" });
+          onClick={() => {
+            void copyToClipboard(user.npub).then((ok) =>
+              toast(
+                ok
+                  ? { title: "Copied!", description: "npub copied to clipboard" }
+                  : { title: "Couldn't copy", description: "Copy the npub by hand.", variant: "destructive" },
+              ),
+            );
           }}
           data-testid="button-copy-npub"
         >

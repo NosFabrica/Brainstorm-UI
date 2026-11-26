@@ -165,8 +165,13 @@ export function AgentSuiteNav({
                     <button
                       className="flex items-center gap-1 text-xs leading-none text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
                       onClick={() => {
-                        copyToClipboard(user.npub);
-                        toast({ title: "Copied!", description: "npub copied to clipboard" });
+                        void copyToClipboard(user.npub).then((ok) =>
+                          toast(
+                            ok
+                              ? { title: "Copied!", description: "npub copied to clipboard" }
+                              : { title: "Couldn't copy", variant: "destructive" },
+                          ),
+                        );
                       }}
                       data-testid="button-copy-npub"
                     >

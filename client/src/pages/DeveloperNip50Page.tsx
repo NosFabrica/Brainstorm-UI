@@ -69,12 +69,12 @@ export default function DeveloperNip50Page() {
   const { toast } = useToast();
 
   const copyRelay = async () => {
-    try {
-      await copyToClipboard(RELAY_URL);
-      toast({ title: "Copied!", description: "Relay URL copied to clipboard" });
-    } catch {
-      /* clipboard unavailable */
-    }
+    const ok = await copyToClipboard(RELAY_URL);
+    toast(
+      ok
+        ? { title: "Copied!", description: "Relay URL copied to clipboard" }
+        : { title: "Couldn't copy", description: RELAY_URL, variant: "destructive" },
+    );
   };
 
   return (
@@ -120,7 +120,7 @@ export default function DeveloperNip50Page() {
               </code>
               <button
                 type="button"
-                onClick={copyRelay}
+                onClick={() => void copyRelay()}
                 className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                 data-testid="button-copy-relay"
               >
