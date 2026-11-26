@@ -17,18 +17,10 @@ import { useHasMywot } from "@/hooks/useHasMywot";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import {
-  fetchProfiles,
-  eventStore,
-  fetchReportsForPubkey,
-  fetchReportsByPubkey,
-  fetchMuteListTimestamp,
-  type ReportMetadata,
-} from "@/services/nostr";
+import { fetchProfiles, eventStore } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import { isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
@@ -48,13 +40,7 @@ import {
 } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import { useProfileConnections } from "./profileConnections";
-import {
-  expandProfileCache,
-  expandProfileAttempted,
-  expandTrustCacheFor,
-  reportMetadataCache,
-  muteMetadataCache,
-} from "@/services/profilePageCache";
+import { expandProfileCache, expandTrustCacheFor } from "@/services/profilePageCache";
 import { Footer } from "@/components/Footer";
 import { SignInButton } from "@/components/SignInButton";
 import { useSocialActions } from "@/hooks/useSocialActions";
@@ -82,6 +68,7 @@ import { ProfileAbout } from "./profile/ProfileAbout";
 import { ProfileActions } from "./profile/ProfileActions";
 import { ProfileVerdictBanner, SharedConnectionsBanner } from "./profile/ProfileBanners";
 import { ReportDialog } from "./profile/ReportDialog";
+import { useSectionRows } from "./profile/useSectionRows";
 import { ProfileCoverBanner, ProfileIdentity } from "./profile/ProfileIdentity";
 import { SocialReachCard } from "./profile/SocialReachCard";
 import { RiskSignalsCard, SocialContextCard } from "./profile/SocialContextCard";
@@ -100,7 +87,6 @@ export default function ProfilePage() {
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
-  const [reportMetadataLoading, setReportMetadataLoading] = useState<Record<string, boolean>>({});
   const [forceRender, setForceRender] = useState(0);
   const hasExpandedRef = useRef(false);
   const rafBumpRef = useRef<number | null>(null);
@@ -440,139 +426,26 @@ export default function ProfilePage() {
 
   const isLoading = !seed && !profileResult && profileQuery.isLoading;
 
+  const {
+    reportMetadataLoading,
+    prefetchedRef,
+    fetchSectionProfiles,
+    fetchSectionMetadata,
+    getReportForPubkey,
+    resetSectionRows,
+  } = useSectionRows(hexPubkey, profileResult, bumpRerender);
+
   useEffect(() => {
     setExpandedSections({});
     setSectionVisibleCount({});
-    setReportMetadataLoading({});
     hasExpandedRef.current = false;
-    metadataFetchedRef.current.clear();
-    prefetchedRef.current.clear();
-  }, [hexPubkey]);
+    resetSectionRows();
+  }, [hexPubkey, resetSectionRows]);
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
-
-  const fetchAbortRef = useRef<number>(0);
-  const prefetchedRef = useRef<Set<string>>(new Set());
-
-  const fetchSectionProfiles = useCallback(
-    async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
-      const fetchId = ++fetchAbortRef.current;
-      const toFetch = pubkeys.slice(startIdx, startIdx + count).filter((pk) => !expandProfileCache.has(pk));
-      if (toFetch.length === 0) return;
-      const missingProfiles: string[] = [];
-      for (const pk of toFetch) {
-        const event = eventStore.getReplaceable(0, pk);
-        if (event) {
-          if (isValidProfile(event)) expandProfileCache.set(pk, getProfileContent(event));
-        } else {
-          missingProfiles.push(pk);
-        }
-      }
-      if (fetchAbortRef.current !== fetchId) return;
-      if (missingProfiles.length > 0) {
-        bumpRerender();
-      }
-      await Promise.allSettled([
-        ...(missingProfiles.length > 0
-          ? [
-              fetchProfiles(missingProfiles, (pubkey, profile) => {
-                expandProfileCache.set(pubkey, profile);
-                bumpRerender();
-              }),
-            ]
-          : []),
-      ]);
-      if (fetchAbortRef.current !== fetchId) return;
-      // Every pubkey in this batch has now had a fetch attempt (eventStore hit or
-      // a settled relay request). Mark them so rows with no resolvable kind-0
-      // profile fall back to the npub instead of a skeleton forever.
-      toFetch.forEach((pk) => expandProfileAttempted.set(pk, true));
-      bumpRerender();
-      const nextStart = startIdx + count;
-      if (nextStart < pubkeys.length) {
-        const nextBatch = pubkeys
-          .slice(nextStart, nextStart + count)
-          .filter((pk) => !expandProfileCache.has(pk) && !eventStore.getReplaceable(0, pk));
-        if (nextBatch.length > 0) {
-          nextBatch.forEach((pk) => prefetchedRef.current.add(pk));
-          fetchProfiles(nextBatch, (pubkey, profile) => {
-            expandProfileCache.set(pubkey, profile);
-          });
-        }
-      }
-    },
-    [bumpRerender],
-  );
-
-  const metadataFetchedRef = useRef<Set<string>>(new Set());
-
-  const fetchSectionMetadata = useCallback(
-    async (sectionKey: string, extraPubkeys?: string[]) => {
-      if (!hexPubkey) return;
-      const cacheKey = `${sectionKey}:${hexPubkey}`;
-
-      if (sectionKey === "reported_by" || sectionKey === "reporting") {
-        if (metadataFetchedRef.current.has(cacheKey)) return;
-        metadataFetchedRef.current.add(cacheKey);
-      }
-
-      if (sectionKey === "muting") {
-        if (muteMetadataCache.has(hexPubkey)) return;
-      }
-
-      setReportMetadataLoading((prev) => ({ ...prev, [sectionKey]: true }));
-
-      try {
-        if (sectionKey === "reported_by") {
-          const reports = await fetchReportsForPubkey(hexPubkey);
-          reportMetadataCache.set(cacheKey, reports);
-        } else if (sectionKey === "reporting") {
-          const reports = await fetchReportsByPubkey(hexPubkey);
-          reportMetadataCache.set(cacheKey, reports);
-        } else if (sectionKey === "muted_by") {
-          const pubkeysToFetch = extraPubkeys || toPubkeys(getSection(profileResult, sectionKey)).slice(0, 50);
-          const unfetched = pubkeysToFetch.filter((pk) => !muteMetadataCache.has(pk));
-          if (unfetched.length > 0) {
-            const results = await Promise.allSettled(unfetched.map((pk) => fetchMuteListTimestamp(pk)));
-            for (const r of results) {
-              if (r.status === "fulfilled" && r.value) {
-                muteMetadataCache.set(r.value.muterPubkey, r.value);
-              }
-            }
-          }
-        } else if (sectionKey === "muting") {
-          const result = await fetchMuteListTimestamp(hexPubkey);
-          if (result) {
-            muteMetadataCache.set(hexPubkey, result);
-          }
-        }
-      } catch {}
-
-      setReportMetadataLoading((prev) => ({ ...prev, [sectionKey]: false }));
-      bumpRerender();
-    },
-    [hexPubkey, profileResult, bumpRerender],
-  );
-
-  const getReportForPubkey = useCallback(
-    (sectionKey: string, pubkey: string): ReportMetadata | undefined => {
-      const cacheKey = `${sectionKey}:${hexPubkey}`;
-      const reports = reportMetadataCache.get(cacheKey);
-      if (!reports) return undefined;
-      const matching =
-        sectionKey === "reported_by"
-          ? reports.filter((r) => r.reporterPubkey === pubkey)
-          : sectionKey === "reporting"
-            ? reports.filter((r) => r.targetPubkey === pubkey)
-            : [];
-      if (matching.length === 0) return undefined;
-      return matching.reduce((latest, r) => (r.timestamp > latest.timestamp ? r : latest), matching[0]);
-    },
-    [hexPubkey],
-  );
 
   const formatRelativeTime = useCallback((timestamp: number) => formatReportTime(timestamp), []);
 
@@ -642,7 +515,7 @@ export default function ProfilePage() {
       if (isIdle && typeof cic === "function") cic(handle);
       else window.clearTimeout(handle);
     };
-  }, [profileResult, mutualPubkeys, sharedFollowerPubkeys, sharedFollowingPubkeys]);
+  }, [profileResult, mutualPubkeys, sharedFollowerPubkeys, sharedFollowingPubkeys, prefetchedRef]);
 
   const sectionInfluenceMaps = useMemo(() => {
     const out: Record<string, Map<string, number | null>> = {
