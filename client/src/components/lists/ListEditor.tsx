@@ -339,7 +339,8 @@ export function ListEditor({
             </AlertDescription>
           </Alert>
         )}
-        {error && (
+        {/* The stale notice above already says a newer version arrived: don't say it twice. */}
+        {error && !(inPlace && list.stale && error === NEWER_VERSION_ARRIVED) && (
           <Alert variant="destructive" data-testid="list-editor-error">
             <AlertDescription>{error}</AlertDescription>
           </Alert>

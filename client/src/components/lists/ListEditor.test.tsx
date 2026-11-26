@@ -270,8 +270,21 @@ describe("ListEditor — a newer version arriving while it's open", () => {
     await fill(screen.getByTestId("list-editor-description"), "Mine");
     lists.at.set("food-trucks", v2);
     await userEvent.click(screen.getByTestId("list-editor-publish"));
-    expect(await screen.findByTestId("list-editor-error")).toHaveTextContent("A newer version arrived");
+    // Said once, by the stale notice (the error alert would only repeat it).
+    await waitFor(() => expect(screen.getAllByText(/A newer version arrived/)).toHaveLength(1));
     expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("says a newer version arrived once, not in both the notice and the error", async () => {
+    lists.at.set("food-trucks", v1);
+    const { rerender } = renderWithProviders(at(v1));
+    await waitFor(() => expect(screen.getByTestId("list-editor-publish")).toBeEnabled());
+    await fill(screen.getByTestId("list-editor-description"), "Mine");
+    lists.at.set("food-trucks", v2);
+    await userEvent.click(screen.getByTestId("list-editor-publish"));
+    rerender(at(v2));
+    await screen.findByText(/A newer version arrived/);
+    await waitFor(() => expect(screen.getAllByText(/A newer version arrived/)).toHaveLength(1));
   });
 });
 
