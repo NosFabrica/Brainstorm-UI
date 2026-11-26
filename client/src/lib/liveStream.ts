@@ -109,7 +109,7 @@ export function verifyRecording(url: string): Promise<boolean> {
 
 export type LiveState = "live" | "upcoming" | "replay";
 
-/** A "live" event untouched this long is stale. */
+/** A "live" event (a 30311 or a 30313, not a space) untouched this long is stale. */
 export const LIVE_STALE_AFTER_SEC = 7 * 86_400;
 /** From this age on, a "live" event must prove its stream still answers. */
 export const LIVE_CHECK_AFTER_SEC = 86_400;
@@ -153,8 +153,12 @@ export function liveStateOf(ev: EventLike, nowSec = Math.floor(Date.now() / 1000
   if (status === "live" || status === "open" || (ev.kind === 30312 && status === "private")) {
     // A status nobody updated is not a broadcast: platforms republish a live
     // event as viewers come and go, so one untouched for a week — or one past
-    // its own end — is over (Barnoldswick: "live" since 2.4 years ago).
-    if ((ends > 0 && ends < nowSec) || nowSec - ev.created_at > LIVE_STALE_AFTER_SEC) return over;
+    // its own end — is over (Barnoldswick: "live" since 2.4 years ago). NIP-53
+    // says so of a live activity and a meeting, not of a space: a 30312 is a
+    // standing room, and its status is its door (open, private, closed), not
+    // a broadcast that has to be kept up.
+    const stale = (ends > 0 && ends < nowSec) || nowSec - ev.created_at > LIVE_STALE_AFTER_SEC;
+    if (ev.kind !== 30312 && stale) return over;
     // And a stream nothing can play is not one either: a streaming URL that
     // is not a web or socket URL (probed 2026-09-05, a QA event's ftp:// with
     // 99999 "viewers" led the grid). An announced stream with no URL yet stays.

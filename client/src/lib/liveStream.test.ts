@@ -261,6 +261,23 @@ describe("stale live — a status nobody updated is not a broadcast", () => {
     expect(liveStateOf(live(8 * 86_400, [["recording", "https://r/x.m3u8"]]), now)).toBe("replay");
     expect(liveStateOf(live(2 * 86_400), now)).toBe("live");
   });
+  // NIP-53: "events without updates for 1 hour MAY be considered ended" is said of a live
+  // activity (30311) and a meeting (30313). A space (30312) is a standing room whose status
+  // (open, private, closed) is its door, not a broadcast: an old one that says open is open.
+  it("a space that says open stays open however long ago it was published", () => {
+    const space = (status: string) => ({
+      ...live(30 * 86_400),
+      kind: 30312,
+      tags: [
+        ["d", "r"],
+        ["room", "Town hall"],
+        ["status", status],
+      ],
+    });
+    expect(liveStateOf(space("open"), now)).toBe("live");
+    expect(liveStateOf(space("private"), now)).toBe("live");
+    expect(liveStateOf(space("closed"), now)).toBeNull();
+  });
   it("a live whose own end has passed is over", () => {
     expect(liveStateOf(live(3600, [["ends", String(now - 60)]]), now)).toBeNull();
     expect(liveStateOf(live(3600, [["ends", String(now + 3600)]]), now)).toBe("live");
