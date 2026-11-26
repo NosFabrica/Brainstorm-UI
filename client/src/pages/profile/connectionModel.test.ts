@@ -7,6 +7,7 @@ import {
   deriveConnectionClusters,
   getSection,
   getTrustForPkFromMaps,
+  sectionCount,
   type TrustCache,
 } from "./connectionModel";
 
@@ -99,5 +100,14 @@ describe("computeProcessedPubkeys", () => {
     expect(run("reporting", "unavailable")).toEqual([C]);
     // Not a report section: the type filter doesn't apply.
     expect(run("followed_by", "spam")).toEqual([A, B, C]);
+  });
+});
+
+describe("sectionCount", () => {
+  it("takes the overview's count, else the loaded rows', else the number held", () => {
+    expect(sectionCount(7, [A, B])).toBe(7);
+    expect(sectionCount(undefined, [A, { pubkey: B, influence: 0.1 }])).toBe(2);
+    expect(sectionCount(undefined, 12)).toBe(12);
+    expect(sectionCount(undefined, undefined)).toBe(0);
   });
 });

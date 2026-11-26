@@ -7,7 +7,7 @@
 import { ArrowLeft, ArrowLeftRight, ArrowRight } from "lucide-react";
 import { nip19 } from "nostr-tools";
 import type { ReportMetadata } from "@/services/nostr";
-import type { GraphEntry } from "@/services/graphHelpers";
+import { toPubkeys, type GraphEntry } from "@/services/graphHelpers";
 import { expandProfileCache } from "@/services/profilePageCache";
 import { TIER_LABELS } from "@/services/trustThreshold";
 
@@ -297,4 +297,15 @@ export function computeProcessedPubkeys(
     });
   }
   return sorted;
+}
+
+/** The six relationships the backend counts for a person. */
+export type SectionKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting";
+
+/**
+ * A section's count for its row: the overview's, else the loaded rows', else
+ * the bare number the result holds before they land.
+ */
+export function sectionCount(overviewCount: number | undefined, value: GraphEntry[] | number | undefined): number {
+  return overviewCount ?? (Array.isArray(value) ? toPubkeys(value).length : value || 0);
 }
