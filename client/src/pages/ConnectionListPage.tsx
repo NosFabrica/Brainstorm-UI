@@ -547,7 +547,7 @@ export default function ConnectionListPage() {
         {!searching && connQuery.hasNextPage && (
           <button
             type="button"
-            onClick={() => connQuery.fetchNextPage()}
+            onClick={() => void connQuery.fetchNextPage()}
             disabled={connQuery.isFetchingNextPage}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
             data-testid="conn-load-more"

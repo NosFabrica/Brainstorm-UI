@@ -260,8 +260,8 @@ function AccountIdentity({
                 size="sm"
                 aria-label="Save bio"
                 disabled={!bio.trim() || saving === "about"}
-                onClick={async () => {
-                  if (await save("about", bio)) setWritingBio(false);
+                onClick={() => {
+                  void save("about", bio).then((saved) => saved && setWritingBio(false));
                 }}
               >
                 {saving === "about" ? "Saving…" : "Save"}

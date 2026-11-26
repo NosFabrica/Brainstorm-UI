@@ -333,7 +333,11 @@ export default function AlertsPage() {
         ) : q.isError ? (
           <div className="py-8 text-sm text-slate-500 dark:text-slate-400">
             Couldn't load your network alerts.{" "}
-            <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">
+            <button
+              type="button"
+              onClick={() => void q.refetch()}
+              className="font-semibold text-brand-link hover:underline"
+            >
               Try again
             </button>
           </div>

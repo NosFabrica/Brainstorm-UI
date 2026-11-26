@@ -248,7 +248,7 @@ export default function ActivateBrainstormPage() {
 
               <button
                 type="button"
-                onClick={handleActivate}
+                onClick={() => void handleActivate()}
                 disabled={phase !== "idle" || !taPubkey || !providerKnown}
                 className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
                 data-testid="button-activate-page-confirm"
