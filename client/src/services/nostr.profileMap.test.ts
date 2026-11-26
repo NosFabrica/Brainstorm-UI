@@ -39,6 +39,9 @@ vi.mock("@/lib/relayRouting", async (importOriginal) => {
   return { ...actual, warmRelayLists: (pubkeys: string[]) => warmMock(pubkeys) };
 });
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { getEvent: () => undefined, getReplaceable: () => undefined, add: (e: NostrEvent) => e },
 }));
 

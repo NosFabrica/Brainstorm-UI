@@ -15,6 +15,9 @@ const held = new Map<string, NostrEvent>();
 const loadReplaceableMock = vi.fn(async () => undefined as NostrEvent | undefined);
 
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { getReplaceable: (k: number, p: string) => held.get(`${k}:${p}`) },
 }));
 vi.mock("@/lib/loaders", () => ({

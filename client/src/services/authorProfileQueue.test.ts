@@ -22,6 +22,9 @@ const inStore = new Map<string, NostrEvent>();
 /** What the store answers an add with: by default the event, as if kept. */
 const addMock = vi.fn((e: unknown) => e);
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { add: (e: unknown) => addMock(e), getReplaceable: (_kind: number, pk: string) => inStore.get(pk) },
 }));
 const loadReplaceableMock = vi.fn(async (..._args: unknown[]) => undefined);

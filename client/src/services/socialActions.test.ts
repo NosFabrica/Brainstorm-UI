@@ -117,6 +117,9 @@ const storeAdd = vi.fn((e: unknown) => e);
 // `getReplaceable` is what NIP-65 routing reads to find the author's write
 // relays; these cases never seed one, so routing falls back to the defaults.
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { add: (e: unknown) => storeAdd(e), getReplaceable: () => undefined },
 }));
 // Routing may go to the relays for a kind-10002. These cases are about the

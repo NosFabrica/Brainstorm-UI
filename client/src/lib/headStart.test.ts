@@ -13,7 +13,12 @@ import { TOP_SECTIONS } from "@/components/search/ComposedResults";
 import { LATEST_RANK_FLOOR } from "@/lib/searchSyntax";
 
 const added: NostrEvent[] = [];
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: NostrEvent) => added.push(e) } }));
+vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
+  eventStore: { add: (e: NostrEvent) => added.push(e) },
+}));
 
 const ev = (id: string, kind: number): NostrEvent =>
   ({ id, kind, pubkey: "a".repeat(64), tags: [], content: "", created_at: 1, sig: "s" }) as NostrEvent;

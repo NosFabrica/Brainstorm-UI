@@ -20,6 +20,9 @@ vi.mock("@/lib/relayPool", () => ({
   },
 }));
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: () => undefined,
     getEvent: () => undefined,

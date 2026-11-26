@@ -19,6 +19,9 @@ vi.mock("@/lib/relayRequest", () => ({
   requestOne: vi.fn(),
 }));
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { getEvent: () => undefined, getReplaceable: () => undefined, add: (e: NostrEvent) => e },
 }));
 let searchSubject: Subject<{ type: string; event?: NostrEvent }> | null = null;

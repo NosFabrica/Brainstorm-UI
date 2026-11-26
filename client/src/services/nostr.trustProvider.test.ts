@@ -19,6 +19,9 @@ vi.mock("@/lib/relayRequest", () => ({
 }));
 const heldMock = vi.fn<() => NostrEvent | undefined>(() => undefined);
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { getReplaceable: () => heldMock(), getEvent: () => undefined, add: (e: NostrEvent) => e },
 }));
 vi.mock("@/lib/relayRouting", async (importOriginal) => ({

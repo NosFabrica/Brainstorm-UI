@@ -45,7 +45,12 @@ vi.mock("@/hooks/useStoreReplaceable", () => ({
   }),
 }));
 vi.mock("@/services/nostr", () => ({ fetchEventsByFilter: vi.fn(async () => []) }));
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (ev: unknown) => h.added.push(ev) } }));
+vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
+  eventStore: { add: (ev: unknown) => h.added.push(ev) },
+}));
 
 import { parseTreasureMapCheck } from "@/lib/assistantTreasureMap";
 import { TreasureMapUnavailableError } from "@/services/api";

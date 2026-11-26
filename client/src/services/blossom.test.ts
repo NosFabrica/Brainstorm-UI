@@ -12,7 +12,12 @@ vi.mock("@/accounts/signing", () => ({
   signAs: (...args: unknown[]) => signAs(...(args as [unknown, Record<string, unknown>])),
   signingFailure: vi.fn(),
 }));
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: vi.fn() } }));
+vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
+  eventStore: { add: vi.fn() },
+}));
 vi.mock("@/services/nostr", () => ({ publishToRelays: vi.fn() }));
 
 import { serverScopeTags, uploadToBlossom } from "./blossom";

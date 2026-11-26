@@ -20,6 +20,9 @@ vi.mock("@/lib/relayRequest", () => ({
 
 const storeEvents = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getEvent: (id: string) => storeEvents.get(id),
     getReplaceable: () => undefined,

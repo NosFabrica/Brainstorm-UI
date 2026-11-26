@@ -15,6 +15,9 @@ import { __resetHeadStart } from "@/lib/headStart";
 
 // The store verifies signatures; these events are fixtures, not signed ones.
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     add: (e: unknown) => e,

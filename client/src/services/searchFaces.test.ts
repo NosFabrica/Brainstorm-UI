@@ -14,6 +14,9 @@ const storeGet = vi.fn<(pubkey?: string) => NostrEvent | undefined>(() => undefi
 /** The store's answer to an add: by default the event, kept. */
 const storeAdd = vi.fn((e: NostrEvent): NostrEvent | null => e);
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: (_kind: number, pubkey: string) => storeGet(pubkey),
     add: (e: NostrEvent) => storeAdd(e),

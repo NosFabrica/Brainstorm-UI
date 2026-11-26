@@ -193,11 +193,26 @@ const trust = vi.hoisted(() => ({
   follows: new Set<string>(),
   signedIn: false,
   asked: 0,
+  reactions: 0,
 }));
-vi.mock("@/services/itemEngagement", () => ({
-  fetchItemsReactions: async (items: { id: string }[]) => {
+// The endorsements are read through the store (hooks/useTrustedRecommenders, docs/adr/0005):
+// each endorser is answered as the kind-7 "+" reaction that names the item.
+vi.mock("@/services/itemEngagement", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/itemEngagement")>()),
+  readItemsReactions: async (items: { id: string }[]) => {
     trust.asked++;
-    return new Map(items.filter((i) => trust.endorsers.has(i.id)).map((i) => [i.id, trust.endorsers.get(i.id)!]));
+    return items.flatMap((i) =>
+      (trust.endorsers.get(i.id) ?? []).map((e) => ({
+        // Unique per reaction: the items' own ids differ only in their last digits.
+        id: String(++trust.reactions).padStart(64, "f"),
+        pubkey: e.pubkey,
+        kind: 7,
+        created_at: e.at,
+        tags: [["e", i.id]],
+        content: "+",
+        sig: "",
+      })),
+    );
   },
 }));
 vi.mock("@/hooks/useMyFollows", () => ({

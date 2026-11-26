@@ -82,6 +82,9 @@ vi.mock("@/lib/eventCache", async (importOriginal) => ({
     new Map(pubkeys.flatMap((pk) => (deviceProfiles.has(pk) ? [[pk, deviceProfiles.get(pk)!]] : []))),
 }));
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => getReplaceableMock(kind, pubkey),
     add: (event: unknown) => storeAddMock(event),

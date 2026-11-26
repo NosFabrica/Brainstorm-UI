@@ -15,6 +15,9 @@ vi.mock("@/services/nostr", async () => ({
   fetchAddressableEvents: (coords: unknown[]) => addressedMock(coords),
 }));
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: () => undefined,

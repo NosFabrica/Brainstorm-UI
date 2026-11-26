@@ -22,6 +22,9 @@ const held = new Map<string, NostrEvent>();
 const signed: Record<string, unknown>[] = [];
 
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => held.get(`${kind}:${pubkey}`),
     getEvent: () => undefined,

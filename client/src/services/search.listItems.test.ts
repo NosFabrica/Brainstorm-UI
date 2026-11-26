@@ -15,6 +15,9 @@ const houseMock = vi.fn(() => Promise.resolve<string | null>(HOUSE));
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: () => houseMock() }));
 // Every event goes through the store, which verifies; these carry no signature.
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { ...(await import("@/test/fakeEventStore")).eventStoreDefaults },
 }));
 

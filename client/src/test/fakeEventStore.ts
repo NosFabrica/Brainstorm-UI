@@ -6,6 +6,9 @@ import { NEVER, of } from "rxjs";
  * trips): spread first, override what the test seeds.
  *
  *   vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
  *     eventStore: {
  *       ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
  *       getReplaceable: (_k: number, pk: string) => known.get(pk),
