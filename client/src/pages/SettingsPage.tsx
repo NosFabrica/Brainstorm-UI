@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
@@ -6,7 +6,6 @@ import { Redirect, useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Settings as SettingsIcon,
   Check,
   Loader2,
   ArrowRight,
@@ -15,20 +14,12 @@ import {
   User,
   ShieldCheck,
   Download,
-  ChevronDown,
   Key,
   AlertTriangle,
-  IdCard,
-  SlidersHorizontal,
-  ShieldAlert,
-  ChevronRight,
   BookOpen,
   MessageCircle,
   Bot,
 } from "lucide-react";
-import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
-import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
 import { logout } from "@/accounts/login-flow";
@@ -54,7 +45,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
 import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
-import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
 import {
   assistantViewsFor,
@@ -63,7 +53,6 @@ import {
   type AssistantView,
   type SettingsTabKey,
 } from "@/lib/settingsTab";
-import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow";
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
@@ -80,6 +69,9 @@ import { ServiceProviderCard } from "./settings/ServiceProviderCard";
 import { TrustCalcCard } from "./settings/TrustCalcCard";
 import { useTrustPresetChoice } from "./settings/useTrustPresetChoice";
 import { PresetsCard } from "./settings/PresetsCard";
+import { PersonalizationCard } from "./settings/PersonalizationCard";
+import { NetworkAlertsCard, useNetworkAlertsSummary } from "./settings/NetworkAlertsCard";
+import { AdvancedSection } from "./settings/AdvancedSection";
 
 type SettingsTab = SettingsTabKey;
 
@@ -283,11 +275,10 @@ export default function SettingsPage() {
     (trustProviderStatus.data !== "other" && isNip85Activated(user?.pubkey));
   const trustAnchor = useTrustAnchorActions(user?.pubkey, taPubkey);
 
-  // Network Alerts card inputs (see the card below). Hooks, so they live above
-  // the guard: `user` can drop to null while this page is mounted, and a hook
-  // below the guard would change the hook count between renders.
-  const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
-  const ignoreSync = useIgnoreSyncState();
+  // Network Alerts card inputs (settings/NetworkAlertsCard). A hook, so it lives
+  // above the guard: `user` can drop to null while this page is mounted, and a
+  // hook below the guard would change the hook count between renders.
+  const { ignoredListCount, savedWhere } = useNetworkAlertsSummary(pubkey);
 
   if (!user || isAuthRedirecting()) return null;
 
@@ -602,168 +593,18 @@ export default function SettingsPage() {
 
   const presetsCard = <PresetsCard choice={presetChoice} />;
 
-  const personalizationCard = (
-    <div
-      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      data-testid="card-settings-personalization"
-    >
-      {" "}
-      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-            <IdCard className="h-4 w-4 text-brand-deep" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2
-                className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="text-personalization-title"
-              >
-                Preferences
-              </h2>
-              <span
-                className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-700"
-                data-testid="badge-personalization-preview"
-              >
-                <span className="h-1 w-1 rounded-full bg-emerald-500" /> Live
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-personalization-subtitle">
-              Choose what your profile shows
-            </p>
-          </div>
-        </div>
-        {user?.npub && (
-          <button
-            type="button"
-            onClick={() => navigate(`/p/${user.npub}`)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
-            data-testid="link-customize-profile"
-          >
-            <SlidersHorizontal className="h-4 w-4" /> Customize your public profile
-          </button>
-        )}
-      </div>
-      <div className="p-5">
-        <p
-          className="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
-          data-testid="text-personalization-desc"
-        >
-          Choose exactly what appears on your public profile — which sections show, the order they're in, and who's
-          featured. Open the customizer to edit it live; your choices are published to Nostr, so you own them across
-          every client. Tags are separate: add those from your profile, and anyone can add one to you.
-        </p>
-        <div
-          className="flex items-center justify-between gap-4 border-t border-slate-100 pt-4 dark:border-slate-800/60"
-          data-testid="row-appearance"
-        >
-          <div>
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Theme</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Light, Dark, or your system's. This device only.
-            </p>
-          </div>
-          <ThemeToggle />
-        </div>
-      </div>
-    </div>
-  );
+  const personalizationCard = <PersonalizationCard npub={user?.npub} />;
 
-  // Settings' door to the whole Network Alerts surface, not just one slice of it.
-  // It opens /alerts, which has three tabs, so labelling it "Ignored accounts"
-  // described a third of where it goes. The subtitle names all three so this
-  // reads as a map — which also gives extended reach a findable trail now that
-  // it's off the dashboard entirely.
-  //
-  // Only the ignored count is shown, because it's the only free one: it's a
-  // localStorage read, whereas follows/extended need the ~10s /networkAlerts
-  // call, and firing that from Settings to fill in a subtitle would make the
-  // page slow for numbers nobody came here for. It's also the one people
-  // actually arrive hunting for. Counting the raw persisted list (the Ignored
-  // TAB counts what's currently hidden, which differs once something escalates)
-  // — hence "on your ignore list" rather than repeating the tab's wording.
-  // The "saved to your account" half of this subtitle was an unconditional
-  // claim. When the NIP-78 write can't happen it's simply untrue, and this card
-  // is exactly where someone checks what they've ignored — so it has to say
-  // which of the two is actually the case.
-  // Also consult the persisted flag: this page can be loaded cold, where the
-  // in-memory state has reset to "ok" but the list still never left the device.
-  const ignoresUnsynced = ignoreSync === "local-only" || (pubkey ? hasUnsyncedIgnores(pubkey) : false);
-  const savedWhere = ignoresUnsynced ? "saved on this device only" : "saved to your account";
-  const networkAlertsCard = (
-    <button
-      type="button"
-      onClick={() => navigate("/alerts")}
-      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-brand-accent/15 bg-white/70 px-5 py-4 text-left transition-all hover:border-brand-accent/30 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:bg-slate-900/70"
-      data-testid="button-network-alerts"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-          <ShieldAlert className="h-4 w-4 text-brand-deep" />
-        </div>
-        <div className="min-w-0">
-          <h2
-            className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Network Alerts
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-network-alerts-summary">
-            {ignoredListCount === 0
-              ? "Accounts people you trust have reported — the people you follow, your wider network, and anything you've ignored."
-              : `Accounts people you trust have reported — the people you follow, your wider network, and ${ignoredListCount} you've ignored, ${savedWhere}.`}
-          </p>
-        </div>
-      </div>
-      <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-    </button>
-  );
+  const networkAlertsCard = <NetworkAlertsCard ignoredListCount={ignoredListCount} savedWhere={savedWhere} />;
 
   const advancedSection = (
-    <div className="space-y-4" data-testid="section-advanced">
-      <button
-        type="button"
-        onClick={() => setAdvancedOpen((v) => !v)}
-        aria-expanded={advancedOpen}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-brand-accent/15 bg-white/70 px-5 py-4 text-left transition-all hover:border-brand-accent/30 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:bg-slate-900/70"
-        data-testid="button-advanced-toggle"
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-            <SettingsIcon className="h-4 w-4 text-brand-deep" />
-          </div>
-          <div className="min-w-0">
-            <h2
-              className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-advanced-title"
-            >
-              Advanced
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-advanced-subtitle">
-              Service provider &amp; trust recalculation — most people never need these.
-            </p>
-          </div>
-        </div>
-        <ChevronDown
-          className={`h-5 w-5 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${advancedOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-      {advancedOpen && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-testid="grid-advanced">
-          {serviceProviderCard}
-          {trustCalcCard}
-          <div
-            id="tag-relays-section"
-            className={`scroll-mt-20 rounded-2xl transition-shadow ${highlighted === "tag-relays" ? "animate-attention-ring ring-2 ring-brand-accent/70" : ""}`}
-          >
-            <TagRelaysCard />
-          </div>
-          <TechnicalViewCard />
-        </div>
-      )}
-    </div>
+    <AdvancedSection
+      advancedOpen={advancedOpen}
+      setAdvancedOpen={setAdvancedOpen}
+      highlighted={highlighted}
+      serviceProviderCard={serviceProviderCard}
+      trustCalcCard={trustCalcCard}
+    />
   );
 
   // ─────────────────────────────────────────────────────────────────────────
