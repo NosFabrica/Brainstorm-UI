@@ -9,7 +9,7 @@ import { unreadCount } from "@/lib/supportSeen";
 import type { SchedulingItem } from "@/services/api";
 import { Chip } from "@/components/ui/chip";
 import { parseAdminTab, type AdminTab } from "./adminTabs";
-import { parseAdminRange, rangeQuery, withinRange, type AdminRange } from "./adminRange";
+import { parseAdminRange, rangeQuery, type AdminRange } from "./adminRange";
 import { readEveryPage, useAdminHeaderMetrics } from "@/components/admin/useAdminHeaderMetrics";
 import { FEATURES } from "@/config/featureFlags";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
@@ -30,7 +30,6 @@ import {
   type AdminUserHistoryPage,
 } from "./admin/types";
 import { POLL_OVERVIEW_MS, POLL_STATS_MS, BOOST_INTERVAL_MS, NONE } from "./admin/constants";
-import { computePipelineMetrics, computeTrends, countQueued, parseActivityTs } from "./admin/metrics";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { type BulkSource, useBulkRetrigger } from "@/components/admin/users/useBulkRetrigger";
 import { BulkConfirmDialog } from "./admin/BulkConfirmDialog";
@@ -50,11 +49,11 @@ import { useUsersDirectory } from "./admin/users/useUsersDirectory";
 import { useTriggers } from "./admin/useTriggers";
 import { UsersTab } from "./admin/users/UsersTab";
 import { KpiStrip, KpiCompact } from "./admin/HeaderKpis";
-import { computeHeaderFigures } from "./admin/metrics";
 import { type KpiFilter } from "./admin/types";
 import { OverviewTab } from "./admin/overview/OverviewTab";
 import { adminTabList, AdminTabBar } from "./admin/AdminTabBar";
 import { RangeSelector } from "./admin/RangeSelector";
+import { useConsoleFigures } from "./admin/useConsoleFigures";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
@@ -267,36 +266,17 @@ export default function AdminPage() {
   const queuePosition =
     typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
 
-  const overviewAllUsers = overviewUsersQuery.data?.items ?? NONE;
-  // What the Overview loaded (the range and the one before it, for deltas)
-  // and the part inside the range, which every figure and chart reads.
-  const overviewLoadedActivity = overviewActivityQuery.data?.items ?? NONE;
-  const overviewAllActivity = useMemo(() => {
-    const now = Date.now();
-    return overviewLoadedActivity.filter((a) => withinRange(parseActivityTs(a.updated_at), range, now));
-  }, [overviewLoadedActivity, range]);
-  // Coverage of the loaded activity feed — surfaced so admins know how far the
-  // trend windows actually reach (7d/30d may exceed the loaded records).
-  const activityCoverage = useMemo(() => {
-    const times = overviewAllActivity.map((a) => parseActivityTs(a.updated_at)).filter((t): t is number => !!t);
-    return {
-      count: overviewAllActivity.length,
-      total: overviewActivityQuery.data?.total ?? overviewLoadedActivity.length,
-      loaded: overviewLoadedActivity.length,
-      loading:
-        overviewActivityQuery.isFetching && overviewLoadedActivity.length < (overviewActivityQuery.data?.total ?? 0),
-      oldest: times.length ? Math.min(...times) : null,
-    };
-  }, [
+  const {
+    overviewAllUsers,
     overviewAllActivity,
-    overviewLoadedActivity.length,
-    overviewActivityQuery.data,
-    overviewActivityQuery.isFetching,
-  ]);
-  const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
-
-  const allUsers = allUsersQuery.data?.items ?? NONE;
-  const allUsersTotal = allUsersQuery.data?.total ?? 0;
+    activityCoverage,
+    overviewLoading,
+    allUsers,
+    nowMetrics,
+    computedQueueDepth,
+    trends,
+    headerFigures,
+  } = useConsoleFigures({ range, overviewUsersQuery, overviewActivityQuery, allUsersQuery, adminStats });
 
   // Names and avatars for the people on screen, store-first and batched
   // (useLiveProfiles). A name search — the directory's or Lookup's — matches
@@ -317,29 +297,6 @@ export default function AdminPage() {
     for (const [pk, c] of liveProfiles) m.set(pk, { name: c.display_name || c.name, picture: c.picture });
     return m;
   }, [liveProfiles]);
-
-  // Everyone, now: the header cards.
-  const nowMetrics = useMemo(
-    () => computePipelineMetrics(allUsers, overviewLoadedActivity, allUsersTotal),
-    [allUsers, overviewLoadedActivity, allUsersTotal],
-  );
-
-  const computedQueueDepth = useMemo(() => countQueued(allUsers), [allUsers]);
-
-  const trends = useMemo(
-    () => computeTrends(overviewLoadedActivity, overviewAllActivity, range, Date.now()),
-    [overviewAllActivity, overviewLoadedActivity, range],
-  );
-
-  // The header's six figures — the system now — drawn once for the cards and
-  // for the one-line strip the other tabs show.
-  const headerFigures = computeHeaderFigures({
-    nowMetrics,
-    adminStats,
-    computedQueueDepth,
-    trends,
-    hasActivity: !!overviewActivityQuery.data,
-  });
 
   // Another tab's link to a person: the Users tab, searched to them, their row open and lit.
   const openInUsers = (pubkey: string) => {
