@@ -10,29 +10,22 @@ import { NewAccountResult } from "@/components/compromised/NewAccountResult";
 import { CurrentAccountResult } from "@/components/retired/CurrentAccountResult";
 import { retiredBy, retiredStatus } from "@/services/retired";
 import { useCompromisedAmong } from "@/hooks/useCompromised";
-import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
+import { useListKinds } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
-import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
+import { offersTab, type TabEvidence } from "@/lib/tabCounts";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
-import { useLoginHref } from "@/hooks/useLoginHref";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import {
-  BROWSE_UNAVAILABLE_SORTS,
   activeFilterCount,
   applyFilters,
   browseSafeQuery,
-  datePreset,
   liftQuery,
   queryWords,
   readFilters,
-  sinceForPreset,
-  splitFilters,
-  type DatePreset,
-  type SearchFilterPatch,
   scopeOf,
   scopedSearchHref,
 } from "@/lib/searchSyntax";
@@ -46,7 +39,6 @@ import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { QueryAsSent } from "@/components/search/QueryAsSent";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventPath } from "@/lib/shareId";
-import { TAB_LABEL } from "@/lib/tabLabels";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -62,6 +54,19 @@ import {
   tabLabel,
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
+import { FiltersPanel } from "./FiltersPanel";
+import { MoreCategories, MoreTabs } from "./SearchTabMenus";
+import {
+  ALL_MORE_GROUPS,
+  CATEGORIES_IN_ROW,
+  COUNTED_TABS,
+  PRIMARY_TABS,
+  TAG_TAB,
+  categoryTabClass,
+  tabClass,
+  tagTabKeyOf,
+} from "./searchTabs";
+import { urlList, urlTagged, useSearchUrlState, writeListToUrl, writeTaggedToUrl } from "@/hooks/useSearchUrlState";
 import { TagFacets } from "./TagFacets";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
@@ -111,7 +116,6 @@ import {
   pagedWords,
   PEOPLE_KEY,
   type Category,
-  type CategoryGroup,
 } from "@/lib/allCategories";
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { useResultTags } from "@/hooks/useResultTags";
@@ -120,7 +124,6 @@ import { useTagMembers } from "@/hooks/useTagMembers";
 import { useListTags } from "@/hooks/useListTags";
 import { carriersOf } from "@/lib/resultTags";
 import { TagTabResults } from "@/components/search/TagTabResults";
-import type { NamedTag } from "@/services/namedTags";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
@@ -168,14 +171,7 @@ import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { MEDIA_KIND_LABELS, MEDIA_KIND_ORDER, mediaKindOf, type MediaKind } from "@/lib/mediaKind";
-import {
-  MEDIA_FACET_LABELS,
-  isClassicVinesTopic,
-  mediaFacetOf,
-  mediaNarrowingOf,
-  withMediaFacet,
-  type MediaFacet,
-} from "@/lib/mediaFacet";
+import { MEDIA_FACET_LABELS, mediaFacetOf, mediaNarrowingOf, withMediaFacet, type MediaFacet } from "@/lib/mediaFacet";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { SearchPriorityContext, useSearchPriorityState } from "@/hooks/useSearchPriority";
 import { ComposedResults } from "@/components/search/ComposedResults";
@@ -359,771 +355,11 @@ const DAY_HEADER = new Intl.DateTimeFormat(undefined, { weekday: "short", month:
  */
 const OFFSCREEN_ROW = "[content-visibility:auto] [contain-intrinsic-size:auto_180px]";
 
-/** Google's row: the verticals in view, the long tail behind More ▾.
- *  Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
- *  Articles is the first thing behind More.
- *  Top is the composed page and the default. All, after it, is the
- *  relay's answer with no kinds asked and nothing composed — every kind it
- *  indexes, in its order. It is noisy, so it is never anyone's default: only
- *  a click on it gets there. */
-const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
-  { key: "top", label: TAB_LABEL.top },
-  { key: "all", label: TAB_LABEL.all },
-  { key: "people", label: TAB_LABEL.people },
-  { key: "notes", label: TAB_LABEL.notes },
-  { key: "media", label: TAB_LABEL.media },
-  { key: "shop", label: TAB_LABEL.shop },
-];
-/** On All, how many of its categories stand in the row before More. */
-const CATEGORIES_IN_ROW = 4;
-/** A tag's tab in All's row, by key: `tag:<author>:<slug>`, as the link holds it. */
-const TAG_TAB = "tag:";
-const tagTabKeyOf = (tag: NamedTag) => `${TAG_TAB}${tag.authorPubkey}:${tag.slug}`;
-/**
- * Behind More, grouped by what a person is doing — consumer things first,
- * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
- * with PRs read like a settings list). Recipes are long-form articles
- * wearing zap.cooking's tag and NIPs are protocol specs (kind 30817); both
- * stay in Articles too, labelled — these are where people look for them.
- */
-const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string }[] }[] = [
-  {
-    title: "Read & listen",
-    tabs: [
-      { key: "articles", label: TAB_LABEL.articles },
-      { key: "music", label: TAB_LABEL.music },
-      { key: "recipes", label: TAB_LABEL.recipes },
-    ],
-  },
-  {
-    title: "Out & about",
-    tabs: [
-      { key: "events", label: TAB_LABEL.events },
-      { key: "live", label: TAB_LABEL.live },
-    ],
-  },
-  {
-    title: "Build",
-    tabs: [
-      { key: "apps", label: TAB_LABEL.apps },
-      { key: "repos", label: TAB_LABEL.repos },
-      { key: "issues", label: TAB_LABEL.issues },
-      { key: "prs", label: TAB_LABEL.prs },
-      { key: "nips", label: TAB_LABEL.nips },
-    ],
-  },
-  {
-    title: "Community",
-    tabs: [
-      { key: "communities", label: TAB_LABEL.communities },
-      { key: "fundraisers", label: TAB_LABEL.fundraisers },
-      { key: "reviews", label: TAB_LABEL.reviews },
-    ],
-  },
-  { title: null, tabs: [{ key: "lists", label: TAB_LABEL.lists }] },
-];
-const MORE_TABS: { key: SearchTab; label: string }[] = MORE_GROUPS.flatMap((g) => g.tabs);
-/** Where we're going, said under More without a door: agent suites — verifying and hiring agents — are on the roadmap (Benjamin, 2026-09-25). */
-const SOON_TABS: { key: string; label: string; title: string }[] = [
-  { key: "agents", label: "Agents", title: "Verify and hire agents — coming to Brainstorm" },
-];
-const TABS = [...PRIMARY_TABS, ...MORE_TABS];
-/**
- * All's More, under Top's More headings: what is a tab of its own in Top's row (Notes, Media, Shop)
- * heads its own group, and the rest sit where Top's More puts them. Lists and Other come from
- * lib/allCategories.
- */
-const ALL_MORE_GROUPS: { title: string; tabs: SearchTab[] }[] = [
-  { title: "Notes & people", tabs: ["notes", "people"] },
-  { title: "Media", tabs: ["media"] },
-  { title: "Shop", tabs: ["shop"] },
-  // Zap Store releases are a band on the home feed, not a tab: they are built things.
-  ...MORE_GROUPS.map((g) => ({
-    title: g.title ?? "Lists",
-    tabs: [...g.tabs.map((t) => t.key), ...(g.title === "Build" ? (["releases"] as SearchTab[]) : [])],
-  })),
-];
-
-const TAB_KEYS = new Set(TABS.map((t) => t.key));
-/** The tabs a search counts results for (hooks/useTabCounts): every vertical, the row's first. */
-const COUNTED_TABS: SearchTab[] = TABS.map((t) => t.key).filter((key) => key !== "top" && key !== "all");
-
-const tabClass = (active: boolean) =>
-  "shrink-0 px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
-  (active
-    ? "border-brand-primary text-brand-deep dark:text-brand-link"
-    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200");
-
-/** A category's tab on All: a long name ("Food and Drink Places") ends in an ellipsis, whole on hover. */
-const categoryTabClass = (active: boolean) => tabClass(active) + " max-w-[9.5rem] truncate";
-
-/** The More ▾ slot: names the folded vertical that is active (so the row
- *  always says where you are), otherwise "More". A plain disclosure, not a
- *  portal — it sits OUTSIDE the scrolling strip so nothing clips it. */
-function MoreTabs({
-  tab,
-  onChange,
-  kinds = [],
-  kind = null,
-  onKind,
-  offers = () => true,
-  counts = {},
-}: {
-  tab: SearchTab;
-  onChange: (next: SearchTab) => void;
-  /** The kinds with a page of their own (hooks/useListKinds), each in its group. */
-  kinds?: readonly ListKindSearch[];
-  /** The kind whose page is open, if any. */
-  kind?: string | null;
-  onKind?: (key: string) => void;
-  /** Whether the words find anything under a tab (lib/tabCounts): one known to hold nothing isn't offered. */
-  offers?: (key: SearchTab) => boolean;
-  /** How many results each tab holds, for the order within a group: most first. */
-  counts?: TabCounts;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const activeKind = kinds.find((k) => k.key === kind);
-  const active = activeKind ?? (kind ? undefined : MORE_TABS.find((t) => t.key === tab));
-  // Each kind sits in its group, after the group's own tabs; a group nobody else uses comes before Lists.
-  // Within a group the tabs the words find most come first; a group left with nothing goes, and its
-  // heading with it.
-  const groups = useMemo(() => {
-    const out = MORE_GROUPS.map((g) => ({
-      ...g,
-      tabs: byCount(
-        g.tabs.filter((t) => offers(t.key)),
-        counts,
-      ),
-      kinds: [] as ListKindSearch[],
-    }));
-    for (const k of kinds) {
-      const g = out.find((x) => x.title === k.group);
-      if (g) g.kinds.push(k);
-      else out.splice(out.length - 1, 0, { title: k.group, tabs: [], kinds: [k] });
-    }
-    return out.filter((g) => g.tabs.length > 0 || g.kinds.length > 0);
-  }, [kinds, offers, counts]);
-  // An open menu holds still: what the counts change while it is open waits for it to close, so
-  // nothing moves or vanishes under the pointer.
-  const [held, setHeld] = useState<typeof groups | null>(null);
-  const shown = open && held ? held : groups;
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  // Nothing behind it for these words, and nothing behind it open: no More.
-  if (shown.length === 0 && !active) return null;
-
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={!!active}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => {
-          if (!open) setHeld(groups);
-          setOpen(!open);
-        }}
-        className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
-        data-testid="search-tab-more"
-      >
-        {active ? active.label : "More"}
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label="More result types"
-          className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        >
-          {shown.map((g, gi) => (
-            <div
-              key={g.title ?? "rest"}
-              className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
-              role="group"
-              aria-label={g.title ?? undefined}
-            >
-              {g.title && (
-                <div
-                  className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500"
-                  data-testid={`search-tab-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}
-                >
-                  {g.title}
-                </div>
-              )}
-              {g.tabs.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  role="menuitem"
-                  aria-current={!kind && tab === t.key ? "true" : undefined}
-                  onClick={() => {
-                    setOpen(false);
-                    onChange(t.key);
-                  }}
-                  className={
-                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (!kind && tab === t.key
-                      ? "font-semibold text-brand-deep dark:text-brand-link"
-                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-                  }
-                  data-testid={`search-tab-${t.key}`}
-                >
-                  {t.label}
-                </button>
-              ))}
-              {g.kinds.map((k) => (
-                <button
-                  key={k.key}
-                  type="button"
-                  role="menuitem"
-                  aria-current={kind === k.key ? "true" : undefined}
-                  onClick={() => {
-                    setOpen(false);
-                    onKind?.(k.key);
-                  }}
-                  className={
-                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (kind === k.key
-                      ? "font-semibold text-brand-deep dark:text-brand-link"
-                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-                  }
-                  data-testid={`search-tab-${k.key}`}
-                >
-                  {k.label}
-                </button>
-              ))}
-              {g.title === "Build" &&
-                SOON_TABS.map((t) => (
-                  // A muted row, not a door: the Apps launcher's "Soon" treatment.
-                  <div
-                    key={t.key}
-                    role="menuitem"
-                    aria-disabled="true"
-                    title={t.title}
-                    className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] text-slate-400 dark:text-slate-500"
-                    data-testid={`search-tab-${t.key}-soon`}
-                  >
-                    {t.label}
-                    <span className="ml-3 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-300 dark:text-slate-600">
-                      Soon
-                    </span>
-                  </div>
-                ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** On All, its categories past the row (hooks/useAllCategories) under MoreTabs' headings, most results first in each. */
-function MoreCategories({
-  groups,
-  pressed,
-  onPress,
-}: {
-  groups: readonly CategoryGroup[];
-  pressed: string | null;
-  onPress: (key: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const active = groups.flatMap((g) => g.categories).find((c) => c.key === pressed);
-  // An open menu holds still, as MoreTabs does: counts that land while it is open wait for it to close.
-  const [held, setHeld] = useState<readonly CategoryGroup[] | null>(null);
-  const shown = open && held ? held : groups;
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  if (shown.length === 0) return null;
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={!!active}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => {
-          if (!open) setHeld(groups);
-          setOpen(!open);
-        }}
-        className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
-        title={active?.name}
-        data-testid="search-tab-more"
-      >
-        <span className="max-w-[8rem] truncate">{active ? active.name : "More"}</span>
-        <ChevronDown
-          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-          aria-hidden="true"
-        />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label="More categories"
-          className="absolute right-0 top-full z-20 mt-1 max-h-[60vh] min-w-[9rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        >
-          {shown.map((g, gi) => (
-            <div
-              key={g.title}
-              className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
-              role="group"
-              aria-label={g.title}
-            >
-              <div
-                className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500"
-                data-testid={`search-category-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}
-              >
-                {g.title}
-              </div>
-              {g.categories.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  role="menuitem"
-                  aria-current={pressed === c.key ? "true" : undefined}
-                  onClick={() => {
-                    setOpen(false);
-                    onPress(c.key);
-                  }}
-                  className={
-                    "flex w-full items-center whitespace-nowrap rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (pressed === c.key
-                      ? "font-semibold text-brand-deep dark:text-brand-link"
-                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-                  }
-                  data-testid={`search-category-${categoryTestId(c.key)}`}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function tabFromUrl(): SearchTab {
-  try {
-    const t = new URLSearchParams(window.location.search).get("t");
-    // The old combined tab's deep links keep working.
-    if (t === "code") return "repos";
-    // `everything` was the composed page before it was Top; its links — and the
-    // recent searches that saved it — still mean Top, never the raw list.
-    if (t === "everything") return "top";
-    if (t && TAB_KEYS.has(t as SearchTab)) return t as SearchTab;
-  } catch {
-    /* default below */
-  }
-  return "top";
-}
-
-/**
- * `#vine-archive` typed alone is the Media tab with Classic Vines chosen (lib/mediaFacet), where
- * any other lone hashtag is a topic page. `query` is the box's words and the panel's tokens.
- */
-const opensOnMedia = (query: string): boolean => isClassicVinesTopic(splitFilters(query).text);
-
-/** Does the address name a tab? Top is the default and is written as no tab at all. */
-function urlNamesTab(): boolean {
-  try {
-    return !!new URLSearchParams(window.location.search).get("t");
-  } catch {
-    return false;
-  }
-}
-
-/** The tab a page opens on: the URL's, or Media for a query that is Classic Vines and names no tab. */
-function openingTab(query: string): SearchTab {
-  return !urlNamesTab() && opensOnMedia(query) ? "media" : tabFromUrl();
-}
-
-/** The `t` the URL names when it isn't one of the tabs: a kind's own page, if the app has that kind. */
-function urlKind(): string | null {
-  try {
-    const t = new URLSearchParams(window.location.search).get("t");
-    return t && !TAB_KEYS.has(t as SearchTab) ? t : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The list narrowing All (`list`), by its coordinate: kept in the link so Back comes back to it. */
-function urlList(): string | null {
-  try {
-    return new URLSearchParams(window.location.search).get("list");
-  } catch {
-    return null;
-  }
-}
-
-function writeListToUrl(coordinate: string | null) {
-  try {
-    const url = new URL(window.location.href);
-    if (coordinate) url.searchParams.set("list", coordinate);
-    else url.searchParams.delete("list");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-/** The tag narrowing All's results (`tagged`), by its `<author>|<slug>` key: kept in the link like a list. */
-function urlTagged(): string | null {
-  try {
-    return new URLSearchParams(window.location.search).get("tagged");
-  } catch {
-    return null;
-  }
-}
-
-function writeTaggedToUrl(key: string | null) {
-  try {
-    const url = new URL(window.location.href);
-    if (key) url.searchParams.set("tagged", key);
-    else url.searchParams.delete("tagged");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-/** A searched map area (`area`) is the Places page's, and a pressed list or tag All's: another page or tab leaves them out of the link. */
-function writeKindToUrl(key: string) {
-  try {
-    const url = new URL(window.location.href);
-    url.searchParams.set("t", key);
-    url.searchParams.delete("area");
-    url.searchParams.delete("list");
-    url.searchParams.delete("tagged");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-function writeTabToUrl(tab: SearchTab) {
-  try {
-    const url = new URL(window.location.href);
-    if (tab === "top") url.searchParams.delete("t");
-    else url.searchParams.set("t", tab);
-    url.searchParams.delete("area");
-    url.searchParams.delete("list");
-    url.searchParams.delete("tagged");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-/** Google's Tools menu for time. */
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: "any", label: "Any time" },
-  { value: "day", label: "Past 24 hours" },
-  { value: "week", label: "Past week" },
-  { value: "month", label: "Past month" },
-  { value: "year", label: "Past year" },
-  { value: "custom", label: "Custom range" },
-];
-
-// Every option here changes the relay's order — probed 2026-09-03. "Text match
-// only" went: it ordered exactly like "Include unranked" and confused people.
-const SORT_OPTIONS = [
-  { value: "", label: "Best match" },
-  { value: "recent", label: "Newest first" },
-  { value: "rank", label: "Most trusted authors" },
-  { value: "followers", label: "Most followed authors" },
-];
-/** The Shop page's own sorts. The relay knows no prices: these ride the query
- *  as `sort:price` for the panel and the URL, and the page orders the cards
- *  itself through one Bitcoin rate (lib/exchangeRate). */
-const PRICE_SORTS = [
-  { value: "price", label: "Price: low to high" },
-  { value: "price:desc", label: "Price: high to low" },
-];
+/** The Shop's price sort, when the query asks one (FiltersPanel's PRICE_SORTS): the page orders the cards itself. */
 const priceSortOf = (query: string): "asc" | "desc" | null => {
   const sort = readFilters(query).sort;
   return sort === "price" ? "asc" : sort === "price:desc" ? "desc" : null;
 };
-
-/**
- * The relay's `filter:rank:gte:N`, on the 0..100 trust scale. A floor DELETES rows below it
- * rather than sinking them (vespa-relay store e1ecd7f23e), which is why it is a coarse menu
- * and not a slider: the difference between 50 and 52 is not a decision anybody makes, and
- * each step is a page of results gone.
- */
-const RANK_FLOORS: { value: number | null; label: string }[] = [
-  { value: null, label: "No floor" },
-  { value: 25, label: "Rank 25+" },
-  { value: 50, label: "Rank 50+" },
-  { value: 75, label: "Rank 75+" },
-  { value: 90, label: "Rank 90+" },
-];
-
-/** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
- *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
- *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
- *  scroll it natively). */
-
-/** The filters that are real (probed 2026-09-03). Every control rewrites the
- *  full query (words + tokens) through onQueryRewrite; the landing page keeps
- *  the tokens OUT of the visible box and in the URL's `f` instead. */
-function FiltersPanel({
-  query,
-  userPubkey,
-  tab,
-  onQueryRewrite,
-}: {
-  query: string;
-  pov: SearchPov;
-  userPubkey?: string;
-  tab: SearchTab;
-  onQueryRewrite: (next: string) => void;
-}) {
-  const loginHref = useLoginHref();
-  const sortOptions = tab === "shop" ? [...SORT_OPTIONS, ...PRICE_SORTS] : SORT_OPTIONS;
-  // What the relay will actually run: a wordless browse cannot be rank- or
-  // follower-sorted, so the panel shows the fallback and greys those two.
-  const browsing = !queryWords(query);
-  const state = readFilters(browsing ? browseSafeQuery(query) : query);
-  const preset = datePreset(state);
-  // "Custom range" stays open once chosen, even before a day is picked.
-  const [customDates, setCustomDates] = useState(preset === "custom");
-  const advancedActive = !!state.reach || state.includeSpam || state.rankFloor != null;
-  const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
-  useEffect(() => {
-    if (advancedActive) setAdvancedOpen(true);
-  }, [advancedActive]);
-  const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
-
-  const showDates = customDates || preset === "custom";
-  // The menu is coarse, but the grammar takes any 0..100 — a hand-typed `filter:rank:gte:33`
-  // would otherwise read as "No floor" while the Filters badge counted it, which is the panel
-  // disagreeing with the search it is describing. The typed value joins the menu, in order.
-  const floors = useMemo(() => {
-    const typed = state.rankFloor;
-    if (typed == null || RANK_FLOORS.some((o) => o.value === typed)) return RANK_FLOORS;
-    return [...RANK_FLOORS, { value: typed, label: `Rank ${typed}+` }].sort(
-      (a, b) => (a.value ?? -1) - (b.value ?? -1),
-    );
-  }, [state.rankFloor]);
-  const segment = (on: boolean) =>
-    `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
-      on
-        ? "bg-brand-primary text-white"
-        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-    }`;
-  const field =
-    "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
-  // Every field is a caption over a control of ONE height and ONE width rule:
-  // half a phone row each (two up), a fixed column on desktop. Nothing under
-  // a control — a hint inside one column used to push its neighbour down.
-  const column =
-    "flex min-w-0 flex-1 basis-[8.5rem] flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:flex-none sm:basis-auto";
-  const control = `${field} w-full sm:w-44`;
-  // iOS Safari gives a date input its own minimum width, wider than half a phone row, so
-  // From/To day stuck out past Sort and Time (and past the panel). Without the native
-  // appearance it takes the column's width like the selects; its value then sits left, as theirs do.
-  const dateControl = `${control} min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left`;
-
-  return (
-    <div
-      className="mb-3 flex flex-wrap items-start gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-800/60 dark:bg-slate-900/70"
-      data-testid="search-filters-panel"
-    >
-      {!userPubkey && (
-        <p className="basis-full text-xs text-slate-500 dark:text-slate-400" data-testid="filters-signin">
-          Sign in to rank through your own network.{" "}
-          <Link href={loginHref} className="font-medium text-brand-link hover:underline">
-            Sign in →
-          </Link>
-        </p>
-      )}
-      <label className={column}>
-        Sort
-        <select
-          className={control}
-          value={state.sort ?? ""}
-          onChange={(e) => write({ sort: e.target.value || null })}
-          data-testid="filter-sort"
-        >
-          {sortOptions.map((o) => (
-            <option key={o.value} value={o.value} disabled={browsing && BROWSE_UNAVAILABLE_SORTS.has(o.value)}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className={column}>
-        Time
-        <select
-          className={control}
-          value={showDates ? "custom" : preset}
-          onChange={(e) => {
-            const next = e.target.value as DatePreset;
-            if (next === "custom") {
-              setCustomDates(true);
-              return;
-            }
-            setCustomDates(false);
-            write({ since: sinceForPreset(next), until: null });
-          }}
-          data-testid="filter-date"
-        >
-          {DATE_PRESETS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      {showDates && (
-        <>
-          <label className={column}>
-            From day
-            <input
-              type="date"
-              className={dateControl}
-              value={state.since ?? ""}
-              onChange={(e) => write({ since: e.target.value || null })}
-              data-testid="filter-since"
-            />
-          </label>
-          <label className={column}>
-            To day
-            <input
-              type="date"
-              className={dateControl}
-              value={state.until ?? ""}
-              onChange={(e) => write({ until: e.target.value || null })}
-              data-testid="filter-until"
-            />
-          </label>
-        </>
-      )}
-      {browsing && (
-        <p className="-mt-1 basis-full text-[10px] text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
-          Trust and follower sorts need a search term
-        </p>
-      )}
-      {/* Sort and date are the two anyone uses; the rest waits behind one
-          word (the team: less busy), and comes forward by itself when one of
-          its controls is set — by a shared link, say. */}
-      <button
-        type="button"
-        onClick={() => setAdvancedOpen((v) => !v)}
-        aria-expanded={advancedOpen}
-        className="flex basis-full items-center gap-1 text-left text-[11px] font-medium text-slate-500 hover:text-brand-link dark:text-slate-400"
-        data-testid="filters-advanced-toggle"
-      >
-        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
-        Advanced
-      </button>
-      {advancedOpen && (
-        <div className="flex basis-full flex-wrap items-end gap-x-4 gap-y-3" data-testid="filters-advanced">
-          {/* Trust distance — how far the search casts its net. The relay has no
-          hops, so this reads the viewer's own follow graph (Benjamin's
-          slider); with nobody signed in there is no "you", so it isn't there. */}
-          {userPubkey && (
-            <div className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Trust distance
-              <div
-                role="group"
-                aria-label="Trust distance"
-                className="inline-flex divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800"
-                data-testid="filter-reach"
-              >
-                {(
-                  [
-                    ["follows", "People you follow"],
-                    [null, "Everyone"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    aria-pressed={state.reach === value}
-                    onClick={() => write({ reach: value })}
-                    className={segment(state.reach === value)}
-                    data-testid={`filter-reach-${value ?? "all"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* The relay's own floor, the opposite end of the same dial as "Include unranked":
-          one lifts the floor to nothing, the other raises it. Both cannot be on, so
-          choosing a floor turns the waiver off. */}
-          <label className={column}>
-            Trust floor
-            <select
-              className={control}
-              value={state.rankFloor ?? ""}
-              onChange={(e) => {
-                const next = e.target.value === "" ? null : Number(e.target.value);
-                write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });
-              }}
-              data-testid="filter-rank-floor"
-            >
-              {floors.map((o) => (
-                <option key={o.label} value={o.value ?? ""}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 accent-brand-primary"
-              checked={state.includeSpam}
-              onChange={(e) =>
-                write(e.target.checked ? { includeSpam: true, rankFloor: null } : { includeSpam: false })
-              }
-              data-testid="filter-spam"
-            />
-            Include unranked accounts
-          </label>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export const SearchResults = memo(function SearchResults({
   query,
@@ -1157,24 +393,9 @@ export const SearchResults = memo(function SearchResults({
   peopleSeed?: SearchHit[];
 }) {
   const [, setLocation] = useLocation();
-  const [tab, setTab] = useState<SearchTab>(() => openingTab(query));
+  const { tab, kindTab, changeTab, openKind } = useSearchUrlState(query);
   const kinds = useListKinds();
-  const [kindTab, setKindTab] = useState<string | null>(() => urlKind());
   const activeKind = kinds.find((k) => k.key === kindTab) ?? null;
-  // On a page already open, `#vine-archive` alone moves it to Media under the same rule as
-  // opening on it: only when the address names no tab. An address that names one is a link,
-  // Back or Forward saying where to be, or the tab the reader picked, and is not overridden.
-  // Decided as the new query renders, so the tab it was on never asks the relay for it.
-  const [queryWas, setQueryWas] = useState(query);
-  if (query !== queryWas) {
-    setQueryWas(query);
-    if (tab !== "media" && opensOnMedia(query) && !urlNamesTab()) setTab("media");
-  }
-  const landsOnMedia = tab === "media" && opensOnMedia(query);
-  useEffect(() => {
-    // The tab was chosen here, not by a click: the address has to say so for a reload or a link.
-    if (landsOnMedia) writeTabToUrl("media");
-  }, [landsOnMedia]);
   useEffect(() => {
     onTabChange?.(tab);
   }, [tab, onTabChange]);
@@ -1541,29 +762,6 @@ export const SearchResults = memo(function SearchResults({
     if (composed || tab !== "media" || mediaFacet) return;
     return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
   }, [effectiveQuery, tab, pov, userPubkey, composed, mediaFacet]);
-
-  // Back and Forward say where to be: the page the address names, a kind's or a tab. (A step in
-  // history of its own is pushed by the Places page's area search; tabs replace theirs.)
-  useEffect(() => {
-    const follow = () => {
-      setKindTab(urlKind());
-      setTab(tabFromUrl());
-    };
-    window.addEventListener("popstate", follow);
-    return () => window.removeEventListener("popstate", follow);
-  }, []);
-  const changeTab = useCallback((next: SearchTab) => {
-    setKindTab(null);
-    setTab(next);
-    writeTabToUrl(next);
-  }, []);
-  // A kind's own page (hooks/useListKinds): named in the URL like a tab, shown under the strip in
-  // place of the results. The Top page's sections stay unmounted, so nothing is asked of the relay.
-  const openKind = useCallback((key: string) => {
-    setKindTab(key);
-    setTab("top");
-    writeKindToUrl(key);
-  }, []);
 
   const openProfile = useCallback(
     (result: SearchResult) => {
