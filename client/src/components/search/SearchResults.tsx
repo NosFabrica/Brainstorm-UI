@@ -1312,7 +1312,7 @@ export const SearchResults = memo(function SearchResults({
 
           <QueryAsSent query={effectiveQuery} tab={tab} pov={pov} timeMs={snapshot?.timeMs} />
           {filtersOpen && onQueryRewrite && (
-            <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} tab={tab} onQueryRewrite={onQueryRewrite} />
+            <FiltersPanel query={query} userPubkey={userPubkey} tab={tab} onQueryRewrite={onQueryRewrite} />
           )}
           <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 

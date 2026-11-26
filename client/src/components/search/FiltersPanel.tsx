@@ -14,7 +14,7 @@ import {
   type DatePreset,
   type SearchFilterPatch,
 } from "@/lib/searchSyntax";
-import type { SearchPov, SearchTab } from "@/services/search";
+import type { SearchTab } from "@/services/search";
 
 /** Google's Tools menu for time. */
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
@@ -71,7 +71,6 @@ export function FiltersPanel({
   onQueryRewrite,
 }: {
   query: string;
-  pov: SearchPov;
   userPubkey?: string;
   tab: SearchTab;
   onQueryRewrite: (next: string) => void;
