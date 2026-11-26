@@ -1,7 +1,7 @@
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useTrustProviderList } from "@/hooks/useTrustProviderStatus";
 import { rankProviderOf } from "@/lib/nip85Declaration";
-import { shortNpub } from "@/components/messages/people";
+import { profileName } from "@/lib/displayName";
 
 export interface RankProvider {
   pubkey: string;
@@ -21,7 +21,7 @@ export function useRankProvider(pubkey: string | null | undefined): RankProvider
   const provider = rankProviderOf(useTrustProviderList(pubkey ?? null).event);
   const profile = useLiveProfile(provider?.pubkey).profile;
   if (!provider) return null;
-  const name = (profile?.display_name || profile?.name || "").trim() || shortNpub(provider.pubkey);
+  const name = profileName(profile, provider.pubkey);
   const host = provider.relay.replace(/^wss?:\/\//, "").replace(/\/+$/, "");
   return { pubkey: provider.pubkey, name, host };
 }

@@ -25,6 +25,7 @@ import { resolveHouseObserver } from "@/services/trustSource";
 import { fetchProfileMap } from "@/services/nostr";
 import { npubFromPubkey } from "@/lib/shareId";
 import { TrustedListRunResult } from "./TrustedListRunResult";
+import { nameIn } from "@/lib/displayName";
 
 const HOUSE_NAME = "Brainstorm (house)";
 
@@ -86,9 +87,7 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
       .then((profiles) => {
         const p = profiles.get(initialObserver);
         if (cancelled || !p) return;
-        setObserver((o) =>
-          o && o.pubkey === initialObserver ? { ...o, name: p.display_name || p.name, picture: p.picture } : o,
-        );
+        setObserver((o) => (o && o.pubkey === initialObserver ? { ...o, name: nameIn(p), picture: p.picture } : o));
       })
       .catch(() => {});
     return () => {

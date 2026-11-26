@@ -9,6 +9,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { ListAddresses, ListNotes } from "@/components/share/ItemListHero";
 import { parseATag } from "@/lib/noteRefs";
 import { loadTrustedList } from "./listMembers";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * One published list's members, read back from the relay it went to, as its
@@ -107,10 +108,7 @@ export function TrustedListMembers({
                 const p = profilesMap?.get(m.value);
                 return (
                   <li key={m.value} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    <PersonCell
-                      pubkey={m.value}
-                      profile={p ? { name: p.display_name || p.name, picture: p.picture } : undefined}
-                    />
+                    <PersonCell pubkey={m.value} profile={p ? { name: nameIn(p), picture: p.picture } : undefined} />
                     <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       {m.endorsements !== undefined && (
                         <span>

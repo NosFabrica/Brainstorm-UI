@@ -157,6 +157,38 @@ const RAW_TAG_LINKS = [
 ];
 
 /**
+ * A person is named through lib/displayName (nameIn, displayNameOf,
+ * profileName, resultName): `display_name`, then `name`, trimmed, a blank one
+ * skipped. A hand-written `p.display_name || p.name || …` shows a blank
+ * display name as an empty label, and each copy picks its own fallback.
+ * Flagged: a kind-0's `display_name` as an operand of `||` or `??` (as it is,
+ * optional, or cast), and a search hit's `displayName` beside a `name`.
+ * Not flagged: `display_name ?? ""`, the field read as text to search in.
+ */
+const NAME_OR = "LogicalExpression[operator=/^(\\|\\||\\?\\?)$/]";
+const OPERAND = ["", "ChainExpression > ", "TSAsExpression > ", "TSAsExpression > ChainExpression > "];
+const member = (name) => OPERAND.map((via) => `${via}MemberExpression[property.name="${name}"]`);
+const HAND_WRITTEN_NAMES = [
+  {
+    selector: member("display_name")
+      .map((m) => `${NAME_OR}:not(:has(> Literal[value=""])) > ${m}`)
+      .join(", "),
+    message: "Name a person through lib/displayName (nameIn, displayNameOf, profileName), not display_name || name.",
+  },
+  {
+    // left and right as they are or optional (`a?.displayName`: a ChainExpression around it).
+    selector: ["", ".expression"]
+      .flatMap((l) =>
+        ["", ".expression"].map(
+          (r) => `${NAME_OR}[left${l}.property.name="displayName"][right${r}.property.name="name"]`,
+        ),
+      )
+      .join(", "),
+    message: "Name a search hit through resultName or getDisplayLabel (lib/displayName), not displayName || name.",
+  },
+];
+
+/**
  * Tier two never imports tier three (docs/adr/0007): nothing outside
  * components/items/ reaches into it, and only it asks which concept has a
  * view of its own. Tier three plugs in from above, in three places: the app's
@@ -205,6 +237,7 @@ export default tseslint.config(
         relayReadInQuery("callee.name"),
         relayReadInQuery("callee.property.name"),
         ...RAW_TAG_LINKS,
+        ...HAND_WRITTEN_NAMES,
       ],
       "@typescript-eslint/no-unused-vars": [
         "error",

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 export function ProfileSkeleton() {
   return (
@@ -111,14 +112,12 @@ export function ProfileSeedPreview({
                 <AvatarImage
                   size="lg"
                   src={displayNostrProfile.picture}
-                  alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"}
+                  alt={nameIn(displayNostrProfile) ?? "Profile"}
                   className="object-cover"
                 />
               )}
               <AvatarFallback className="bg-brand-primary/10 text-base font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link sm:text-lg">
-                {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2))
-                  .charAt(0)
-                  .toUpperCase()}
+                {(nameIn(displayNostrProfile) || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
@@ -131,11 +130,7 @@ export function ProfileSeedPreview({
                       data-testid="text-profile-title-seed"
                     >
                       <EmojiText
-                        text={
-                          displayNostrProfile?.display_name ||
-                          displayNostrProfile?.name ||
-                          displayNpub.slice(0, 18) + "..."
-                        }
+                        text={nameIn(displayNostrProfile) || displayNpub.slice(0, 18) + "..."}
                         tags={emojiTags}
                       />
                     </h3>

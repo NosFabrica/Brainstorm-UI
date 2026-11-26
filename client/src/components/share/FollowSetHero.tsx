@@ -17,6 +17,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { Chip } from "@/components/ui/chip";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type SetEvent = {
@@ -134,7 +135,7 @@ export function SetRoster({ members, trailing }: { members: string[]; trailing?:
       <ul className="space-y-0.5" data-testid="set-hero-roster">
         {shown.map((pk) => {
           const profile = profiles.get(pk);
-          const name = profile?.display_name || profile?.name;
+          const name = nameIn(profile);
           const npub = npubOf(pk);
           return (
             <li key={pk} className="flex items-center gap-3">

@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { npubFromPubkey } from "@/lib/shareId";
+import { displayNameOf } from "@/lib/displayName";
 
 export interface FaceProfile {
   display_name?: string;
@@ -11,7 +12,7 @@ export interface FaceProfile {
 
 export function displayName(pubkey: string, profiles?: Map<string, FaceProfile>): string {
   const p = profiles?.get(pubkey);
-  return p?.display_name || p?.name || `${pubkey.slice(0, 8)}…`;
+  return displayNameOf(p, pubkey, "hex8");
 }
 
 /** `/p/<npub>`, or "" when the pubkey won't encode. */

@@ -19,6 +19,7 @@ import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { wantProfile } from "@/services/authorProfileQueue";
 import { kind0ToSearchResult, type SearchHit } from "@/services/search";
+import { resultName } from "@/lib/displayName";
 
 type Coord = { kind: number; pubkey: string; identifier: string };
 
@@ -48,7 +49,7 @@ function mentionedIn(text: string | null | undefined, into: Set<string>): void {
 type Person = { name?: string; picture?: string };
 const personOf = (profile: NostrEvent): Person => {
   const r = kind0ToSearchResult(profile);
-  return { name: r.displayName || r.name || undefined, picture: r.picture || undefined };
+  return { name: resultName(r), picture: r.picture || undefined };
 };
 
 /**

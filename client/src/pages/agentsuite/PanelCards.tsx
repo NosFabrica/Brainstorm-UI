@@ -44,6 +44,7 @@ import {
   type TaHistoryEntry,
 } from "./agentPanelModel";
 import { TrendIndicator } from "./AgentBits";
+import { nameIn } from "@/lib/displayName";
 
 /** Pubkey, NIP-85 status, network size and the last calculation, in one strip. */
 export function AccountOverviewStrip({
@@ -242,7 +243,7 @@ export function InviteCard({ socialActions }: { socialActions: ReturnType<typeof
     const resolved: LookedUpUser = { pubkey, npub };
     try {
       await fetchProfiles([pubkey], (pk, profile) => {
-        resolved.displayName = profile.display_name || profile.name;
+        resolved.displayName = nameIn(profile);
         resolved.picture = profile.picture || profile.image;
       });
     } catch {

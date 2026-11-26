@@ -336,6 +336,7 @@ function naddrOf(event: NostrEvent): string | null {
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
 import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf, mediaItemsOf } from "@/lib/mediaKind";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { nameIn, displayNameOf, resultName } from "@/lib/displayName";
 
 export const MediaCard = memo(function MediaCard({
   event,
@@ -862,7 +863,7 @@ export const RepoCard = memo(function RepoCard({
                       return (
                         <Avatar
                           key={pk}
-                          title={profile?.display_name || profile?.name || undefined}
+                          title={nameIn(profile)}
                           className={`h-5 w-5 border border-white dark:border-slate-900 ${faceRing(faceScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
                           data-testid={`repo-contributor-face-${pk}`}
                         >
@@ -1048,11 +1049,7 @@ export const LiveTile = memo(function LiveTile({
   const hostIsAuthor = !hostPk || hostPk === event.pubkey;
   const faces = useFaceProfiles(hostIsAuthor ? [] : [hostPk as string]);
   const hostProfile = hostIsAuthor ? undefined : faces.get(hostPk as string);
-  const channelName = hostProfile
-    ? hostProfile.display_name || hostProfile.name || ""
-    : author
-      ? getDisplayLabel(author)
-      : "";
+  const channelName = hostProfile ? (nameIn(hostProfile) ?? "") : author ? getDisplayLabel(author) : "";
   const speed = useConnectionSpeed();
   const channelPicture = hostProfile ? hostProfile.picture : author?.picture;
   // One thumbnail URL for both draws below, so the blurred backdrop and the
@@ -1465,7 +1462,7 @@ export const ListCard = memo(function ListCard({
   const profiles = useFaceProfiles(isPeopleList ? [...members.slice(0, 5), ...provenance] : provenance);
   const nameOf = (pk: string) => {
     const p = profiles.get(pk);
-    return p?.display_name || p?.name || `${nip19.npubEncode(pk).slice(0, 12)}…`;
+    return displayNameOf(p, pk, "npub12");
   };
   const header = (
     <div className="flex min-w-0 items-center gap-2">
@@ -1482,7 +1479,7 @@ export const ListCard = memo(function ListCard({
     <div className="flex flex-wrap items-start gap-2.5" data-testid={`list-members-${event.id}`}>
       {members.slice(0, 5).map((pk, i) => {
         const profile = profiles.get(pk);
-        const memberName = profile?.display_name || profile?.name;
+        const memberName = nameIn(profile);
         return (
           // Phones fit 3 faces + the counter on ONE row; sm+ shows 5.
           <span key={pk} className={`w-12 flex-col items-center gap-1 ${i >= 3 ? "hidden sm:flex" : "flex"}`}>
@@ -1669,7 +1666,7 @@ export const TrackCard = memo(function TrackCard({
       <EmbeddedTrackCard
         id={track.id}
         title={track.title}
-        artist={track.artist ?? author?.displayName ?? author?.name}
+        artist={track.artist ?? resultName(author)}
         // Art its creator marked sensitive (NIP-36) is not drawn, nor handed to the now-playing bar.
         cover={contentWarningOf(event) ? undefined : track.cover}
         audio={track.audio}

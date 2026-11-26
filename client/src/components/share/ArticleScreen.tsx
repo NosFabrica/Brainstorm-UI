@@ -74,6 +74,7 @@ import { useBookScope } from "@/hooks/usePublication";
 import { ARTICLE_PROSE_CLASS } from "@/lib/articleProse";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -473,8 +474,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
     picture?: string;
     nip05?: string;
   };
-  const authorName =
-    profile.display_name || profile.name || (ptr ? nip19.npubEncode(ptr.pubkey).slice(0, 12) + "…" : "Unknown");
+  const authorName = nameIn(profile) || (ptr ? nip19.npubEncode(ptr.pubkey).slice(0, 12) + "…" : "Unknown");
   const authorNpub = ptr
     ? (() => {
         try {

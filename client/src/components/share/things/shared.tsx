@@ -24,6 +24,7 @@ import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { __resetAsks } from "@/lib/askOnce";
 import { eventStore } from "@/lib/eventStore";
 import { fetchByAddress, fetchFromSearch } from "@/services/search";
+import { displayNameOf } from "@/lib/displayName";
 
 /** The structural minimum an event page hands its heroes (MinimalEvent — no sig). */
 export type PageEvent = {
@@ -51,8 +52,7 @@ export function hostOf(url: string): string | null {
   }
 }
 
-export const nameOf = (profile: MemberProfile | undefined, pubkey: string) =>
-  profile?.display_name || profile?.name || `${npubOf(pubkey).slice(0, 12)}…`;
+export const nameOf = (profile: MemberProfile | undefined, pubkey: string) => displayNameOf(profile, pubkey, "npub12");
 
 /** The small uppercase line above a page title: what this is. */
 export function Kicker({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {

@@ -30,6 +30,7 @@ import { TIER_LABELS } from "@/services/trustThreshold";
 import { PlanCard } from "@/components/billing/PlanCard";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 const TIER_LABEL: Record<VerificationTier, string> = {
   high: TIER_LABELS.high,
@@ -140,7 +141,7 @@ export default function InsightsPage() {
   // Only once the server's `ta_pubkey` confirms it (#269).
   const { published: assistant } = useBrainstormAssistant();
   const assistantProfile = useMemo(() => (assistant ? readAssistantProfile() : null), [assistant]);
-  const assistantName = assistantProfile?.display_name || assistantProfile?.name || "Brainstorm assistant";
+  const assistantName = nameIn(assistantProfile) ?? "Brainstorm assistant";
 
   const calculatedAt = fmtWhen(history?.last_time_calculated_graperank);
   const lastCalcMs = toMs(history?.last_time_calculated_graperank);

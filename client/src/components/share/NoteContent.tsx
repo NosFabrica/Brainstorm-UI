@@ -32,6 +32,7 @@ import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
 import { MediaImg } from "@/components/ui/media-img";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
  *  non-descriptive filenames (numeric ids, hashes/uuids) like `…/32939084.mp3`. */
@@ -388,14 +389,7 @@ export function NoteContent({
         }
         if (pubkey) {
           const prof = profiles?.get(pubkey);
-          return (
-            <ProfileMention
-              key={i}
-              npub={token.bech32}
-              name={prof?.display_name || prof?.name}
-              picture={prof?.picture}
-            />
-          );
+          return <ProfileMention key={i} npub={token.bech32} name={nameIn(prof)} picture={prof?.picture} />;
         }
         if (id) {
           // Embedded as a card below? Then the card IS the quote.

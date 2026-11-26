@@ -6,6 +6,7 @@
  * faceless accounts, repeats, or Bitcoin accounts outside the Bitcoin topic:
  * a raw search matches names, which is how "Gaming News" turned up twice.
  */
+import { nameIn } from "@/lib/displayName";
 
 /** A suggested person, as the first run shows them. */
 export interface SuggestedPerson {
@@ -45,7 +46,7 @@ export function cleanDisplayName(raw: string): string {
 
 function personOf(pubkey: string, p: ProfileLike | undefined): SuggestedPerson | null {
   if (!p?.picture) return null;
-  const name = cleanDisplayName(p.display_name || p.displayName || p.name || "");
+  const name = cleanDisplayName(nameIn(p, { legacy: true }) ?? "");
   if (!name) return null;
   return { pubkey, name, picture: p.picture, ...(p.nip05 ? { nip05: p.nip05 } : {}) };
 }

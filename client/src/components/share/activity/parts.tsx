@@ -27,6 +27,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { eventPath, READER_KINDS } from "@/lib/shareId";
 import { refPath } from "@/lib/refPath";
 import { topicPath } from "@/lib/topicQuery";
+import { nameIn } from "@/lib/displayName";
 
 /** The page's heading: what happened, a line under it, and its mark on the right — the hero anatomy of a follow set or a designation. */
 export function ActivityHeader({
@@ -96,7 +97,7 @@ const npubOf = (pubkey: string) => {
 export function PersonName({ pubkey }: { pubkey: string }) {
   const profile = useLiveProfiles([pubkey]).get(pubkey) as ProfileLite | undefined;
   const npub = npubOf(pubkey);
-  const name = profile?.display_name || profile?.name;
+  const name = nameIn(profile);
   return (
     <span data-testid="activity-person-name">
       {name ? (
@@ -128,7 +129,7 @@ export function PersonCard({
   const scoreOf = useAuthorScores(keys);
   const profile = useLiveProfiles(keys).get(pubkey ?? "") as ProfileLite | undefined;
   const npub = pubkey ? npubOf(pubkey) : "";
-  const name = profile?.display_name || profile?.name;
+  const name = nameIn(profile);
   const body = (
     <>
       <Avatar

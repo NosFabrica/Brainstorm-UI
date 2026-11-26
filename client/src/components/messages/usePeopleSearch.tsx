@@ -17,6 +17,7 @@ import { typeaheadPause, type SearchResult } from "@/lib/profileSearch";
 import { useConnectionSpeed } from "@/lib/connection";
 import { decodeShareId, isNip05 } from "@/lib/shareId";
 import { PersonAvatar, shortNpub } from "./people";
+import { resultName } from "@/lib/displayName";
 
 /** A query that names one person directly (npub, nprofile, hex, NIP-05) isn't a name search. */
 export function isAddressQuery(q: string): boolean {
@@ -60,7 +61,7 @@ export function usePeopleSearch(
 }
 
 export function personLabel(r: SearchResult): string {
-  return (r.displayName || r.name || "").trim() || shortNpub(r.pubkey);
+  return resultName(r) ?? shortNpub(r.pubkey);
 }
 
 /** A claimed NIP-05, shown only once its domain confirms it; the npub otherwise. */

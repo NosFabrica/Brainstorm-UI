@@ -17,6 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { UserResultRow } from "./UserResultRow";
+import { nameIn, resultName } from "@/lib/displayName";
 
 const POLICIES_KEY = ["/api/admin/scheduling"];
 const STATS_KEY = ["/api/admin/scheduling/stats"];
@@ -38,7 +39,7 @@ function fromSearchResult(r: NostrSearchResult): ProfileLite {
   return {
     pubkey: r.pubkey,
     npub: r.npub || encodeNpub(r.pubkey),
-    name: r.displayName || r.name,
+    name: resultName(r),
     picture: r.picture,
   };
 }
@@ -144,7 +145,7 @@ export function AssignUsersDialog({
         const map = await fetchProfileMap(base.map((b) => b.pubkey)).catch(() => new Map());
         const enriched = base.map((b) => {
           const c = map.get(b.pubkey);
-          return c ? { ...b, name: c.display_name || c.name, picture: c.picture } : b;
+          return c ? { ...b, name: nameIn(c), picture: c.picture } : b;
         });
         upsertProfiles(enriched);
         setResults((prev) => prev.map((b) => enriched.find((e) => e.pubkey === b.pubkey) || b));
@@ -168,7 +169,7 @@ export function AssignUsersDialog({
       .then((map) => {
         const enriched = lite.map((l) => {
           const c = map.get(l.pubkey);
-          return c ? { ...l, name: c.display_name || c.name, picture: c.picture } : l;
+          return c ? { ...l, name: nameIn(c), picture: c.picture } : l;
         });
         upsertProfiles(enriched);
       })

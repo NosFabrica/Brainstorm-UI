@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { use$, useAccountManager } from "applesauce-react/hooks";
-import { getDisplayName, getProfilePicture, getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
+import { getProfilePicture, getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 
 import { displayStream, rememberProfile, type AccountDisplay } from "@/accounts/display";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * The Active Account's display, live: it updates on a switch, when the profile
@@ -37,7 +38,7 @@ export function useActiveAccountDisplay(): AccountDisplay | null {
     const account = manager.active as BrainstormAccount | undefined;
     if (!account || account.pubkey !== pubkey) return;
     rememberProfile(account, {
-      name: getDisplayName(live) || live.name || live.display_name,
+      name: nameIn(live, { legacy: true }),
       picture: getProfilePicture(live) || live.picture || live.image,
       nip05: live.nip05,
     });
@@ -49,7 +50,7 @@ export function useActiveAccountDisplay(): AccountDisplay | null {
   // document, so a missing picture means the avatar was removed.
   return {
     ...cached,
-    displayName: getDisplayName(live) || live.name || live.display_name,
+    displayName: nameIn(live, { legacy: true }),
     picture: getProfilePicture(live) || live.picture || live.image,
     nip05: live.nip05,
   };

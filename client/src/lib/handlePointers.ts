@@ -9,6 +9,7 @@
  * account. The names they used are said as evidence, never as the account's
  * own ("Profiles named … use this account's handle").
  */
+import { nameIn } from "@/lib/displayName";
 
 export interface MatchedProfile {
   pubkey: string;
@@ -42,7 +43,7 @@ export function accountsHandlesPointTo(
     if (!owner || present.has(owner)) continue;
     const entry = byOwner.get(owner) ?? { names: new Map<string, string>(), count: 0 };
     entry.count++;
-    const name = (p.display_name || p.name || "").trim();
+    const name = nameIn(p) ?? "";
     if (name && !entry.names.has(name.toLowerCase())) entry.names.set(name.toLowerCase(), name);
     byOwner.set(owner, entry);
   }

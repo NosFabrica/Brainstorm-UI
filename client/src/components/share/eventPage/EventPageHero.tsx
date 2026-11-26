@@ -40,6 +40,7 @@ import { UserStatusHero } from "@/components/share/UserStatusHero";
 import { WebBookmarkHero } from "@/components/share/WebBookmarkHero";
 import { ChatContextLine } from "@/components/share/ChatContext";
 import type { EventPageMedia } from "./useEventMedia";
+import { nameIn } from "@/lib/displayName";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 
@@ -162,7 +163,7 @@ export function EventPageHero(props: EventPageHeroProps) {
               profiles={profiles}
               linkCard
               tags={note.tags}
-              authorName={profile.display_name || profile.name}
+              authorName={nameIn(profile)}
               embedThings
               contentWarning={contentWarningOf(note)}
               skipUrls={media.urls}

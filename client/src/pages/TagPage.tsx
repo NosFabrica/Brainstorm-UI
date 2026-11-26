@@ -26,6 +26,7 @@ import { ShareButton } from "@/components/share/ShareButton";
 import type { TagCarrier } from "@/services/tags";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * `/tags/:author/:slug` — everyone the network says carries one tag.
@@ -287,7 +288,7 @@ export default function TagPage() {
           <p className="mt-2 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-author">
             Tag created by{" "}
             <Link href={`/p/${authorNpub}`} className="font-medium text-brand-link hover:underline">
-              {authorProfile?.display_name || authorProfile?.name || `${authorNpub.slice(0, 12)}…`}
+              {nameIn(authorProfile) || `${authorNpub.slice(0, 12)}…`}
             </Link>
           </p>
         )}
@@ -445,7 +446,7 @@ export default function TagPage() {
                     <PersonListRow
                       key={c.pubkey}
                       pubkey={c.pubkey}
-                      displayName={p?.display_name || p?.name}
+                      displayName={nameIn(p)}
                       picture={p?.picture}
                       nip05={p?.nip05}
                       pov={scorePov}
@@ -500,7 +501,7 @@ export default function TagPage() {
                       <PersonListRow
                         key={c.pubkey}
                         pubkey={c.pubkey}
-                        displayName={p?.display_name || p?.name}
+                        displayName={nameIn(p)}
                         picture={p?.picture}
                         nip05={p?.nip05}
                         pov={scorePov}

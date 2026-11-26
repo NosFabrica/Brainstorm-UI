@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { OnboardQueue } from "./useOnboardQueue";
 import { Button } from "@/components/ui/button";
 import { Search, Users, ChevronDown, CheckCircle2, XCircle, FileText, Globe, Loader2, UserPlus } from "lucide-react";
+import { resultName } from "@/lib/displayName";
 
 /**
  * Lookup's Onboard mode: a Nostr name search, a pasted list of keys, the
@@ -79,7 +80,7 @@ export function OnboardPanel({
           data-testid="onboard-results"
         >
           {onboardResults.map((profile) => {
-            const displayName = profile.displayName || profile.name || profile.npub.slice(0, 16) + "...";
+            const displayName = resultName(profile) ?? profile.npub.slice(0, 16) + "...";
             const isQueued = onboardQueue.some((p) => p.pubkey === profile.pubkey);
             return (
               <div
@@ -185,7 +186,7 @@ export function OnboardPanel({
           </div>
           <div className="flex max-h-[100px] flex-wrap gap-1.5 overflow-y-auto overflow-x-hidden">
             {onboardQueue.map((profile) => {
-              const displayName = profile.displayName || profile.name || profile.npub.slice(0, 10) + "...";
+              const displayName = resultName(profile) ?? profile.npub.slice(0, 10) + "...";
               const progressItem = onboardProgress?.results.find((r) => r.pubkey === profile.pubkey);
               return (
                 <div

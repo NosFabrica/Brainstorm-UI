@@ -4,6 +4,7 @@ import type { SearchHit } from "@/services/search";
 import { foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { capPerAuthor } from "@/lib/searchCollapse";
 import type { DisplayRow, Facet } from "./types";
+import { resultName } from "@/lib/displayName";
 
 /** What became of each issue and patch, by item id (NIP-34 status events, newest wins; none means open). */
 export type GitStatuses = ReadonlyMap<string, { kind: number; at: number }>;
@@ -90,7 +91,7 @@ export function gitRows(
     const open = s.expanded.has(id);
     const forks = g.forks.length;
     const more = overflow.reduce((n, o) => n + 1 + o.forks.length, 0);
-    const who = g.primary.author?.displayName || g.primary.author?.name || "this maintainer";
+    const who = resultName(g.primary.author) ?? "this maintainer";
     const parts = [
       forks > 0 ? `${forks} ${forks === 1 ? "fork" : "forks"}` : null,
       more > 0 ? `+${more} more from ${who}` : null,

@@ -14,6 +14,7 @@ import type { SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
+import { nameIn, resultName } from "@/lib/displayName";
 
 /**
  * Compact "follow a few accounts → calculate" card for the dashboard's no-follows
@@ -58,7 +59,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       const p = map?.get(c.pubkey);
       return {
         pubkey: c.pubkey,
-        name: p?.display_name || p?.name || c.fallbackName,
+        name: nameIn(p) ?? c.fallbackName,
         nip05: p?.nip05,
         picture: p?.picture,
       };
@@ -71,7 +72,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       const next = new Map(prev);
       for (const p of curatedPeople) next.set(p.pubkey, p);
       for (const r of results)
-        next.set(r.pubkey, { pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture });
+        next.set(r.pubkey, { pubkey: r.pubkey, name: resultName(r), nip05: r.nip05, picture: r.picture });
       return next;
     });
   }, [curatedPeople, results]);
@@ -245,7 +246,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           {results.map((r) => (
             <PersonRow
               key={r.pubkey}
-              person={{ pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture }}
+              person={{ pubkey: r.pubkey, name: resultName(r), nip05: r.nip05, picture: r.picture }}
               selected={selected.has(r.pubkey)}
               onToggle={() => toggle(r.pubkey)}
             />

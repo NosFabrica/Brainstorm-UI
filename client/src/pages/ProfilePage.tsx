@@ -66,6 +66,7 @@ import { ProfileCoverBanner, ProfileIdentity } from "./profile/ProfileIdentity";
 import { SocialReachCard } from "./profile/SocialReachCard";
 import { RiskSignalsCard, SocialContextCard } from "./profile/SocialContextCard";
 import { confidenceGuidanceFor, grTierCountsToUI, tierBreakdownRows } from "./profile/tiers";
+import { nameIn } from "@/lib/displayName";
 export default function ProfilePage() {
   const [location, navigate] = useLocation();
   const [, params] = useRoute("/profile/:npub");
@@ -526,7 +527,7 @@ export default function ProfilePage() {
   const confidenceGuidance = useMemo(() => {
     if (!profileResult || profileResult.influence === undefined) return null;
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-    const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
+    const name = nameIn(nostrProfile) ?? "this identity";
     return confidenceGuidanceFor(score, name);
   }, [profileResult, nostrProfile]);
 
@@ -820,7 +821,7 @@ export default function ProfilePage() {
   // NOT "how others see you": every viewer with their own web of trust computes a
   // different number, so there is no single score to promise.
   const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
-  const searchPostsName = displayNostrProfile?.display_name || displayNostrProfile?.name;
+  const searchPostsName = nameIn(displayNostrProfile);
   const searchPostsLabel = isOwnProfile
     ? "Search your posts"
     : searchPostsName
@@ -870,7 +871,7 @@ export default function ProfilePage() {
         open={shareOpen}
         onOpenChange={setShareOpen}
         npub={displayNpub}
-        displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+        displayName={nameIn(displayNostrProfile) || displayNpub.slice(0, 18) + "…"}
         picture={displayNostrProfile?.picture}
         nip05={displayNostrProfile?.nip05}
         shareUrl={profileShareUrl}
@@ -883,7 +884,7 @@ export default function ProfilePage() {
           onOpenChange={setZapOpen}
           recipientPubkey={hexPubkey}
           lud16={displayNostrProfile.lud16}
-          displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+          displayName={nameIn(displayNostrProfile) || displayNpub.slice(0, 18) + "…"}
           picture={displayNostrProfile?.picture}
         />
       )}

@@ -31,6 +31,7 @@ import { fetchRefBatched } from "@/services/refBatch";
 import { topicPath } from "@/lib/topicQuery";
 import { articleTitle } from "@/lib/publication";
 import { APP_EMBED_KINDS } from "@/lib/embedShape";
+import { nameIn } from "@/lib/displayName";
 
 const appName = (ev: MinimalEvent) => ev.tags.find((t) => t[0] === "name")?.[1]?.trim() ?? "";
 
@@ -202,7 +203,7 @@ export function ItemListPreview({ event }: { event: MinimalEvent }) {
                 </AvatarFallback>
               </Avatar>
             }
-            name={q.author?.display_name || q.author?.name}
+            name={nameIn(q.author)}
             text={text}
           />
         ))}
@@ -275,7 +276,7 @@ export const EmbeddedListCard = memo(function EmbeddedListCard({
   const [, navigate] = useLocation();
   const items = useMemo(() => readListItems(event), [event]);
   const Icon = BOOKMARK_KINDS.has(event.kind) ? Bookmark : ListChecks;
-  const name = author?.display_name || author?.name;
+  const name = nameIn(author);
   const to = href ?? listHref(event);
   const onClick = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest("a, button")) return;

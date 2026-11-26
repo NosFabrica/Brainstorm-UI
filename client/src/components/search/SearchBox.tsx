@@ -88,6 +88,7 @@ import { PersonTagLabel } from "@/components/search/PersonTagLabel";
 import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
 import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS } from "@/components/search/searchBoxChrome";
 import { isTouchScreen } from "@/lib/touchScreen";
+import { resultName } from "@/lib/displayName";
 
 const NO_PUBKEYS: string[] = [];
 
@@ -626,8 +627,7 @@ export function SearchBox({
   const words = scope ? scope.rest : value;
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
-  const scopeName =
-    scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  const scopeName = resultName(scopeProfile) ?? null;
 
   // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
   // the dropdown's action row resolves it straight to the right landing page.

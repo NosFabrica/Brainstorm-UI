@@ -25,6 +25,7 @@ import { personMatches } from "@/lib/personMatch";
 import { hasOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -224,8 +225,7 @@ export default function ConnectionListPage() {
   if (!cfg) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subject = (liveSubject ?? {}) as Record<string, string | undefined>;
-  const subjectName =
-    subject.display_name || subject.name || (pubkey ? npubFromPubkey(pubkey).slice(0, 12) + "…" : "this profile");
+  const subjectName = nameIn(subject) || (pubkey ? npubFromPubkey(pubkey).slice(0, 12) + "…" : "this profile");
   const loading = connQuery.isLoading;
 
   // "What does verified mean?" popover — POV-aware so it nudges the right next
@@ -493,7 +493,7 @@ export default function ConnectionListPage() {
                 <PersonListRow
                   key={pk}
                   pubkey={pk}
-                  displayName={p?.display_name || p?.name}
+                  displayName={nameIn(p)}
                   picture={p?.picture}
                   nip05={p?.nip05}
                   score={score}
@@ -501,9 +501,7 @@ export default function ConnectionListPage() {
                   testId={`conn-row-${pk.slice(0, 8)}`}
                   // Only where there is a button: otherwise the row keeps its chevron.
                   actions={
-                    me?.pubkey && me.pubkey !== pk ? (
-                      <MessageButton compact pubkey={pk} name={p?.display_name || p?.name} />
-                    ) : undefined
+                    me?.pubkey && me.pubkey !== pk ? <MessageButton compact pubkey={pk} name={nameIn(p)} /> : undefined
                   }
                   meta={
                     rm && (

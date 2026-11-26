@@ -30,6 +30,7 @@ import { LazyPollCard } from "@/components/share/LazyPollCard";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * Click anywhere on a card to open it, EXCEPT on real interactive descendants
@@ -66,7 +67,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
   const tierRing = useTierRing();
   const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
-  const name = p?.display_name || p?.name || "someone";
+  const name = nameIn(p) ?? "someone";
   let npub = "";
   try {
     npub = npubFromPubkey(pubkey);
@@ -271,8 +272,7 @@ export const ShareNoteCard = memo(function ShareNoteCard({
 
   const heading = noteHeadingOf(event);
   const authorProfile = profiles.get(event.pubkey);
-  const authorName =
-    authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
+  const authorName = nameIn(authorProfile) || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub
@@ -417,7 +417,7 @@ export const ShareNoteCard = memo(function ShareNoteCard({
           // A linked list is drawn as its card below: the card is its link.
           embeddedCoords={listCoords}
           embedThings
-          authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name}
+          authorName={nameIn(profiles.get(event.pubkey))}
         />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}
         {event.content?.trim() && <TranslateLine text={event.content} />}

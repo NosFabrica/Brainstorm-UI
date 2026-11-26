@@ -16,7 +16,7 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { logout } from "@/accounts/login-flow";
 import { AccountCards } from "@/components/AccountCards";
-import { getDisplayLabel, isLikelyNpub, isHexPubkey, isNip05Handle } from "@/lib/profileSearch";
+import { isLikelyNpub, isHexPubkey, isNip05Handle } from "@/lib/profileSearch";
 import { type SearchHit } from "@/services/search";
 import { BackToTop } from "@/components/search/BackToTop";
 import { LazySearchResults, SearchResultsFallback } from "@/components/search/lazySearchResults";
@@ -33,6 +33,7 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 import { isTouchScreen } from "@/lib/touchScreen";
 import { syncThemeColor } from "@/lib/themeColor";
+import { resultName } from "@/lib/displayName";
 
 // Example prompts the empty search box gently cycles through to teach
 // first-time visitors what they can search for. The first entry is the
@@ -451,8 +452,7 @@ export default function Landing() {
   // fetch. A profile with no name stays unnamed: never a key.
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
-  const scopeName =
-    scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  const scopeName = resultName(scopeProfile) ?? null;
   // A search of one person's things is a search — RECENT remembers it the way the chip that
   // opened it read: the face, the name, the tab it opened on, never the key. Recorded from
   // the search that RAN (not each keystroke), once the person's name is known. Tabs browsed

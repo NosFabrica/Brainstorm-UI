@@ -7,6 +7,7 @@ import { IDENTITY_PLATFORMS, splitIdentityClaim, formatIdentityClaim } from "@/l
 import { useToast } from "@/hooks/use-toast";
 import { InfoHint } from "@/components/InfoHint";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
+import { nameIn } from "@/lib/displayName";
 
 interface ProfileEditFormProps {
   /** Called after a successful save (the success state shows briefly first). */
@@ -128,7 +129,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
         .then((c) => {
           if (!c || stale()) return;
           const x = c as Record<string, string | undefined>;
-          setName((v) => v || x.display_name || x.name || "");
+          setName((v) => v || nameIn(x) || "");
           setAbout((v) => v || x.about || "");
           setPicture((v) => v || x.picture || x.image || "");
           setBanner((v) => v || x.banner || "");

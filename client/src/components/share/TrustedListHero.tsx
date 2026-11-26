@@ -32,6 +32,7 @@ import {
   readTrustedList,
   trustedMemberNoun,
 } from "@/lib/trustedList";
+import { displayNameOf } from "@/lib/displayName";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type ListEvent = {
@@ -67,7 +68,7 @@ export function TrustedListHero({ event }: { event: ListEvent }) {
   const profiles = useLiveProfiles(people);
   const nameOf = (pk: string) => {
     const p = profiles.get(pk);
-    return p?.display_name || p?.name || `${npubOf(pk).slice(0, 12)}…`;
+    return displayNameOf(p, pk, "npub12");
   };
   const scored = list.members.some((m) => m.score !== null);
   // The lists of things: their members read as a list of things (lib/listItems), scored by key.

@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/services/api";
 import { searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
 import { parseNpubList } from "./parseNpubList";
+import { resultName } from "@/lib/displayName";
 
 export type OnboardProgress = {
   done: number;
@@ -92,7 +93,7 @@ export function useOnboardQueue({ onStart }: { onStart: () => void }) {
 
     for (let i = 0; i < onboardQueue.length; i++) {
       const profile = onboardQueue[i];
-      const displayName = profile.displayName || profile.name || profile.pubkey.slice(0, 12) + "...";
+      const displayName = resultName(profile) ?? profile.pubkey.slice(0, 12) + "...";
       try {
         const result = await apiClient.getBrainstormPubkey(profile.pubkey);
         const data = typeof result === "object" && result !== null ? (result as Record<string, unknown>) : {};

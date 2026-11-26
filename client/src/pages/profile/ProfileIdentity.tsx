@@ -16,6 +16,7 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 import { copyToClipboard } from "@/lib/clipboard";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { publicOrigin } from "@/lib/publicOrigin";
+import { nameIn } from "@/lib/displayName";
 
 /** X-style stat numbers: full under 10k ("1,234"), compact above ("114K"). */
 export function fmtStat(n: number): string {
@@ -94,13 +95,11 @@ export function ProfileIdentity({
             <AvatarImage
               size="lg"
               src={effectivePicture}
-              alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"}
+              alt={nameIn(displayNostrProfile) ?? "Profile"}
               className="object-cover"
             />
             <AvatarFallback className="bg-brand-primary/10 text-base font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link sm:text-lg">
-              {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2))
-                .charAt(0)
-                .toUpperCase()}
+              {(nameIn(displayNostrProfile) || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
         );
@@ -117,12 +116,7 @@ export function ProfileIdentity({
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-profile-title"
               >
-                <EmojiText
-                  text={
-                    displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."
-                  }
-                  tags={emojiTags}
-                />
+                <EmojiText text={nameIn(displayNostrProfile) || displayNpub.slice(0, 18) + "..."} tags={emojiTags} />
               </h3>
               <Nip05Handle
                 nip05={displayNostrProfile?.nip05}
