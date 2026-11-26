@@ -9,7 +9,7 @@
  * Node, not jsdom: the events are really signed so the store will verify them,
  * and jsdom's foreign-realm Uint8Array fails @noble's checks (see `test/setup.ts`).
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY } from "rxjs";
 import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
 
@@ -52,6 +52,7 @@ beforeEach(async () => {
   );
   nostr = await import("./nostr");
 });
+afterEach(() => vi.useRealTimers());
 
 /**
  * Only the kind-0. A successful save also refreshes the NIP-65 outbox list, which
