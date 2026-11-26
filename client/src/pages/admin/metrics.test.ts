@@ -3,6 +3,7 @@ import {
   bucketActivity,
   compareActivityWindows,
   computePipelineMetrics,
+  computeHeaderFigures,
   computeTrends,
   countQueued,
   getUserHealth,
@@ -181,5 +182,38 @@ describe("computeTrends", () => {
     const t = computeTrends(loaded, loaded, "all", NOW);
     expect(t.cfg.bucketSizeMs).toBe(2 * HOUR);
     expect(t.dataCoversWindow).toBe(true);
+  });
+});
+
+describe("computeHeaderFigures", () => {
+  const cmp = { curSR: 80, curFailed: 3 } as ReturnType<typeof computeTrends>["cmp"];
+
+  it("reads every user's latest run once it has loaded", () => {
+    const nowMetrics = computePipelineMetrics([user(), user({ latest_status: "failed" })], [], 1_500, NOW);
+    expect(
+      computeHeaderFigures({ nowMetrics, adminStats: null, computedQueueDepth: 0, trends: { cmp }, hasActivity: true }),
+    ).toEqual({ scored: "1 / 1.5K", published: "2 / 1.5K", queue: "0", calcs: "2", rate: "50%", failed: "1" });
+  });
+
+  it("falls back on the backend's stats and the range's runs, and says '—' for the rest", () => {
+    const adminStats = { scoredUsers: 12, spAdopters: 7, queueDepth: 2 };
+    expect(
+      computeHeaderFigures({
+        nowMetrics: null,
+        adminStats,
+        computedQueueDepth: null,
+        trends: { cmp },
+        hasActivity: true,
+      }),
+    ).toEqual({ scored: "12", published: "7", queue: "2", calcs: "—", rate: "80%", failed: "3" });
+    expect(
+      computeHeaderFigures({
+        nowMetrics: null,
+        adminStats: null,
+        computedQueueDepth: null,
+        trends: { cmp: { ...cmp, curSR: null } },
+        hasActivity: false,
+      }),
+    ).toEqual({ scored: "0", published: "0", queue: "0", calcs: "—", rate: "—", failed: "—" });
   });
 });

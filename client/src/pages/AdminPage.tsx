@@ -10,7 +10,6 @@ import type { SchedulingItem } from "@/services/api";
 import { Chip } from "@/components/ui/chip";
 import {
   Users,
-  Shield,
   Activity,
   Server,
   BarChart3,
@@ -18,8 +17,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Clock,
-  UserCheck,
   Eye,
   Loader2,
   Sparkles,
@@ -63,7 +60,7 @@ import {
   type AdminUserHistoryPage,
 } from "./admin/types";
 import { POLL_OVERVIEW_MS, POLL_STATS_MS, BOOST_INTERVAL_MS, NONE } from "./admin/constants";
-import { formatTimestamp, formatNumber, timeAgo, truncateError } from "./admin/format";
+import { formatTimestamp, timeAgo, truncateError } from "./admin/format";
 import { computePipelineMetrics, computeTrends, countQueued, getWindowConfig, parseActivityTs } from "./admin/metrics";
 import {
   isFailedActivity,
@@ -74,7 +71,6 @@ import {
 } from "./admin/failures";
 import { ConfirmRetriggerButton } from "./admin/ConfirmRetriggerButton";
 import { DeltaIndicator } from "./admin/DeltaIndicator";
-import { KpiCard } from "./admin/KpiCard";
 import { StatusBadge } from "./admin/StatusBadge";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { type BulkSource, useBulkRetrigger } from "@/components/admin/users/useBulkRetrigger";
@@ -94,6 +90,9 @@ import { useActivityLog } from "./admin/activity/useActivityLog";
 import { useUsersDirectory } from "./admin/users/useUsersDirectory";
 import { useTriggers } from "./admin/useTriggers";
 import { UsersTab } from "./admin/users/UsersTab";
+import { KpiStrip, KpiCompact } from "./admin/HeaderKpis";
+import { computeHeaderFigures } from "./admin/metrics";
+import { type KpiFilter } from "./admin/types";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
@@ -377,33 +376,13 @@ export default function AdminPage() {
 
   // The header's six figures — the system now — drawn once for the cards and
   // for the one-line strip the other tabs show.
-  const headerFigures = {
-    scored: nowMetrics
-      ? `${formatNumber(nowMetrics.successCount)} / ${formatNumber(nowMetrics.total)}`
-      : hasSystemData
-        ? formatNumber(adminStats!.scoredUsers)
-        : "0",
-    published: nowMetrics
-      ? `${formatNumber(nowMetrics.taSuccessCount)} / ${formatNumber(nowMetrics.total)}`
-      : hasSystemData
-        ? formatNumber(adminStats!.spAdopters)
-        : "0",
-    queue:
-      computedQueueDepth !== null
-        ? formatNumber(computedQueueDepth)
-        : hasSystemData
-          ? formatNumber(adminStats!.queueDepth)
-          : "0",
-    // Without the whole-table reads (a tab that doesn't draw them, before they
-    // land) a figure the stats don't carry reads as unknown, not as zero.
-    calcs: nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "—",
-    rate: nowMetrics ? `${nowMetrics.successRate}%` : trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—",
-    failed: nowMetrics
-      ? formatNumber(nowMetrics.failedCount)
-      : overviewActivityQuery.data
-        ? formatNumber(trends.cmp.curFailed)
-        : "—",
-  };
+  const headerFigures = computeHeaderFigures({
+    nowMetrics,
+    adminStats,
+    computedQueueDepth,
+    trends,
+    hasActivity: !!overviewActivityQuery.data,
+  });
 
   // Another tab's link to a person: the Users tab, searched to them, their row open and lit.
   const openInUsers = (pubkey: string) => {
@@ -414,6 +393,13 @@ export default function AdminPage() {
     setExpandedRows(new Set([pubkey]));
     setHighlightedPubkey(pubkey);
     setTimeout(() => setHighlightedPubkey(null), 2500);
+  };
+
+  // A header card: the Users tab, filtered to the users it counts.
+  const showKpi = (filter: KpiFilter) => {
+    setKpiFilter(filter);
+    setActiveTab("users");
+    setUserPage(0);
   };
 
   if (!user || isAuthRedirecting()) return null;
@@ -577,130 +563,17 @@ export default function AdminPage() {
             )}
           </div>
           {activeTab === "overview" && (
-            <div
-              className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
-              data-testid="section-kpi-strip"
-            >
-              <KpiCard
-                label="Scored Users"
-                value={headerFigures.scored}
-                icon={UserCheck}
-                subtitle={
-                  nowMetrics ? `${nowMetrics.successRate}% have a GrapeRank score` : "Users with a GrapeRank score"
-                }
-                tooltip="Users whose last GrapeRank run succeeded — click to list them"
-                onClick={() => {
-                  setKpiFilter("scored");
-                  setActiveTab("users");
-                  setUserPage(0);
-                }}
-                sparklineData={trends.successSeries}
-                sparklineTimestamps={trends.bucketTimestamps}
-                sparklineColor="#10b981"
-                sparklineValueLabel="successes"
-              />
-              <KpiCard
-                label="Assertions Published"
-                value={headerFigures.published}
-                icon={Shield}
-                subtitle={
-                  nowMetrics
-                    ? `${nowMetrics.taAdoptionRate}% publish trusted assertions`
-                    : "Users publishing trusted assertions"
-                }
-                tooltip="Users whose scores are published to relays as NIP-85 trusted assertions — click to list them"
-                onClick={() => {
-                  setKpiFilter("sp_adopters");
-                  setActiveTab("users");
-                  setUserPage(0);
-                }}
-              />
-              <KpiCard
-                label="Queue Depth"
-                value={headerFigures.queue}
-                icon={Clock}
-                subtitle={
-                  computedQueueDepth !== null
-                    ? "Users awaiting calculation"
-                    : hasSystemData
-                      ? "Users awaiting calculation"
-                      : queuePosition !== null
-                        ? "Position in queue"
-                        : "Via graperankResult"
-                }
-                tooltip="Click to view queued users"
-                onClick={() => {
-                  setKpiFilter("queue");
-                  setActiveTab("users");
-                  setUserPage(0);
-                }}
-              />
-              <KpiCard
-                label="Total Calcs"
-                value={headerFigures.calcs}
-                icon={Activity}
-                subtitle="Cumulative attempts, all users"
-                tooltip="Cumulative calculation attempts across all users"
-                sparklineData={trends.totalSeries}
-                sparklineTimestamps={trends.bucketTimestamps}
-                sparklineColor="#13d2e5"
-                sparklineValueLabel="calcs / hr"
-              />
-              <KpiCard
-                label="Success Rate"
-                value={headerFigures.rate}
-                icon={CheckCircle2}
-                subtitle="Cumulative success rate"
-                tooltip="Successful calculations as % of attempted"
-                sparklineData={trends.rateSeries}
-                sparklineTimestamps={trends.bucketTimestamps}
-                sparklineColor="#10b981"
-                sparklineValueLabel="success rate"
-                sparklineValueSuffix="%"
-              />
-              <KpiCard
-                label="Failed Count"
-                value={headerFigures.failed}
-                icon={AlertTriangle}
-                subtitle="Users with a failed run"
-                tooltip="Click to view users with failures"
-                onClick={() => {
-                  setKpiFilter("failed");
-                  setActiveTab("users");
-                  setUserPage(0);
-                }}
-                sparklineData={trends.failedSeries}
-                sparklineTimestamps={trends.bucketTimestamps}
-                sparklineColor="#f87171"
-                sparklineValueLabel="failures"
-              />
-            </div>
+            <KpiStrip
+              figures={headerFigures}
+              nowMetrics={nowMetrics}
+              trends={trends}
+              computedQueueDepth={computedQueueDepth}
+              hasSystemData={hasSystemData}
+              queuePosition={queuePosition}
+              onKpi={showKpi}
+            />
           )}
-          {activeTab !== "overview" && (
-            <p
-              className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300"
-              data-testid="kpi-compact"
-            >
-              <span>
-                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.scored}</b> scored
-              </span>
-              <span>
-                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.published}</b> published
-              </span>
-              <span>
-                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.queue}</b> queued
-              </span>
-              <span>
-                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.calcs}</b> calcs
-              </span>
-              <span>
-                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.rate}</b> success
-              </span>
-              <span>
-                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.failed}</b> failed
-              </span>
-            </p>
-          )}
+          {activeTab !== "overview" && <KpiCompact figures={headerFigures} />}
 
           <div className="scrollbar-hide -mx-4 hidden overflow-x-auto px-4 sm:mx-0 sm:block sm:px-0">
             <div

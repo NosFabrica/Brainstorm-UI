@@ -1,4 +1,5 @@
 import { customDays, type AdminRange } from "../adminRange";
+import { formatNumber } from "./format";
 
 import { getActivityPipelineState, isFailedActivity, isFailedStatus } from "./failures";
 import type { AdminUserHistoryPage, AdminUsersPage, BrainstormRequestInstance, GrapeRankError } from "./types";
@@ -419,3 +420,51 @@ export function tierByPubkey(users: readonly { pubkey: string; scheduling_name: 
   for (const u of users) if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
   return m;
 }
+
+export type PipelineMetrics = NonNullable<ReturnType<typeof computePipelineMetrics>>;
+
+/**
+ * The header's six figures, the system now. From every user's latest run when
+ * that has loaded; else the backend's stats for the three it carries, the
+ * range's runs for rate and failures, and "—" for what neither knows.
+ */
+export function computeHeaderFigures({
+  nowMetrics,
+  adminStats,
+  computedQueueDepth,
+  trends,
+  hasActivity,
+}: {
+  nowMetrics: PipelineMetrics | null;
+  adminStats: { scoredUsers: number; spAdopters: number; queueDepth: number } | null;
+  computedQueueDepth: number | null;
+  trends: Pick<Trends, "cmp">;
+  /** Whether the range's runs have loaded. */
+  hasActivity: boolean;
+}) {
+  return {
+    scored: nowMetrics
+      ? `${formatNumber(nowMetrics.successCount)} / ${formatNumber(nowMetrics.total)}`
+      : adminStats
+        ? formatNumber(adminStats.scoredUsers)
+        : "0",
+    published: nowMetrics
+      ? `${formatNumber(nowMetrics.taSuccessCount)} / ${formatNumber(nowMetrics.total)}`
+      : adminStats
+        ? formatNumber(adminStats.spAdopters)
+        : "0",
+    queue:
+      computedQueueDepth !== null
+        ? formatNumber(computedQueueDepth)
+        : adminStats
+          ? formatNumber(adminStats.queueDepth)
+          : "0",
+    // Without the whole-table reads (a tab that doesn't draw them, before they
+    // land) a figure the stats don't carry reads as unknown, not as zero.
+    calcs: nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "—",
+    rate: nowMetrics ? `${nowMetrics.successRate}%` : trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—",
+    failed: nowMetrics ? formatNumber(nowMetrics.failedCount) : hasActivity ? formatNumber(trends.cmp.curFailed) : "—",
+  };
+}
+
+export type HeaderFigures = ReturnType<typeof computeHeaderFigures>;
