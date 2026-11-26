@@ -23,9 +23,8 @@
  */
 import type { NostrEvent } from "nostr-tools";
 import type { SignerFailure as AnySignerFailure } from "@/accounts/signing";
-import { RelayCursors } from "@/lib/dm/cursors";
-import { BackwardPager, type PageHandlers, type PagerSnapshot } from "@/lib/dm/pager";
-import { GIFT_WRAP_KIND, WRAP_JITTER_SECONDS, type Decrypt, type SealSigner } from "@/lib/dm/giftWrap";
+import type { PageHandlers, PagerSnapshot } from "@/lib/dm/pager";
+import { GIFT_WRAP_KIND, type Decrypt, type SealSigner } from "@/lib/dm/giftWrap";
 import type { DmStore, Delivery, DmMessage } from "@/lib/dm/store";
 import { onAppResume } from "@/lib/appResume";
 import type { DmRelayLookup } from "@/lib/dm/inboxRelays";
@@ -36,9 +35,9 @@ import { DmCore } from "./core";
 import { DeviceCache } from "./deviceCache";
 import { WrapOpener } from "./wrapOpener";
 import { Outbox } from "./outbox";
+import { InboxLink } from "./inboxLink";
 
-/** A week of live tail at most; older is history. */
-export const LIVE_TAIL_SECONDS = 7 * 24 * 3600;
+export { LIVE_TAIL_SECONDS } from "./inboxLink";
 
 export type LiveRelayState = "connecting" | "synced" | "auth";
 
@@ -169,8 +168,18 @@ export interface SendResult {
   error?: string;
 }
 
-const EMPTY_HISTORY: PagerSnapshot = { floor: 0, relays: [], loading: false, exhausted: true, complete: false };
-
+/**
+ * The engine: four parts behind one `stopped` flag (DmCore), composed here.
+ *
+ *  - `DeviceCache` (./deviceCache): what this device keeps, restored at start and
+ *    written back as it changes, every write checked against the cache's guard.
+ *  - `WrapOpener` (./wrapOpener): the wraps that arrived, opened at the signer's pace.
+ *  - `Outbox` (./outbox): what is sent, kept until everyone has it.
+ *  - `InboxLink` (./inboxLink): the live subscription and history paging.
+ *
+ * A wrap from a relay comes in through `ingest`, which hands it to the part it
+ * belongs to.
+ */
 export class DmEngine {
   readonly store: DmStore;
   private readonly me: string;
@@ -183,61 +192,29 @@ export class DmEngine {
   private readonly opener: WrapOpener;
   /** What is sent, and kept until everyone has it. */
   private readonly outbox: Outbox;
+  /** The inbox relays: the live subscription and history below it. */
+  private readonly link: InboxLink;
 
-  private inbox: string[] = [];
-  private status: DmEngineState["status"] = "starting";
-  private live = new Map<string, LiveRelayState>();
-  private liveStops: (() => void)[] = [];
-  private pager: BackwardPager | null = null;
-  private floor = 0;
-  private lastSeen?: number;
-
-  /** Wrap ids already opened (or given up on). */
-  private readonly seen: Set<string>;
-  /** wrap id → message id, to merge relays when the same wrap arrives again. */
-  private readonly wrapToMessage: Map<string, string>;
-  private downloading = false;
   private readonly receivedBy = new Map<string, Set<string>>();
-  /** Relays whose live subscription has answered (EOSE) since connecting; history waits on it. */
-  private readonly liveAnswered = new Set<string>();
-  private readonly liveCount = new Map<string, number>();
-  private liveSince = 0;
-  /** Past this, history stops waiting for slow live answers (see waitingForLive). */
-  private liveWaitOver = false;
-  /** Bumped by each live connection, so an earlier one's wait timer can't end this one's. */
-  private liveGeneration = 0;
-
   private stopOnline?: () => void;
   private starting?: Promise<void>;
   private hydrating?: Promise<void>;
-  private connecting?: Promise<void>;
-  private connectGen = 0;
-  private noInboxRetries = 0;
-  /** Live relays' oldest wrap before their first EOSE: a capped REQ leaves a band to page. */
-  private readonly liveOldest = new Map<string, number>();
   private ticker: unknown;
   private readonly listeners = new Set<() => void>();
   private snap: DmEngineState | null = null;
+
   constructor(
-    private readonly account: DmAccount,
+    account: DmAccount,
     private readonly deps: DmEngineDeps,
   ) {
     this.me = account.pubkey;
     this.clock = makeClock(deps);
     this.core = new DmCore(this.me, this.clock, deps.online ?? onlineNow, () => this.changed());
     this.store = this.core.store;
-    this.seen = this.core.seen;
-    this.wrapToMessage = this.core.wrapToMessage;
     this.device = new DeviceCache(this.core, deps.cache ?? null, deps.sealer, {
       ingest: (wrap, relay) => this.ingest(wrap, relay),
-      restoreSync: (lastSeen, cursors) => {
-        this.lastSeen = lastSeen;
-        this.savedCursors = cursors;
-      },
-      syncState: () => ({
-        lastSeen: this.lastSeen,
-        cursors: this.pager?.cursors.snapshot() ?? this.savedCursors,
-      }),
+      restoreSync: (lastSeen, cursors) => this.link.restoreSync(lastSeen, cursors),
+      syncState: () => this.link.syncState(),
       restoreOutbox: (sealed) => this.outbox.restore(sealed),
       sealOutbox: () => this.outbox.seal(),
     });
@@ -248,27 +225,29 @@ export class DmEngine {
       {
         keepFailed: (wrapId, at, reason) => this.device.keepFailed(wrapId, at, reason),
         keepOpened: (message) => this.device.keepOpened(message),
-        onDrained: () => this.markSeenIfSynced(),
+        onDrained: () => this.link.markSeenIfSynced(),
       },
     );
     this.outbox = new Outbox(this.core, account, deps, {
-      status: () => this.status,
+      status: () => this.link.status,
       whenStarted: () => this.starting,
-      inbox: () => this.inbox,
+      inbox: () => this.link.inbox,
       beginSeal: () => this.opener.beginSeal(),
       endSeal: () => this.opener.endSeal(),
       keepOpened: (message) => this.device.keepOpened(message),
       keepFailed: (wrapId, at, reason) => this.device.keepFailed(wrapId, at, reason),
       scheduleState: () => this.device.scheduleState(),
     });
+    this.link = new InboxLink(this.core, deps, {
+      ingest: (wrap, relay) => this.ingest(wrap, relay),
+      unopenedByRelay: () => this.opener.unopenedByRelay(),
+      oldestWaiting: (at) => this.opener.oldestWaiting(at),
+      scheduleState: () => this.device.scheduleState(),
+    });
   }
 
   private get stopped(): boolean {
     return this.core.stopped;
-  }
-
-  private now(): number {
-    return this.clock.now();
   }
 
   get pubkey(): string {
@@ -299,8 +278,8 @@ export class DmEngine {
     await restoring;
     if (this.stopped) return;
     this.opener.start();
-    this.connecting = this.connect();
-    await Promise.all([this.connecting, this.hydrating]);
+    const connecting = this.link.connect();
+    await Promise.all([connecting, this.hydrating]);
     // Stopped during the lookup (an account switch): register nothing that would outlive it.
     if (this.stopped) return;
     this.flushOutbox();
@@ -318,10 +297,14 @@ export class DmEngine {
     this.ticker = this.clock.repeat(() => this.tick(), 60_000);
   }
 
+  /**
+   * Sign-out and account switch: the one `stopped` flag is set first, so no part
+   * acts after this; then every subscription and timer ends, and what the device
+   * cache was waiting to write is flushed once (unless a clear already ended it).
+   */
   stop(): void {
     this.core.stopped = true;
-    this.status = "stopped";
-    this.disconnect();
+    this.link.stop();
     this.outbox.stop();
     this.stopOnline?.();
     this.opener.stop();
@@ -332,188 +315,16 @@ export class DmEngine {
   }
 
   /** Read the account's inbox list again — after setting it up, or changing it in Settings. */
-  async refreshInbox(): Promise<void> {
-    if (this.stopped) return;
-    this.connecting = this.connect({ fresh: true });
-    await this.connecting;
-  }
-
-  private disconnect() {
-    for (const stop of this.liveStops) stop();
-    this.liveStops = [];
-    this.live.clear();
-    this.liveOldest.clear();
-    this.liveAnswered.clear();
-    this.liveCount.clear();
-    // Keep how far history got, for the next connect and for what's saved.
-    if (this.pager) this.savedCursors = this.pager.cursors.snapshot();
-    this.pager?.dispose();
-    this.pager = null;
-  }
-
-  private async connect(opts: { fresh?: boolean } = {}) {
-    // Only the latest lookup counts: a slower, older one must not undo a newer list.
-    const gen = ++this.connectGen;
-    const lookup = await this.deps.loadInbox(this.me, opts).catch((): DmRelayLookup => ({ relays: [], found: false }));
-    if (this.stopped || gen !== this.connectGen) return;
-    this.disconnect();
-    this.inbox = lookup.relays;
-    if (!this.inbox.length) {
-      this.status = "no-inbox";
-      this.changed();
-      // Not found may be not found *yet* (relays slow at sign-in): look again, twice, before believing it.
-      if (this.noInboxRetries < NO_INBOX_RETRY_MS.length) {
-        const wait = NO_INBOX_RETRY_MS[this.noInboxRetries++];
-        this.clock.set(() => {
-          if (!this.stopped && this.status === "no-inbox") void this.refreshInbox();
-        }, wait);
-      }
-      return;
-    }
-    this.startHistory();
-    this.startLive();
-    this.status = "ready";
-    this.changed();
-  }
-
-  /** Where history starts, and how the history cursors are restored. */
-  private startHistory(saved?: import("@/lib/dm/cursors").CursorSnapshot) {
-    const now = this.now();
-    const tail = now - LIVE_TAIL_SECONDS;
-    const caughtUp = this.lastSeen !== undefined && this.lastSeen > tail && this.seen.size > 0;
-    this.floor = caughtUp ? this.lastSeen! : tail;
-    const snapshot = saved ?? this.savedCursors;
-    // Saved cursors only hold if nothing fell between the last visit and now:
-    // otherwise the band since `lastSeen` was never loaded, and resuming below
-    // it would skip it for good.
-    const cursors = caughtUp && snapshot ? RelayCursors.restore(snapshot) : new RelayCursors(this.floor);
-    this.pager = new BackwardPager({
-      cursors,
-      fetchPage: (relay, f, h) =>
-        this.deps.transport.page(
-          relay,
-          { kinds: [GIFT_WRAP_KIND], "#p": [this.me], until: f.until, limit: f.limit },
-          h,
-        ),
-      onWrap: (wrap, relay) => this.ingest(wrap, relay),
-      setTimer: this.clock.set,
-      clearTimer: this.clock.clear,
-    });
-    this.pager.setRelays(this.inbox);
-    this.pager.subscribe(() => {
-      this.device.scheduleState();
-      this.changed();
-    });
-  }
-
-  private startLive() {
-    const since = this.floor - WRAP_JITTER_SECONDS;
-    this.liveSince = since;
-    this.liveWaitOver = false;
-    const generation = ++this.liveGeneration;
-    // History waits for each relay's live answer (canPage); after a while, not any more.
-    this.clock.set(() => {
-      if (generation !== this.liveGeneration) return;
-      this.liveWaitOver = true;
-      this.changed();
-    }, LIVE_ANSWER_WAIT_MS);
-    for (const relay of this.inbox) {
-      this.live.set(relay, "connecting");
-      const stop = this.deps.transport.live(
-        relay,
-        { kinds: [GIFT_WRAP_KIND], "#p": [this.me], since },
-        {
-          onEvent: (event) => {
-            if (!this.liveAnswered.has(relay)) {
-              const oldest = this.liveOldest.get(relay);
-              if (oldest === undefined || event.created_at < oldest) this.liveOldest.set(relay, event.created_at);
-              this.liveCount.set(relay, (this.liveCount.get(relay) ?? 0) + 1);
-            }
-            this.ingest(event, relay);
-          },
-          onEose: () => {
-            if (!this.liveAnswered.has(relay)) this.liveWindowAnswered(relay);
-            this.live.set(relay, "synced");
-            this.markSeenIfSynced();
-            this.changed();
-          },
-          onDisconnected: () => {
-            // Not caught up while the socket is down: `lastSeen` must not move on.
-            if (this.live.get(relay) === "synced") {
-              this.live.set(relay, "connecting");
-              this.changed();
-            }
-          },
-          onAuthRequired: (required) => {
-            const current = this.live.get(relay);
-            if (required && current !== "synced") this.live.set(relay, "auth");
-            else if (!required && current === "auth") this.live.set(relay, "connecting");
-            this.changed();
-          },
-        },
-      );
-      const stopAuth = this.deps.transport.onAuthenticated(relay, () => this.pager?.retryAuth());
-      this.liveStops.push(stop, stopAuth);
-    }
-  }
-
-  /**
-   * A relay's live window has answered. If it came back capped — many wraps,
-   * the oldest well above where it asked from — the band below them is
-   * history's to fetch: start there. Cursors restored from the last visit
-   * sit below that band, so they start over from it (opened wraps are skipped).
-   */
-  private liveWindowAnswered(relay: string) {
-    this.liveAnswered.add(relay);
-    const oldest = this.liveOldest.get(relay);
-    const count = this.liveCount.get(relay) ?? 0;
-    this.liveOldest.delete(relay);
-    this.liveCount.delete(relay);
-    const pager = this.pager;
-    if (!pager || oldest === undefined) return;
-    if (!pager.cursors.hasPosition(relay)) {
-      pager.startBelow(relay, oldest);
-      return;
-    }
-    const capped = count >= CAPPED_LIVE_AT && oldest > this.liveSince + 3600;
-    if (capped) pager.restartBelow(relay, oldest);
-  }
-
-  private get liveSynced(): boolean {
-    return this.inbox.length > 0 && this.inbox.every((r) => this.live.get(r) === "synced");
-  }
-
-  private get liveSettled(): boolean {
-    if (!this.inbox.some((r) => this.live.get(r) === "synced")) return false;
-    const history = new Map(this.pager?.snapshot().relays.map((r) => [r.url, r.state]) ?? []);
-    return this.inbox.every((r) => {
-      const page = history.get(r);
-      return this.live.get(r) === "synced" || this.live.get(r) === "auth" || page === "stalled" || page === "auth";
-    });
-  }
-
-  /**
-   * Caught up as of now — except for wraps that arrived but aren't opened yet
-   * (an extension waits for the reader): the queue isn't kept, so the next
-   * visit must ask for them again, and `lastSeen` stays at the oldest.
-   */
-  private markSeenIfSynced(throttle = false) {
-    if (!this.liveSynced) return;
-    const at = this.opener.oldestWaiting(this.now());
-    // Saved every few minutes, not on every tick: a minute here is lost to the 2-day overlap anyway.
-    if (throttle && this.lastSeen !== undefined && at >= this.lastSeen && at - this.lastSeen < 300) return;
-    this.lastSeen = at;
-    this.device.scheduleState();
+  refreshInbox(): Promise<void> {
+    return this.link.refresh();
   }
 
   private tick() {
-    this.markSeenIfSynced(true);
+    this.link.markSeenIfSynced(true);
     this.flushOutbox();
-    const gone = this.store.sweepExpired(this.now());
+    const gone = this.store.sweepExpired(this.core.now());
     if (gone.length) this.device.forget(gone);
   }
-
-  private savedCursors?: import("@/lib/dm/cursors").CursorSnapshot;
 
   // ─── the outbox ─────────────────────────────────────────────────────────
 
@@ -529,15 +340,16 @@ export class DmEngine {
 
   // ─── opening wraps ──────────────────────────────────────────────────────
 
+  /** A wrap from a relay, live or paged: counted, then merged, held, or queued to open. */
   private ingest(wrap: NostrEvent, relay: string) {
     if (this.stopped || wrap.kind !== GIFT_WRAP_KIND) return;
     let got = this.receivedBy.get(relay);
     if (!got) this.receivedBy.set(relay, (got = new Set()));
     got.add(wrap.id);
-    if (this.seen.has(wrap.id)) {
+    if (this.core.seen.has(wrap.id)) {
       // Held on the device, its row not read back yet: kept until it is (`settleRow`).
       if (this.device.holdEarly(wrap, relay)) return;
-      const id = this.wrapToMessage.get(wrap.id);
+      const id = this.core.wrapToMessage.get(wrap.id);
       const held = id ? this.store.message(id) : undefined;
       if (held && !held.relays.includes(relay)) this.store.add({ ...held, relays: [relay] });
       return;
@@ -558,44 +370,21 @@ export class DmEngine {
    * skipped without asking the signer, so this costs downloads, not prompts.
    */
   refetchHistory(): void {
-    if (this.stopped || !this.inbox.length) return;
-    this.pager?.dispose();
-    this.pager = null;
-    this.savedCursors = undefined;
-    this.startHistory();
-    // Below the live window's oldest on each relay, as on a first visit.
-    this.downloadAll();
+    this.link.refetchHistory();
   }
 
   /**
    * Page every relay to its end without waiting to be scrolled — the sync
    * view's button. Each relay's next page still waits for the last one to be
-   * nearly open (canPage), so this runs at the signer's pace; it ends when no
-   * relay has more, or on `stopDownload()`. For this visit only.
+   * nearly open, so this runs at the signer's pace; it ends when no relay has
+   * more, or on `stopDownload()`. For this visit only.
    */
   downloadAll(): void {
-    if (this.stopped || !this.pager) return;
-    this.downloading = true;
-    this.changed();
-    this.keepDownloading();
+    this.link.downloadAll();
   }
 
   stopDownload(): void {
-    if (!this.downloading) return;
-    this.downloading = false;
-    this.changed();
-  }
-
-  /** Runs with every (throttled) state change while downloading. */
-  private keepDownloading(): void {
-    if (!this.downloading || this.stopped || !this.pager) return;
-    const relays = this.pager.snapshot().relays;
-    if (!relays.some((r) => r.state === "idle" || r.state === "loading" || r.retrying)) {
-      this.downloading = false;
-      this.changed();
-      return;
-    }
-    this.advanceAll();
+    this.link.stopDownload();
   }
 
   /** Try the wraps set aside this visit again — the sync view's button. */
@@ -605,54 +394,16 @@ export class DmEngine {
 
   // ─── history ────────────────────────────────────────────────────────────
 
-  /**
-   * Fetching runs ahead of opening otherwise: a marker on screen asks for page
-   * after page while the wraps of the last one are still sealed — no rows
-   * arrive to push it off screen — and the relay reaches "all history loaded"
-   * with thousands unread. A relay waits until its last page is nearly open.
-   */
-  private canPage(relay: string, unopened = this.opener.unopenedByRelay()): boolean {
-    return !this.waitingForLive(relay) && (unopened.get(relay) ?? 0) < PAGE_BACKLOG;
-  }
-
-  /**
-   * History starts below what the live window brought, so it waits for that
-   * answer — unless the relay is slow to give it, or wants a login first (its
-   * history pages will ask for the same login).
-   */
-  private waitingForLive(relay: string): boolean {
-    return !this.liveWaitOver && !this.liveAnswered.has(relay) && this.live.get(relay) !== "auth";
-  }
-
   advance(relay: string): boolean {
-    if (!this.canPage(relay)) return false;
-    return this.pager?.advance(relay) ?? false;
+    return this.link.advance(relay);
   }
 
   advanceAll(): boolean {
-    if (!this.pager) return false;
-    const unopened = this.opener.unopenedByRelay();
-    let any = false;
-    for (const relay of this.inbox) if (this.canPage(relay, unopened)) any = this.pager.advance(relay) || any;
-    return any;
+    return this.link.advanceAll();
   }
 
   retry(relay: string): boolean {
-    return this.pager?.retry(relay) ?? false;
-  }
-
-  private historyWithBacklog(): PagerSnapshot {
-    const snap = this.pager?.snapshot();
-    if (!snap) return EMPTY_HISTORY;
-    const unopened = this.opener.unopenedByRelay();
-    return {
-      ...snap,
-      relays: snap.relays.map((r) => ({
-        ...r,
-        opening: unopened.get(r.url) ?? 0,
-        ...(this.waitingForLive(r.url) ? { waiting: true } : {}),
-      })),
-    };
+    return this.link.retry(relay);
   }
 
   // ─── sending ────────────────────────────────────────────────────────────
@@ -684,26 +435,27 @@ export class DmEngine {
 
   state(): DmEngineState {
     if (this.snap) return this.snap;
+    const link = this.link.state();
     this.snap = {
-      status: this.status,
-      inboxRelays: this.inbox,
-      live: Object.fromEntries(this.live),
-      liveSynced: this.liveSynced,
-      liveSettled: this.liveSettled,
+      status: link.status,
+      inboxRelays: link.inboxRelays,
+      live: link.live,
+      liveSynced: link.liveSynced,
+      liveSettled: link.liveSettled,
       sendAuth: this.outbox.sendAuth(),
-      floor: this.floor,
+      floor: link.floor,
       // In flight too: a wrap being opened is still waiting, as far as the reader can tell.
       queued: this.opener.waiting,
       paused: this.opener.pause,
       pauseDetail: this.opener.detail,
       failed: this.opener.failedCount,
       setAside: this.opener.setAside,
-      downloading: this.downloading,
+      downloading: link.downloading,
       sync: {
         received: Object.fromEntries([...this.receivedBy].map(([url, ids]) => [url, ids.size])),
         opened: this.opener.opened,
       },
-      history: this.historyWithBacklog(),
+      history: link.history,
     };
     return this.snap;
   }
@@ -725,22 +477,12 @@ export class DmEngine {
       this.notifyTimer = null;
       this.lastNotify = Date.now();
       for (const l of [...this.listeners]) l();
-      this.keepDownloading();
+      this.link.keepDownloading();
     };
     if (wait <= 0) flush();
     else this.notifyTimer = setTimeout(flush, wait);
   }
 }
-
-/** A live window this full whose oldest wrap is well above where it asked from was probably capped. */
-const CAPPED_LIVE_AT = 200;
-/** How long history waits for a relay's live answer before going ahead without it. */
-const LIVE_ANSWER_WAIT_MS = 20_000;
-/** A relay's next history page waits until fewer than this many of its wraps are still unopened. */
-const PAGE_BACKLOG = 50;
-
-/** When to look for an inbox list again after finding none. */
-const NO_INBOX_RETRY_MS = [20_000, 120_000];
 
 const onlineNow = () => (typeof navigator === "undefined" ? true : navigator.onLine !== false);
 
