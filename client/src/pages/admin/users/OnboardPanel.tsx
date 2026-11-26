@@ -51,7 +51,7 @@ export function OnboardPanel({
             setOnboardError(null);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !onboardSearching) handleOnboardSearch(onboardSearch);
+            if (e.key === "Enter" && !onboardSearching) void handleOnboardSearch(onboardSearch);
           }}
           className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
           data-testid="input-onboard-search"
@@ -59,7 +59,7 @@ export function OnboardPanel({
         />
         <Button
           size="sm"
-          onClick={() => handleOnboardSearch(onboardSearch)}
+          onClick={() => void handleOnboardSearch(onboardSearch)}
           disabled={onboardSearching || !onboardSearch.trim() || onboardingAll}
           className="no-default-hover-elevate no-default-active-elevate shrink-0 gap-1.5 text-xs"
           data-testid="button-submit-onboard-search"
@@ -250,7 +250,7 @@ export function OnboardPanel({
           {!onboardingAll && !onboardProgress && (
             <Button
               size="sm"
-              onClick={handleOnboardAll}
+              onClick={() => void handleOnboardAll()}
               className="no-default-hover-elevate no-default-active-elevate h-8 w-full gap-1.5 text-xs"
               data-testid="button-onboard-all"
             >

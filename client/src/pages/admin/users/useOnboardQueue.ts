@@ -118,7 +118,7 @@ export function useOnboardQueue({ onStart }: { onStart: () => void }) {
     });
     setOnboardQueue([]);
     setOnboardingAll(false);
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    void queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
   }, [onboardQueue, toast, queryClient, onStart]);
 
   return {

@@ -105,7 +105,7 @@ export function HealthTab({ endpoints, relays }: { endpoints: HealthEndpoints; r
           <Button
             variant="ghost"
             size="sm"
-            onClick={runRelayCheck}
+            onClick={() => void runRelayCheck()}
             disabled={relayCheckRunning}
             className="no-default-hover-elevate no-default-active-elevate w-full gap-1.5 text-xs sm:w-auto"
             data-testid="button-recheck-relays"

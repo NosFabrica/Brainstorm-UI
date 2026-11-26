@@ -185,7 +185,7 @@ export function FailureBreakdownCard({
                               variant="outline"
                               className="h-6 gap-1 border-red-200 text-[10px] text-red-700 hover:bg-red-50 dark:border-red-500/25 dark:text-red-300 dark:hover:bg-red-500/10"
                               disabled={isRetrying}
-                              onClick={() => retryGroup(g.key, users)}
+                              onClick={() => void retryGroup(g.key, users)}
                               data-testid="failure-breakdown-retry-all"
                             >
                               {isRetrying ? (

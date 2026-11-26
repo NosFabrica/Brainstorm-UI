@@ -53,7 +53,7 @@ export function useRelayLatency(onHealthTab: boolean) {
 
   useEffect(() => {
     if (onHealthTab && relayLatencies.length === 0) {
-      runRelayCheck();
+      void runRelayCheck();
     }
   }, [onHealthTab, relayLatencies.length, runRelayCheck]);
 

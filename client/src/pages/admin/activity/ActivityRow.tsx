@@ -336,7 +336,7 @@ export function ActivityRow({
         <td className="px-2 py-2 text-center">
           {item.pubkey && onRetrigger && (
             <button
-              onClick={handleRetrigger}
+              onClick={(e) => void handleRetrigger(e)}
               disabled={retriggerState === "running" || retriggerBlocked}
               className={`inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all ${
                 retriggerBlocked
@@ -436,7 +436,7 @@ export function ActivityRow({
             {isFailed ? (
               <FailureDetailCard
                 item={item}
-                onRetrigger={item.pubkey && onRetrigger ? handleRetrigger : undefined}
+                onRetrigger={item.pubkey && onRetrigger ? (e) => void handleRetrigger(e) : undefined}
                 retriggerState={retriggerState}
                 isInPipeline={retriggerBlocked}
                 onViewDetail={(e) => {
