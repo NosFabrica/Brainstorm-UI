@@ -60,6 +60,8 @@ export function FailureBreakdownCard({
     );
   }, [items]);
 
+  // FIXME(audit): sends its runs without claiming them in the console's in-flight set
+  // (useInFlightTriggers), so a group retry can duplicate a run a row or a bulk re-trigger has out.
   async function retryGroup(key: string, pubkeys: string[]) {
     if (!pubkeys.length) return;
     setRetrying(key);
