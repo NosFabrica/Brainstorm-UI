@@ -77,9 +77,10 @@ import { TagFacets } from "./TagFacets";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
-import { fetchGitCommentCounts, fetchGitStatuses, fetchGoalProgress, type GoalProgress } from "@/services/search";
 import { useEventRsvps } from "@/hooks/useEventRsvps";
-import { isGitItem, type GitState } from "@/lib/gitStatus";
+import { useGoalProgress } from "@/hooks/useGoalProgress";
+import { useGitItemAsks } from "@/hooks/useGitItemAsks";
+import { type GitState } from "@/lib/gitStatus";
 import { MediaCard, mediaUrlOf } from "@/components/search/cards";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
@@ -170,9 +171,6 @@ function keepSameProfiles(prev: Map<string, CardProfile> | null, next: Map<strin
   }
   return same ? prev : next;
 }
-
-/** A goal a complete answer found no receipt for: one object, so a memoised card sees no change. */
-const NO_RAISED: GoalProgress = { sats: 0, zappers: [] };
 
 export const SearchResults = memo(function SearchResults({
   query,
@@ -948,60 +946,9 @@ export const SearchResults = memo(function SearchResults({
   // Issues and PRs tabs: what became of each issue and patch — one request per page,
   // keyed by item id (NIP-34 status events, newest wins; none means open).
   const [repoState, setRepoState] = useState<GitState | null>(null);
-  const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
-  const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
+  // Fundraisers tab: what each zap goal has raised (hooks/useGoalProgress).
+  const progressOf = useGoalProgress(hits, tab);
   // Events tab: who is going — one request per page, keyed by event coordinate.
-  // Fundraisers tab: what each zap goal has raised. Like the git counts
-  // below, each streamed snapshot or "more" page asks only after the goals
-  // it adds, and a generation drops answers that land after the page emptied.
-  // `settled` holds the goals a complete answer covered: only there does no
-  // receipt mean "raised nothing" rather than "not known".
-  const [goalProgress, setGoalProgress] = useState<{ byGoal: Map<string, GoalProgress>; settled: Set<string> }>({
-    byGoal: new Map(),
-    settled: new Set(),
-  });
-  const goalIdsKey = useMemo(
-    () => (tab === "fundraisers" ? hits.filter((h) => h.event.kind === 9041).map((h) => h.event.id) : []).join(","),
-    [hits, tab],
-  );
-  // Each shown goal's closed_at: receipts after it don't count (NIP-75). Read
-  // through a ref so the fetch below stays keyed on the ids alone.
-  const goalCloses = useRef(new Map<string, number>());
-  goalCloses.current = useMemo(() => {
-    const m = new Map<string, number>();
-    if (tab !== "fundraisers") return m;
-    for (const h of hits) {
-      if (h.event.kind !== 9041) continue;
-      const closes = Number(h.event.tags.find((t) => t[0] === "closed_at")?.[1]);
-      if (Number.isFinite(closes) && closes > 0) m.set(h.event.id, closes);
-    }
-    return m;
-  }, [hits, tab]);
-  const goalFetched = useRef({ gen: 0, ids: new Set<string>() });
-  useEffect(() => {
-    const seen = goalFetched.current;
-    if (!goalIdsKey) {
-      seen.gen += 1;
-      seen.ids = new Set();
-      setGoalProgress({ byGoal: new Map(), settled: new Set() });
-      return;
-    }
-    const ids = goalIdsKey.split(",").filter((id) => !seen.ids.has(id));
-    if (ids.length === 0) return;
-    for (const id of ids) seen.ids.add(id);
-    const gen = seen.gen;
-    void fetchGoalProgress(ids, undefined, goalCloses.current).then(({ byGoal, complete }) => {
-      if (goalFetched.current.gen !== gen) return;
-      setGoalProgress((prev) => ({
-        byGoal: new Map([...prev.byGoal, ...byGoal]),
-        settled: complete ? new Set([...prev.settled, ...ids]) : prev.settled,
-      }));
-    });
-  }, [goalIdsKey]);
-  const progressOf = (e: NostrEvent): GoalProgress | undefined =>
-    tab !== "fundraisers" || e.kind !== 9041
-      ? undefined
-      : (goalProgress.byGoal.get(e.id) ?? (goalProgress.settled.has(e.id) ? NO_RAISED : undefined));
   const eventAddresses = useMemo(
     () =>
       tab === "events"
@@ -1014,43 +961,8 @@ export const SearchResults = memo(function SearchResults({
   const eventRsvps = useEventRsvps(eventAddresses);
   const rsvpsOf = (e: NostrEvent) =>
     eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
-  const gitItemIds = useMemo(
-    () => (isGitItemTab(tab) ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
-    [hits, tab],
-  );
-  const gitIdsKey = gitItemIds.join(",");
-  // Read through a ref so the asks below stay keyed on the ids alone.
-  const gitItems = useRef(new Map<string, NostrEvent>());
-  gitItems.current = useMemo(
-    () => new Map(hits.filter((h) => isGitItem(h.event.kind)).map((h) => [h.event.id, h.event])),
-    [hits],
-  );
-  // Each streamed snapshot or "more" page asks only after the ids it adds —
-  // not the whole growing list again. A generation drops answers that land
-  // after the page emptied (a new tab), so they can't refill it.
-  const gitFetched = useRef({ gen: 0, ids: new Set<string>() });
-  useEffect(() => {
-    const seen = gitFetched.current;
-    if (!gitIdsKey) {
-      seen.gen += 1;
-      seen.ids = new Set();
-      setGitStatuses(new Map());
-      setGitComments(new Map());
-      return;
-    }
-    const ids = gitIdsKey.split(",").filter((id) => !seen.ids.has(id));
-    if (ids.length === 0) return;
-    for (const id of ids) seen.ids.add(id);
-    const gen = seen.gen;
-    // The items themselves: whose status counts is their author's and their repo's (NIP-34).
-    const items = ids.map((id) => gitItems.current.get(id) ?? id);
-    void fetchGitStatuses(items).then((m) => {
-      if (gitFetched.current.gen === gen && m.size) setGitStatuses((prev) => new Map([...prev, ...m]));
-    });
-    void fetchGitCommentCounts(ids).then((m) => {
-      if (gitFetched.current.gen === gen && m.size) setGitComments((prev) => new Map([...prev, ...m]));
-    });
-  }, [gitIdsKey]);
+  // Issues and PRs: each item's statuses and comment count (hooks/useGitItemAsks).
+  const { gitStatuses, gitComments } = useGitItemAsks(hits, tab);
   const stateOf = (e: NostrEvent): GitState | null => gitItemState(e, gitStatuses);
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
   // The labels maintainers share, and the states the items are in (pipelines/git).
