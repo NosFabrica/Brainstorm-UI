@@ -199,6 +199,7 @@ const trust = vi.hoisted(() => ({
 // each endorser is answered as the kind-7 "+" reaction that names the item.
 vi.mock("@/services/itemEngagement", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/itemEngagement")>()),
+  fetchGitHubClaimantProfiles: async () => [],
   readItemsReactions: async (items: { id: string }[]) => {
     trust.asked++;
     return items.flatMap((i) =>
@@ -242,13 +243,15 @@ const githubEvidence = vi.hoisted(() => ({
     { checked?: boolean; named: string[]; blogHost: string | null; claimants?: string[]; provenClaimants: string[] }
   >,
 }));
+// GitHub's own answers (HTTP); nobody claims an account unless a test says (hooks/useGitHubEvidence).
 vi.mock("@/services/github", () => ({
-  fetchGitHubEvidence: async (handle: string) => {
+  fetchGitHubProfileEvidence: async (handle: string) => {
     const known = githubEvidence.of[handle.toLowerCase()];
     return known
-      ? { checked: true, claimants: [], ...known }
-      : { checked: false, named: [], blogHost: null, claimants: [], provenClaimants: [] };
+      ? { checked: known.checked ?? true, named: known.named, blogHost: known.blogHost }
+      : { checked: false, named: [], blogHost: null };
   },
+  gistProvesClaim: async () => false,
 }));
 // Signed out: places are weighed through the curator's lens.
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -259,28 +262,55 @@ const ratings = vi.hoisted(() => ({
   ranks: new Map<string, number>(),
   asked: 0,
 }));
-vi.mock("@/services/placeReviews", () => ({
-  fetchReviewsForPlaces: async (addresses: string[]) => (
+// Both read through the store (hooks/usePlaceReviews, hooks/useLensRanks): each review is answered
+// as its record (kind 34259), each rank as the scorer's kind 30382, the curator's lens as its 10040.
+const SCORER = "5c".repeat(32);
+let answered = 0;
+const answerId = () => String(++answered).padStart(64, "a");
+vi.mock("@/services/placeReviews", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/placeReviews")>()),
+  readPlaceReviewEvents: async (addresses: string[]) => (
     ratings.asked++,
-    new Map(
-      addresses.map((a) => [
-        a,
-        (ratings.reviews.get(a) ?? []).map((r, i) => ({
-          ...r,
-          id: `${a}-${i}`,
-          at: 1,
-          text: "",
-          photos: [],
-          price: null,
-          paid: null,
-        })),
-      ]),
+    addresses.flatMap((a) =>
+      (ratings.reviews.get(a) ?? []).map((r) => ({
+        id: answerId(),
+        kind: 34259,
+        pubkey: r.pubkey,
+        created_at: 1,
+        content: "",
+        sig: "",
+        tags: [["d", `place:${a}`], ["a", a], ...(r.rating == null ? [] : [["s", String(r.rating)]])],
+      })),
     )
   ),
-  fetchLensRanks: async () => ratings.ranks,
+  readLensRanks: async () =>
+    [...ratings.ranks].map(([pubkey, rank]) => ({
+      id: answerId(),
+      kind: 30382,
+      pubkey: SCORER,
+      created_at: 1,
+      content: "",
+      sig: "",
+      tags: [
+        ["d", pubkey],
+        ["rank", String(rank)],
+      ],
+    })),
+}));
+vi.mock("@/services/trustAnchor", () => ({
+  askTrustProviderList: async (pubkey: string) => ({
+    id: answerId(),
+    kind: 10040,
+    pubkey,
+    created_at: 1,
+    content: "",
+    sig: "",
+    tags: [["30382:rank", SCORER, "wss://scores.test"]],
+  }),
 }));
 
 import { LIST_KINDS } from "./ListKindSearch";
+import { __resetAsks } from "@/lib/askOnce";
 
 const page = (key: string, query: string, props: { onTabChange?: (tab: string) => void } = {}) => {
   const kind = LIST_KINDS.find((k) => k.key === key)!;
@@ -1042,6 +1072,8 @@ describe("the Places page, a map app's way", () => {
       ).toEqual(["Best match", "Top rated"]);
       cleanup();
       ratings.reviews = new Map();
+      // A later visit: the reviews are asked again rather than served from this one's ask (lib/askOnce).
+      __resetAsks();
       page("places", "");
       expect(screen.queryByRole("combobox", { name: "Sort" })).toBeNull();
     } finally {

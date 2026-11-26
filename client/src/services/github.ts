@@ -135,31 +135,51 @@ function hostOf(blog: string | null): string | null {
   }
 }
 
-async function gatherEvidence(handle: string): Promise<GitHubEvidence> {
+/** What GitHub's own answers say about who owns an account: everything in GitHubEvidence but the claims. */
+export type GitHubProfileEvidence = Pick<GitHubEvidence, "checked" | "named" | "blogHost">;
+
+/**
+ * The npubs the account's GitHub profile names (its links, website, bio) and
+ * its website's host: HTTP only, asked of our origin. Not `checked` when
+ * GitHub didn't answer.
+ */
+export async function fetchGitHubProfileEvidence(handle: string): Promise<GitHubProfileEvidence> {
   const base = `/github/users/${encodeURIComponent(handle)}`;
-  const [user, social, claimants] = await Promise.all([
+  const [user, social] = await Promise.all([
     getJson<Record<string, unknown>>(base),
     getJson<{ url?: unknown }[]>(`${base}/social_accounts`),
-    fetchGitHubClaimants(handle).catch(() => []),
   ]);
   const links = Array.isArray(social) ? social.map((a) => str(a.url)) : [];
-  const proofs = await Promise.all(
-    claimants
-      .filter((c) => c.proof)
-      .map(async (c) => {
-        const gist = await getJson<{ owner?: { login?: unknown }; files?: Record<string, { content?: unknown }> }>(
-          `/github/gists/${encodeURIComponent(c.proof!)}`,
-        );
-        const text = Object.values(gist?.files ?? {})
-          .map((f) => str(f.content) ?? "")
-          .join("\n");
-        return gist && gistProves({ owner: str(gist.owner?.login), text }, handle, c.pubkey) ? c.pubkey : null;
-      }),
-  );
   return {
     checked: !!user,
     named: user ? pubkeysNamedIn([str(user.blog), str(user.bio), ...links]) : [],
     blogHost: user ? hostOf(str(user.blog)) : null,
+  };
+}
+
+/** Whether the gist a profile's NIP-39 claim names, on GitHub, proves that `pubkey` owns `handle`. HTTP only. */
+export async function gistProvesClaim(gist: string, handle: string, pubkey: string): Promise<boolean> {
+  const answer = await getJson<{ owner?: { login?: unknown }; files?: Record<string, { content?: unknown }> }>(
+    `/github/gists/${encodeURIComponent(gist)}`,
+  );
+  const text = Object.values(answer?.files ?? {})
+    .map((f) => str(f.content) ?? "")
+    .join("\n");
+  return !!answer && gistProves({ owner: str(answer.owner?.login), text }, handle, pubkey);
+}
+
+async function gatherEvidence(handle: string): Promise<GitHubEvidence> {
+  const [profile, claimants] = await Promise.all([
+    fetchGitHubProfileEvidence(handle),
+    fetchGitHubClaimants(handle).catch(() => []),
+  ]);
+  const proofs = await Promise.all(
+    claimants
+      .filter((c) => c.proof)
+      .map(async (c) => ((await gistProvesClaim(c.proof!, handle, c.pubkey)) ? c.pubkey : null)),
+  );
+  return {
+    ...profile,
     claimants: claimants.map((c) => c.pubkey),
     provenClaimants: proofs.filter((p): p is string => !!p),
   };
