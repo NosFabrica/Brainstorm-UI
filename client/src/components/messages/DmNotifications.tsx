@@ -7,9 +7,15 @@
  * Brainstorm inbox relay, later.
  */
 import { useEffect, useMemo, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useDmEngine, useDmPrefs, useShelves } from "@/hooks/useDirectMessages";
-import { notifiable, notificationText, type NotifyContext } from "@/lib/dm/notify";
+import {
+  notifiable,
+  notificationAccount,
+  notificationText,
+  notificationUrl,
+  type NotifyContext,
+} from "@/lib/dm/notify";
 import { writersOf, type RoomShelf } from "@/lib/dm/inbox";
 import { lastReadAt } from "@/lib/dm/prefs";
 import { roomKeyFromSlug, roomSlug } from "@/lib/dm/rooms";
@@ -19,11 +25,38 @@ import { onOpenUrl, showAppNotification } from "@/lib/serviceWorker";
 import { playChime } from "@/lib/chime";
 import { eventStore } from "@/lib/eventStore";
 import { profileContentOf } from "@/lib/profileContent";
-import { shortNpub } from "./people";
+import { profileName } from "@/lib/displayName";
 
 function nameFromStore(pubkey: string): string {
   const p = profileContentOf(eventStore.getReplaceable(0, pubkey) as never);
-  return (p?.display_name || p?.name || "").trim() || shortNpub(pubkey);
+  return profileName(p, pubkey);
+}
+
+/** Shown without a worker (`new Notification`), so the worker's list doesn't have them. */
+const shownHere = new Set<Notification>();
+
+type NotificationList = { getNotifications(): Promise<{ data?: unknown; close(): void }[]> };
+
+/**
+ * Close the message notifications of every account but `keep` — all of them on
+ * sign-out. Left in the tray past a switch, a tap opened the chat as whoever was
+ * signed in by then.
+ */
+export async function closeMessageNotifications(keep: string | undefined, registration?: NotificationList | null) {
+  const stale = (url: unknown) =>
+    typeof url === "string" && url.startsWith("/messages/") && (!keep || notificationAccount(url) !== keep);
+  for (const n of [...shownHere]) {
+    if (!stale((n.data as { url?: unknown } | null)?.url)) continue;
+    n.close();
+    shownHere.delete(n);
+  }
+  const reg =
+    registration ??
+    (typeof navigator !== "undefined" && navigator.serviceWorker
+      ? await navigator.serviceWorker.getRegistration().catch(() => undefined)
+      : undefined);
+  const shown = await reg?.getNotifications().catch(() => []);
+  for (const n of shown ?? []) if (stale((n.data as { url?: unknown } | null)?.url)) n.close();
 }
 
 /** Someone is looking at this tab right now. */
@@ -35,6 +68,7 @@ export function DmNotifications() {
   const prefs = useDmPrefs(me || undefined);
   const shelves = useShelves(engine);
   const [location, navigate] = useLocation();
+  const search = useSearch();
 
   useEffect(() => {
     setTitleCount(shelves.badge);
@@ -63,8 +97,32 @@ export function DmNotifications() {
   // The store notifies on every change; read the latest of everything through a ref.
   const latest = useRef({ shelfByRoom, prefs, viewing, navigate, scoreOf: shelves.scoreOf });
   latest.current = { shelfByRoom, prefs, viewing, navigate, scoreOf: shelves.scoreOf };
-  // A notification tapped while the app was open (or opened by it) comes back as a path.
-  useEffect(() => onOpenUrl((url) => latest.current.navigate(url)), []);
+  // A notification tapped while the app was open (or opened by it) comes back as a path —
+  // ignored when it was shown to another account than the one signed in now.
+  const meRef = useRef(me);
+  meRef.current = me;
+  useEffect(
+    () =>
+      onOpenUrl((url) => {
+        const shownTo = notificationAccount(url);
+        if (shownTo && shownTo !== meRef.current) return;
+        latest.current.navigate(url);
+      }),
+    [],
+  );
+  // Opened cold by a tap (the worker opened this window on the path): the same rule.
+  const shownTo = location.startsWith("/messages/") ? new URLSearchParams(search).get("as") : null;
+  useEffect(() => {
+    if (shownTo && me && shownTo !== me) navigate("/messages", { replace: true });
+  }, [shownTo, me, navigate]);
+  // A switch or a sign-out: the tray keeps only the account signed in now. Not at boot,
+  // before the engine has loaded: what's in the tray then is still this account's.
+  const before = useRef(me);
+  useEffect(() => {
+    const was = before.current;
+    before.current = me;
+    if (was && was !== me) void closeMessageNotifications(me || undefined).catch(() => {});
+  }, [me]);
   const recheck = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -110,17 +168,24 @@ export function DmNotifications() {
             request: shelf === "request",
             preview: prefs.notify.preview,
           });
-          const url = `/messages/${roomSlug(room.key, engine.pubkey)}`;
+          const url = notificationUrl(roomSlug(room.key, engine.pubkey), engine.pubkey);
           void showAppNotification(text.title, { body: text.body, tag: room.key, url })
             .catch(() => false)
             .then((shown) => {
               if (shown) return;
               try {
                 // No worker (development, or a browser without one): desktops still take this.
-                const n = new Notification(text.title, { body: text.body, tag: room.key, icon: "/icons/icon-192.png" });
+                const n = new Notification(text.title, {
+                  body: text.body,
+                  tag: room.key,
+                  icon: "/icons/icon-192.png",
+                  data: { url },
+                });
+                shownHere.add(n);
+                n.onclose = () => shownHere.delete(n);
                 n.onclick = () => {
                   window.focus();
-                  latest.current.navigate(url);
+                  if (meRef.current === engine.pubkey) latest.current.navigate(url);
                   n.close();
                 };
               } catch {

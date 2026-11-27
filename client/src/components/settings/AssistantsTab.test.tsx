@@ -85,6 +85,7 @@ function show(state: Partial<MyAssistants> = {}) {
       },
     ],
     mapStatus: "found",
+    map: null,
     ...state,
   };
   render(

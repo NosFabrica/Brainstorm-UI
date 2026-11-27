@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { SerpRow } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { HitCluster } from "@/lib/searchCollapse";
@@ -295,24 +296,8 @@ export function FacetChip({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-        pressed
-          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-      }`}
-      data-testid={testId}
-    >
+    <ToggleChip variant="soft" pressed={pressed} onClick={onClick} count={count} data-testid={testId}>
       {children}
-      {count != null && (
-        <>
-          {" "}
-          <span className="opacity-60">{count}</span>
-        </>
-      )}
-    </button>
+    </ToggleChip>
   );
 }

@@ -196,7 +196,8 @@ export function EmbeddedAudio({ event, artist, href }: { event: MinimalEvent; ar
     <div className="mt-1" data-noopen data-testid="embedded-audio">
       <EmbeddedTrackCard
         id={`embed:${event.id}`}
-        title={tagVal(event, "title") ?? kindLabel(event)}
+        // An audio header names itself by `subject` (Nosis' "Audio Note"), as its page reads it.
+        title={tagVal(event, "title") ?? (event.kind === 1808 ? readAudioEvent(event).title : kindLabel(event))}
         artist={artist}
         cover={cover}
         audio={audio}

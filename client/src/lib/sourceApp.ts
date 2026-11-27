@@ -152,6 +152,8 @@ export function sourceAppFor(event: MinimalEvent, context: { sellerListings?: Mi
  * website: a homepage, not this product, and anyone's to point anywhere.
  */
 export function shopAppFor(event: MinimalEvent, context: { sellerListings?: MinimalEvent[] } = {}): SourceApp | null {
+  // A NIP-99 draft (30403) is not on sale anywhere: nothing to buy it on.
+  if (event.kind === 30403) return null;
   const app = sourceAppFor(event, context);
   if (app || event.kind !== 30402 || !hasIdentifier(event) || hasOwnPage(event)) return app;
   return conduitProduct(event);

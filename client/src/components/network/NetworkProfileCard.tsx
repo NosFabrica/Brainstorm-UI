@@ -27,6 +27,7 @@ import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { detailMetrics, metricIcons, groups, FlaggedIcon } from "@/components/network/networkGroups";
 import { useNetworkCardActions, useNetworkCardView } from "@/components/network/cardContext";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 type DetailGraph = {
   influence?: number | null;
@@ -89,7 +90,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
-  const displayName = profile?.display_name || profile?.name || displayNpub;
+  const displayName = nameIn(profile) ?? displayNpub;
   const pkShort = pk.slice(0, 8);
   const [cardFollowHovered, setCardFollowHovered] = useState(false);
   const [cardActionPending, setCardActionPending] = useState<string | null>(null);
@@ -250,10 +251,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   className="truncate text-sm font-bold text-slate-900 dark:text-slate-100"
                   data-testid={`detail-name-${pkShort}`}
                 >
-                  <ProfileEmojiText
-                    pubkey={pk}
-                    text={profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
-                  />
+                  <ProfileEmojiText pubkey={pk} text={nameIn(profile) || npub.slice(0, 12) + "..."} />
                 </p>
                 {profile?.nip05 && (
                   <p className="truncate text-xs text-brand-primary" data-testid={`detail-nip05-${pkShort}`}>
@@ -463,16 +461,14 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                           disabled={cardActionPending !== null || socialPending}
                           onMouseEnter={() => isFollowingUser && setCardFollowHovered(true)}
                           onMouseLeave={() => setCardFollowHovered(false)}
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
                             setCardActionPending("follow");
-                            try {
-                              if (isFollowingUser) await onUnfollow(pk);
-                              else await onFollow(pk);
-                            } finally {
+                            // Each action toasts its own outcome and resolves either way.
+                            void (isFollowingUser ? onUnfollow(pk) : onFollow(pk)).finally(() => {
                               setCardActionPending(null);
                               setCardFollowHovered(false);
-                            }
+                            });
                           }}
                           className={`inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
                             isFollowingUser
@@ -507,15 +503,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                         <button
                           type="button"
                           disabled={cardActionPending !== null || socialPending}
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
                             setCardActionPending("mute");
-                            try {
-                              if (isMutedUser) await onUnmute(pk);
-                              else await onMute(pk);
-                            } finally {
-                              setCardActionPending(null);
-                            }
+                            void (isMutedUser ? onUnmute(pk) : onMute(pk)).finally(() => setCardActionPending(null));
                           }}
                           className={`inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
                             isMutedUser

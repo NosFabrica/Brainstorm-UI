@@ -5,13 +5,13 @@
  * maintained?" + what's new + version history), and a publisher row so
  * the trust story — WHO signed this build — is one tap away.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import type { NostrEvent } from "nostr-tools";
 import { Code2, Download, ExternalLink, Globe, Package, Zap } from "lucide-react";
 import { useLightbox } from "@/components/share/Lightbox";
 import { Favicon } from "@/components/share/LinkPreview";
+import { safeHref } from "@/lib/safeHref";
 import { NotesInline } from "@/components/share/NotesInline";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -19,6 +19,7 @@ import { TierWordChip, useTierRing } from "@/components/score/VerificationCoin";
 import { EndorsementLine } from "@/components/search/EndorsementLine";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAppEndorsements } from "@/hooks/useAppEndorsements";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
@@ -40,6 +41,7 @@ import {
 import { formatBytes } from "@/lib/formatBytes";
 import { ReadingText } from "@/components/share/ReadingText";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { platformWords } from "@/lib/appPlatforms";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type AppEvent = {
@@ -55,20 +57,6 @@ function tagVal(event: AppEvent, name: string): string | undefined {
 
 function tagVals(event: AppEvent, name: string): string[] {
   return event.tags.filter((t) => t[0] === name && t[1]).map((t) => t[1]);
-}
-
-function platformWords(event: AppEvent): string[] {
-  const words = new Set<string>();
-  for (const f of tagVals(event, "f")) {
-    const v = f.toLowerCase();
-    if (v.startsWith("android")) words.add("Android");
-    else if (v.startsWith("ios")) words.add("iOS");
-    else if (v.includes("darwin") || v.includes("mac")) words.add("macOS");
-    else if (v.includes("windows")) words.add("Windows");
-    else if (v.includes("linux")) words.add("Linux");
-    else if (v.includes("web")) words.add("Web");
-  }
-  return [...words];
 }
 
 function releaseAge(at: number): string {
@@ -172,6 +160,9 @@ function usePublisher(pubkey: string): SearchResult | null {
   return useMemo(() => (event ? kind0ToSearchResult(event) : null), [event]);
 }
 
+/** An app whose releases haven't answered yet. */
+const NO_RELEASES: AppRelease[] = [];
+
 const HISTORY_MAX = 5;
 
 /** A review or a zap-with-memo, flattened to one row shape. */
@@ -200,16 +191,15 @@ export function AppHero({ event }: { event: AppEvent }) {
   const name = tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled app";
   const summary = tagVal(event, "summary");
   const icon = tagVal(event, "icon");
-  const url = tagVal(event, "url");
-  const repository = tagVal(event, "repository");
+  // Links the publisher wrote: web addresses only (lib/safeHref).
+  const url = safeHref(tagVal(event, "url"));
+  const repository = safeHref(tagVal(event, "repository"));
   const license = tagVal(event, "license");
   const shots = tagVals(event, "image");
   const platforms = platformWords(event);
   const appD = tagVal(event, "d");
 
   const openLightbox = useLightbox();
-  const [releases, setReleases] = useState<AppRelease[]>([]);
-  const [similar, setSimilar] = useState<NostrEvent[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -218,45 +208,27 @@ export function AppHero({ event }: { event: AppEvent }) {
   const categories = [...new Set(tagVals(event, "t"))].filter((t) => !platformSet.has(t.toLowerCase())).slice(0, 4);
   const address = appD ? appAddress({ pubkey: event.pubkey, tags: event.tags }) : null;
 
-  useEffect(() => {
-    if (!appD) return;
-    let alive = true;
-    void fetchReleases(appD, event.pubkey).then((r) => {
-      if (alive) setReleases(r);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [appD, event.pubkey]);
-  useEffect(() => {
-    if (!address || categories.length === 0) return;
-    let alive = true;
-    void fetchSimilarApps(categories, address).then((r) => {
-      if (alive) setSimilar(r);
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, categories.join(",")]);
+  // Its releases, apps like it, and the latest release's asset: one ask each per window
+  // (useStoreEvents over lib/askOnce, docs/adr/0005). Releases and the asset are what
+  // their asks derived; the similar apps are the store's copies of that ask's answer.
+  const releasesRead = useStoreEvents(appD ? `app-releases:${event.pubkey}:${appD}` : null, null, () =>
+    appD ? fetchReleases(appD, event.pubkey) : Promise.resolve([]),
+  );
+  const releases = (releasesRead.answer as AppRelease[] | undefined) ?? NO_RELEASES;
+  const categoriesKey = categories.join(",");
+  const similar = useStoreEvents(
+    address && categoriesKey ? `app-similar:${address}:${categoriesKey}` : null,
+    null,
+    () => (address ? fetchSimilarApps(categoriesKey.split(","), address) : Promise.resolve([])),
+  ).events;
 
   const release = releases[0] ?? null;
   const history = releases.slice(1);
   // The latest release's asset — the APK — lives on the Zap Store relay.
-  const [asset, setAsset] = useState<ReleaseAsset | null>(null);
   const assetKey = release?.assetIds.join(",") ?? "";
-  useEffect(() => {
-    setAsset(null);
-    if (!release || release.assetIds.length === 0) return;
-    let alive = true;
-    void fetchReleaseAsset(release.assetIds).then((a) => {
-      if (alive) setAsset(a);
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assetKey]);
+  const asset =
+    (useStoreEvents(assetKey ? `app-asset:${assetKey}` : null, null, () => fetchReleaseAsset(assetKey.split(",")))
+      .answer as ReleaseAsset | null | undefined) ?? null;
   const store = zapStoreUrl({ pubkey: event.pubkey, tags: event.tags });
   const isApk =
     !!asset && (asset.mime === "application/vnd.android.package-archive" || /\.apk(\?|#|$)/i.test(asset.url));

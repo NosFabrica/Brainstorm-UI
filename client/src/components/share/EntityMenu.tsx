@@ -30,7 +30,7 @@ export const MENU_TRIGGER_CLASS =
 
 /** One copy row: its own 1.5 s "Copied" so two rows never share a check. */
 function CopyMenuItem({ item }: { item: CopyItem }) {
-  const { copied, copy } = useCopied();
+  const { copied, failed, copy } = useCopied();
   return (
     <DropdownMenuItem
       className={`gap-2 ${item.hint ? "items-start" : ""}`}
@@ -48,7 +48,7 @@ function CopyMenuItem({ item }: { item: CopyItem }) {
         <Copy className={`h-4 w-4 ${item.hint ? "mt-0.5" : ""}`} />
       )}
       <span className="min-w-0">
-        <span className="block">{copied ? "Copied" : item.label}</span>
+        <span className="block">{copied ? "Copied" : failed ? "Couldn't copy" : item.label}</span>
         {item.hint && (
           <span
             className="block text-[11px] leading-snug text-slate-400 dark:text-slate-500"

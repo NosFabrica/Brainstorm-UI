@@ -20,11 +20,9 @@ export default defineConfig({
     include: ["client/src/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
     css: false,
     pool: "forks",
-    poolOptions: {
-      // Node ≥25 enables Web Storage by default; its native localStorage global
-      // shadows jsdom's (populateGlobal skips keys already on globalThis).
-      // Turning it off restores real jsdom Storage, sessionStorage included.
-      forks: { execArgv: ["--no-experimental-webstorage"] },
-    },
+    // Node ≥25 enables Web Storage by default; its native localStorage global
+    // shadows jsdom's (populateGlobal skips keys already on globalThis).
+    // Turning it off restores real jsdom Storage, sessionStorage included.
+    execArgv: ["--no-experimental-webstorage"],
   },
 });

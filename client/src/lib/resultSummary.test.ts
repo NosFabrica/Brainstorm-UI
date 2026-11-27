@@ -3,6 +3,7 @@ import { nip19 } from "nostr-tools";
 import { markdownExcerpt, summarizeResult } from "./resultSummary";
 import { kindFamily, kindTone } from "./kindFamily";
 import { kindTypeLabel } from "./kindLabel";
+import { signed, TEST_PUBKEY } from "@/test/signedEvent";
 
 const PK = "4".repeat(64);
 const ev = (kind: number, tags: string[][] = [], content = "") => ({
@@ -283,7 +284,8 @@ describe("summarizeResult — a video marked sensitive", () => {
 
   // The repost's own tags say nothing: the picture and its warning are the reposted video's.
   it("a repost inherits the warning of the video it carries", () => {
-    const flagged = short([["content-warning", "nudity"]]);
+    // Signed: a repost's JSON is its author's video only under their signature.
+    const flagged = signed({ kind: 34236, tags: short([["content-warning", "nudity"]]).tags });
     for (const kind of [6, 16]) {
       const s = summarizeResult(
         ev(
@@ -298,7 +300,9 @@ describe("summarizeResult — a video marked sensitive", () => {
       expect(s.image).toBe("https://media.divine.video/thumb");
       expect(s.sensitive).toEqual({ reason: "nudity" });
     }
-    expect(summarizeResult(ev(16, [], JSON.stringify(short()))).sensitive).toBeUndefined();
+    expect(
+      summarizeResult(ev(16, [], JSON.stringify(signed({ kind: 34236, tags: short().tags })))).sensitive,
+    ).toBeUndefined();
   });
 });
 
@@ -326,5 +330,221 @@ describe("NKBIP-01 publications as rows", () => {
     const s = summarizeResult(shelf);
     expect(s.title).toBe("Bookshelf");
     expect(s.body).toBe("2 books · 1 shelf");
+  });
+});
+
+describe("polls and designations on the All tab", () => {
+  const at = (kind: number, tags: string[][], content = "") => ({
+    id: "9".repeat(64),
+    pubkey: "4".repeat(64),
+    kind,
+    created_at: 1_790_000_000,
+    tags,
+    content,
+  });
+
+  // NIP-88: the question is the content; the options, the rule and the close are its tags.
+  it("a poll is its question, with its options and rule as facts", () => {
+    const s = summarizeResult(
+      at(
+        1068,
+        [
+          ["option", "y1", "Yay"],
+          ["option", "n1", "Nay"],
+          ["polltype", "multiplechoice"],
+        ],
+        "Pineapple on pizza?",
+      ),
+    );
+    expect(s.body).toBe("Pineapple on pizza?");
+    expect(s.facts).toEqual(["Yay / Nay", "Pick any"]);
+  });
+
+  it("a zap poll's options are its `poll_option`s, with its range", () => {
+    const s = summarizeResult(
+      at(
+        6969,
+        [
+          ["poll_option", "0", "Yes"],
+          ["poll_option", "1", "No"],
+          ["value_minimum", "10"],
+          ["value_maximum", "10"],
+        ],
+        "Ship it?",
+      ),
+    );
+    expect(s.facts).toEqual(["Yes / No", "Zap poll", "10 sats a vote"]);
+  });
+
+  it("a designation is its rows in words, and the relays they name", () => {
+    const s = summarizeResult(at(10040, [["30382:rank", "e".repeat(64), "wss://nip85.brainstorm.world"]]));
+    expect(s.title).toBe("Trust designation");
+    expect(s.body).toBe("Activated Brainstorm trust signals · Rank");
+    expect(s.facts).toEqual(["nip85.brainstorm.world"]);
+  });
+});
+
+// The All row said a stream's raw `status`: "Live" on a stream nobody had
+// updated for two years, where the Live tab, the tile and the page say it is over.
+describe("summarizeResult — a NIP-53 stream says the state the Live tab reads", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const stream = (tags: string[][], created_at: number) => ({
+    ...ev(30311, [["d", "s"], ["title", "Building a relay"], ...tags]),
+    created_at,
+  });
+
+  it("a fresh live stream is Live, with who is watching", () => {
+    const s = summarizeResult(
+      stream(
+        [
+          ["status", "live"],
+          ["current_participants", "42"],
+          ["streaming", "https://stream.example/live.m3u8"],
+        ],
+        now - 60,
+      ),
+    );
+    expect(s.facts).toEqual(["Live", "42 watching"]);
+  });
+
+  it('a "live" untouched for a week is over: a replay with a recording, else Ended', () => {
+    const stale = now - 30 * 86_400;
+    expect(summarizeResult(stream([["status", "live"]], stale)).facts).toEqual(["Ended"]);
+    expect(
+      summarizeResult(
+        stream(
+          [
+            ["status", "live"],
+            ["recording", "https://cdn.example/r.mp4"],
+          ],
+          stale,
+        ),
+      ).facts,
+    ).toEqual(["Replay"]);
+  });
+
+  it("a planned stream still ahead is Upcoming", () => {
+    expect(
+      summarizeResult(
+        stream(
+          [
+            ["status", "planned"],
+            ["starts", String(now + 3600)],
+          ],
+          now - 60,
+        ),
+      ).facts,
+    ).toEqual(["Upcoming"]);
+  });
+});
+
+// A patch has no `subject` tag (none of forty on the relay did): the All row had no
+// title and quoted git's mail headers and the diff as the patch's words.
+describe("summarizeResult — NIP-34 patches, pull requests and issues", () => {
+  const patch = [
+    `From ${"3f2a".repeat(10)} Mon Sep 17 00:00:00 2001`,
+    "From: Dev <dev@example.com>",
+    "Date: Mon, 1 Sep 2026 10:00:00 +0000",
+    "Subject: [PATCH] Fix the relay pool",
+    "",
+    "Reconnects after a drop.",
+    "---",
+    "diff --git a/pool.kt b/pool.kt",
+    "--- a/pool.kt",
+    "+++ b/pool.kt",
+    "@@ -1 +1,2 @@",
+    "-old",
+    "+new",
+    "+newer",
+  ].join("\n");
+
+  it("a patch is its subject and its message, and the size of its diff", () => {
+    const s = summarizeResult(ev(1617, [["t", "root"]], patch));
+    expect(s.title).toBe("Fix the relay pool");
+    expect(s.body).toBe("Reconnects after a drop.");
+    expect(s.facts).toEqual(["1 file · +2 −1"]);
+  });
+
+  it("an issue is its subject, its words and its labels", () => {
+    const s = summarizeResult(
+      ev(
+        1621,
+        [
+          ["subject", "Crash on empty relay list"],
+          ["t", "bug"],
+        ],
+        "It crashes when the list is empty.",
+      ),
+    );
+    expect(s.title).toBe("Crash on empty relay list");
+    expect(s.body).toBe("It crashes when the list is empty.");
+    expect(s.facts).toEqual(["bug"]);
+  });
+});
+
+describe("summarizeResult — lists of things say their name and what they hold, as their cards do", () => {
+  it("a pin list or bookmarks with no title is named as its card names it", () => {
+    expect(summarizeResult(ev(10001, [["e", "1".repeat(64)]])).title).toBe("Pinned notes");
+    expect(summarizeResult(ev(10003, [["e", "1".repeat(64)]])).title).toBe("Bookmarks");
+  });
+
+  it("a badge set counts its badges, never the awards beside them as notes", () => {
+    const s = summarizeResult(
+      ev(30008, [
+        ["d", "profile_badges"],
+        ["a", `30009:${PK}:bravery`],
+        ["e", "1".repeat(64)],
+      ]),
+    );
+    expect(s.title).toBe("Profile badges");
+    expect(s.facts).toEqual(["1 badge"]);
+  });
+
+  it("a video curation set counts videos", () => {
+    expect(
+      summarizeResult(
+        ev(30005, [
+          ["d", "talks"],
+          ["title", "Talks"],
+          ["e", "1".repeat(64)],
+        ]),
+      ).facts,
+    ).toEqual(["1 video"]);
+  });
+});
+
+describe("a repost's row", () => {
+  // NIP-18 puts the note in the content as JSON, which anyone can write: it is the
+  // author's only under their signature.
+  it("is the reposted note when it is signed by its author", () => {
+    const inner = signed({ kind: 1, content: "the original words" });
+    const s = summarizeResult(ev(6, [["e", inner.id]], JSON.stringify(inner)));
+    expect(s.body).toBe("the original words");
+  });
+
+  it("never draws unsigned JSON as someone's note", () => {
+    const victim = "7".repeat(64);
+    const forged = {
+      id: "8".repeat(64),
+      pubkey: victim,
+      kind: 1,
+      created_at: 1,
+      tags: [],
+      content: "words they never wrote",
+      sig: "0".repeat(128),
+    };
+    const s = summarizeResult(
+      ev(
+        6,
+        [
+          ["e", forged.id],
+          ["p", victim],
+        ],
+        JSON.stringify(forged),
+      ),
+    );
+    expect(s.body).not.toBe("words they never wrote");
+    expect(s.ref).not.toBeNull();
+    expect(TEST_PUBKEY).not.toBe(victim);
   });
 });

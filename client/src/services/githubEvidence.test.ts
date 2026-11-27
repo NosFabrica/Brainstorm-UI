@@ -2,9 +2,10 @@
 /**
  * What GitHub says about who owns an account, asked of our own origin
  * (`/github/…`, proxied to api.github.com and cached, never GitHub from the
- * reader's browser): the npubs its profile names, its website, and the gists
- * behind the profiles that claim it. Anything but a JSON answer is "nothing
- * known" — staging's origin answers its own page until the proxy is there.
+ * reader's browser): the npubs its profile names, its website, and the gist
+ * behind a profile that claims it (hooks/useGitHubEvidence joins them to the
+ * claims). Anything but a JSON answer is "nothing known" — staging's origin
+ * answers its own page until the proxy is there.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nip19 } from "nostr-tools";
@@ -21,20 +22,15 @@ const fetchMock = vi.fn(async (input: string) =>
 );
 vi.stubGlobal("fetch", (input: string) => fetchMock(input));
 
-const claims = vi.hoisted(() => ({ list: [] as { pubkey: string; proof: string | null }[] }));
-vi.mock("@/services/itemEngagement", () => ({ fetchGitHubClaimants: async () => claims.list }));
-
-import { fetchGitHubEvidence, __resetGitHub } from "./github";
+import { fetchGitHubProfileEvidence, gistProvesClaim } from "./github";
 
 beforeEach(() => {
   answers.clear();
-  claims.list = [];
   fetchMock.mockClear();
-  __resetGitHub();
 });
 
-describe("fetchGitHubEvidence", () => {
-  it("reads the npubs the profile names, its website's host, and the claims its gists prove", async () => {
+describe("fetchGitHubProfileEvidence", () => {
+  it("reads the npubs the profile names and its website's host", async () => {
     answers.set("/github/users/riverdev", {
       login: "riverdev",
       blog: "https://www.RiverDev-Home.com/about",
@@ -44,11 +40,20 @@ describe("fetchGitHubEvidence", () => {
       { provider: "generic", url: `https://njump.me/${npub(OWNER)}` },
       { provider: "twitter", url: "https://twitter.com/riverdev" },
     ]);
-    claims.list = [
-      { pubkey: CLAIMER, proof: "gist1" },
-      { pubkey: "d4".repeat(32), proof: "gist2" },
-      { pubkey: "e5".repeat(32), proof: null },
-    ];
+    expect(await fetchGitHubProfileEvidence("riverdev")).toEqual({
+      checked: true,
+      named: [OWNER],
+      blogHost: "riverdev-home.com",
+    });
+  });
+
+  it("knows nothing when the origin answers its own page instead of GitHub's", async () => {
+    expect(await fetchGitHubProfileEvidence("riverdev")).toEqual({ checked: false, named: [], blogHost: null });
+  });
+});
+
+describe("gistProvesClaim", () => {
+  it("proves a claim with a gist the account owns naming the claimant, and nothing with someone else's", async () => {
     answers.set("/github/gists/gist1", {
       owner: { login: "riverdev" },
       files: { "proof.md": { content: `Nostr: ${npub(CLAIMER)}` } },
@@ -58,20 +63,11 @@ describe("fetchGitHubEvidence", () => {
       owner: { login: "intruder" },
       files: { "x.md": { content: npub("d4".repeat(32)) } },
     });
-    expect(await fetchGitHubEvidence("riverdev")).toEqual({
-      checked: true,
-      named: [OWNER],
-      blogHost: "riverdev-home.com",
-      claimants: [CLAIMER, "d4".repeat(32), "e5".repeat(32)],
-      provenClaimants: [CLAIMER],
-    });
+    expect(await gistProvesClaim("gist1", "riverdev", CLAIMER)).toBe(true);
+    expect(await gistProvesClaim("gist2", "riverdev", "d4".repeat(32))).toBe(false);
   });
 
-  it("knows nothing when the origin answers its own page instead of GitHub's, and asks once a session", async () => {
-    const none = { checked: false, named: [], blogHost: null, claimants: [], provenClaimants: [] };
-    expect(await fetchGitHubEvidence("riverdev")).toEqual(none);
-    const calls = fetchMock.mock.calls.length;
-    await fetchGitHubEvidence("RiverDev");
-    expect(fetchMock.mock.calls.length).toBe(calls);
+  it("proves nothing when the origin answers its own page instead of GitHub's", async () => {
+    expect(await gistProvesClaim("gist1", "riverdev", CLAIMER)).toBe(false);
   });
 });

@@ -1,89 +1,27 @@
-import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
-import { scopedSearchHref } from "@/lib/searchSyntax";
-import { publicOrigin } from "@/lib/publicOrigin";
+import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from "react";
 import { useMyReport, useTheyFollowMe } from "@/hooks/useRelationship";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
-import { useGoBack } from "@/hooks/useGoBack";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ProfileRecentPosts } from "@/components/profile/ProfileRecentPosts";
-import {
-  X,
-  Loader2,
-  Copy,
-  Check,
-  ArrowLeft,
-  ArrowRight,
-  ArrowLeftRight,
-  ChevronDown,
-  Search as SearchIcon,
-  User,
-  ArrowUpDown,
-  Filter,
-  ShieldCheck,
-  Shield,
-  ShieldAlert,
-  ShieldX,
-  UserPlus,
-  UserCheck,
-  UserMinus,
-  VolumeX,
-  Volume2,
-  Flag,
-  MoreVertical,
-  Share2,
-  Globe,
-  Eye,
-  AlertTriangle,
-} from "lucide-react";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { ZapModal } from "@/components/ZapModal";
-import { MessageButton } from "@/components/messages/MessageButton";
-import { FlashIcon } from "@/components/FlashIcon";
 import { WotStrengthCard } from "@/components/WotStrengthCard";
-import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
-import { copyToClipboard } from "@/lib/clipboard";
-import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
+import { formatReportTime } from "@/lib/reportMeta";
 import { useHasMywot } from "@/hooks/useHasMywot";
-import { Badge } from "@/components/ui/badge";
-import { EmojiText } from "@/components/ui/custom-emoji";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import {
-  fetchProfiles,
-  eventStore,
-  fetchReportsForPubkey,
-  fetchReportsByPubkey,
-  fetchMuteListTimestamp,
-  type ReportMetadata,
-} from "@/services/nostr";
+import { useQuery } from "@tanstack/react-query";
+import { fetchProfiles, eventStore } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import { isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
 import {
@@ -93,1207 +31,56 @@ import {
   selectStats,
   statsOptions,
 } from "@/services/queries/userReads";
-import {
-  getProfileSeed,
-  setProfileSeed,
-  clearProfileSeed,
-  consumeStoredSearchSeed,
-  type ProfileSeed,
-} from "@/lib/profileSeed";
+import { getProfileSeed, clearProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
-import {
-  expandProfileCache,
-  expandProfileAttempted,
-  expandTrustCache,
-  reportMetadataCache,
-  muteMetadataCache,
-} from "@/services/profilePageCache";
+import { useProfileConnections } from "./profileConnections";
+import { expandProfileCache, expandTrustCacheFor } from "@/services/profilePageCache";
 import { Footer } from "@/components/Footer";
-import { BrainLogo } from "@/components/BrainLogo";
-import { DegreeChip } from "@/components/DegreeChip";
-import { SignInButton } from "@/components/SignInButton";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import { useToast } from "@/hooks/use-toast";
 import { useHasSession } from "@/hooks/useHasSession";
-import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
-import { useTierRing } from "@/components/score/VerificationCoin";
-import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { AdminHistoryCard, useAdminUserHistory } from "./profile/AdminHistory";
 
-interface AdminHistoryItem {
-  created_at: string;
-  updated_at: string;
-  private_id: number;
-  status: string;
-  ta_status: string | null;
-  internal_publication_status: string | null;
-  error: { code: string; message: string | null } | null;
-  count_values: string | null;
-  password: string | null;
-  algorithm: string | null;
-  parameters: string | null;
-  how_many_others_with_priority: number;
-  pubkey: string;
-  trigger_source: string | null;
-}
-
-const FollowersIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <circle cx="9" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M2.5 19.5c0-3.5 2.8-6 6.5-6s6.5 2.5 6.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="17.5" cy="8.5" r="2.5" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.6" />
-    <path
-      d="M17.5 13c2.2 0 4 1.5 4.5 3.5"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeOpacity="0.6"
-    />
-  </svg>
-);
-
-const FollowingIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M5 20c0-3.5 3-6.5 7-6.5s7 3 7 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path
-      d="M16 4l2 2-2 2"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeOpacity="0.7"
-    />
-    <path d="M12 6h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5" />
-  </svg>
-);
-
-const MutedByIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path
-      d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-    />
-    <path d="M17 9l-5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M12 9l5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const ReportedByIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path
-      d="M12 3L4 9v11a1 1 0 001 1h14a1 1 0 001-1V9l-8-6z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-      fill="currentColor"
-      fillOpacity="0.06"
-    />
-    <path d="M12 8v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <circle cx="12" cy="16" r="1" fill="currentColor" />
-  </svg>
-);
-
-const MutingIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path
-      d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-    />
-    <path d="M16 12h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const ReportingIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path
-      d="M5 4h10l4 4v12a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-    />
-    <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12 11v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="12" cy="17.5" r="0.75" fill="currentColor" />
-  </svg>
-);
-
-const FlaggedIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M5 4v16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path
-      d="M5 4h10l-3 4 3 4H5"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-      fill="currentColor"
-      fillOpacity="0.1"
-    />
-  </svg>
-);
-
-const MutualIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
-    <circle cx="16" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M2 19c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path
-      d="M10 19c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeOpacity="0.6"
-    />
-    <path
-      d="M10 14l2-1.5 2 1.5"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeOpacity="0.5"
-    />
-  </svg>
-);
-
-const SharedConnectionIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <circle cx="6" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-    <circle cx="18" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M8.5 12h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="12" cy="12" r="1" fill="currentColor" fillOpacity="0.4" />
-    <path
-      d="M6 9.5V6a2 2 0 012-2h8a2 2 0 012 2v3.5"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      strokeOpacity="0.4"
-    />
-    <path
-      d="M6 14.5V18a2 2 0 002 2h8a2 2 0 002-2v-3.5"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      strokeOpacity="0.4"
-    />
-  </svg>
-);
-
-function AdminHistoryStatusBadge({ value, type: _type }: { value: string | null; type: "status" | "ta" | "pub" }) {
-  if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
-  const lower = value.toLowerCase();
-  const colors =
-    lower === "success" || lower === "done" || lower === "published"
-      ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
-      : lower === "failure" || lower === "failed" || lower === "error"
-        ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
-        : lower === "pending" || lower === "queued" || lower === "in_progress"
-          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
-          : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
-  return <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${colors}`}>{value}</span>;
-}
-
-// Why this run was queued: manual (user asked), scheduled (tier auto-scheduler),
-// admin (admin action), periodic (cron). Colored distinctly from status badges.
-function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
-  const lower = value.toLowerCase();
-  const colors =
-    lower === "scheduled"
-      ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
-      : lower === "periodic"
-        ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
-        : lower === "admin"
-          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
-          : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
-  return (
-    <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${colors}`}>
-      {value}
-    </span>
-  );
-}
-
-type AdminHistoryFailureStage = "calculation" | "ta" | "publication";
-
-const ADMIN_HISTORY_FAILURE_HINTS: Record<AdminHistoryFailureStage, { label: string; hint: string }> = {
-  calculation: {
-    label: "Calculation",
-    hint: "Common causes: user has too few trusted follows for graperank to converge, invalid algorithm parameters, or a calculation timeout. Re-trigger first; if it fails again, check server logs for the algorithm worker.",
-  },
-  ta: {
-    label: "Trust Attestation",
-    hint: "Common causes: TA pubkey unreachable or not configured. Check relay status and TA service health.",
-  },
-  publication: {
-    label: "Publication",
-    hint: "Common causes: relay outage, signing failure, or rate limiting. Check that the publisher is reaching at least one configured relay.",
-  },
-};
-
-function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number }) {
-  const [expanded, setExpanded] = useState(false);
-  const userTimeZone = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
-  const parseServerDate = (d: string): Date => {
-    const trimmed = d.trim();
-    const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(trimmed);
-    const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
-    return new Date(hasTz ? normalized : `${normalized}Z`);
-  };
-  const fmtDate = (d: string | null) => {
-    if (!d) return "—";
-    try {
-      const date = parseServerDate(d);
-      if (isNaN(date.getTime())) return d;
-      return date.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: userTimeZone,
-      });
-    } catch {
-      return d;
-    }
-  };
-  const fmtDateFull = (d: string | null) => {
-    if (!d) return "—";
-    try {
-      const date = parseServerDate(d);
-      if (isNaN(date.getTime())) return d;
-      return date.toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        timeZoneName: "short",
-        timeZone: userTimeZone,
-      });
-    } catch {
-      return d;
-    }
-  };
-  const statusFailed = (item.status || "").toLowerCase() === "failure";
-  const taFailed = (item.ta_status || "").toLowerCase() === "failure";
-  const pubLower = (item.internal_publication_status || "").toLowerCase();
-  const pubFailed = pubLower === "failure" || pubLower === "failed";
-  const failureStage: AdminHistoryFailureStage | null = statusFailed
-    ? "calculation"
-    : taFailed
-      ? "ta"
-      : pubFailed
-        ? "publication"
-        : null;
-  const failureInfo = failureStage ? ADMIN_HISTORY_FAILURE_HINTS[failureStage] : null;
-  const errorText = item.error?.message?.trim() || "";
-  return (
-    <>
-      <tr
-        className={`cursor-pointer border-b border-amber-100/40 transition-colors hover:bg-amber-50/40 dark:border-amber-500/20 dark:hover:bg-amber-500/10 ${idx % 2 === 0 ? "bg-white/40 dark:bg-slate-900/40" : "bg-amber-50/20 dark:bg-amber-500/[0.06]"}`}
-        onClick={() => setExpanded((prev) => !prev)}
-        data-testid={`row-admin-history-${item.private_id || idx}`}
-      >
-        <td className="px-2 py-2 font-mono text-slate-600 dark:text-slate-300">{item.private_id}</td>
-        <td className="px-2 py-2">
-          <AdminHistoryTriggerBadge value={item.trigger_source} />
-        </td>
-        <td className="px-2 py-2">
-          <AdminHistoryStatusBadge value={item.status} type="status" />
-        </td>
-        <td className="px-2 py-2">
-          <AdminHistoryStatusBadge value={item.ta_status} type="ta" />
-        </td>
-        <td className="px-2 py-2">
-          <AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" />
-        </td>
-        <td className="px-2 py-2 font-mono text-slate-600 dark:text-slate-300">{item.algorithm || "—"}</td>
-        <td className="px-2 py-2 text-center text-slate-600 dark:text-slate-300">
-          {item.how_many_others_with_priority}
-        </td>
-        <td
-          className="whitespace-nowrap px-2 py-2 text-slate-500 dark:text-slate-400"
-          title={fmtDateFull(item.created_at)}
-        >
-          {fmtDate(item.created_at)}
-        </td>
-        <td
-          className="whitespace-nowrap px-2 py-2 text-slate-500 dark:text-slate-400"
-          title={fmtDateFull(item.updated_at)}
-        >
-          {fmtDate(item.updated_at)}
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="bg-amber-50/30 dark:bg-amber-500/[0.06]">
-          <td colSpan={9} className="px-4 py-3">
-            {failureInfo && (
-              <div
-                className="mb-3 rounded border border-red-200 bg-red-50/60 px-3 py-2 dark:border-red-500/25 dark:bg-red-500/10"
-                data-testid={`panel-failure-hint-${item.private_id || idx}`}
-              >
-                {errorText ? (
-                  <p className="break-all font-mono text-[11px] text-red-700 dark:text-red-300">{errorText}</p>
-                ) : (
-                  <p className="text-[11px] italic text-red-600/80 dark:text-red-400/80">
-                    No error details captured — check server logs.
-                  </p>
-                )}
-                <p className="mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
-                  <span className="font-semibold">Where to look · {failureInfo.label}:</span> {failureInfo.hint}
-                </p>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3 text-[11px] sm:grid-cols-3">
-              {item.error?.message && (
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Error</span>
-                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.error.message}</p>
-                </div>
-              )}
-              {item.count_values && (
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                    Count Values
-                  </span>
-                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.count_values}</p>
-                </div>
-              )}
-              {item.parameters && (
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Parameters</span>
-                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.parameters}</p>
-                </div>
-              )}
-              {item.password && (
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Password</span>
-                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.password}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Pubkey</span>
-                <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.pubkey}</p>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-interface ProfileResultData {
-  influence?: number;
-  followed_by?: GraphEntry[] | number;
-  following?: GraphEntry[] | number;
-  muted_by?: GraphEntry[] | number;
-  reported_by?: GraphEntry[] | number;
-  muting?: GraphEntry[] | number;
-  reporting?: GraphEntry[] | number;
-  hops?: number;
-  personalizedPageRank?: number;
-  influenceRank?: number;
-  followerInput?: number;
-  muterInput?: number;
-  reporterInput?: number;
-  verifiedFollowerCount?: number;
-  verifiedMuterCount?: number;
-  verifiedReporterCount?: number;
-  latestContentEventCreatedAt?: number;
-  whitelisted?: boolean;
-  blacklisted?: boolean;
-}
-
-type ProfileSections = Partial<Record<string, GraphEntry[]>>;
-
-const getSection = (data: ProfileResultData | null | undefined, key: string): GraphEntry[] | undefined => {
-  if (!data) return undefined;
-  return (data as unknown as ProfileSections)[key];
-};
-
-type SortMode = "trust-desc" | "trust-asc" | "name-asc" | "name-desc";
-type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | "unverified";
-type ReportTypeFilter = "all" | "spam" | "impersonation" | "nudity" | "illegal" | "profanity" | "other" | "unavailable";
-
-interface GroupDef {
-  key: string;
-  label: string;
-  colors: string;
-}
-
-const CONNECTION_GROUP_KEYS = new Set(["followed_by", "following", "mutual", "shared_followers", "shared_following"]);
-
-type OwnerLink = "mutual" | "follower" | "following";
-type YouLink = "mutual_with_you" | "follows_you" | "you_follow";
-
-function deriveConnectionClusters(groupKeys: Set<string>): { owner: OwnerLink | null; you: YouLink | null } {
-  const hasMutual = groupKeys.has("mutual");
-  const hasFollowedBy = groupKeys.has("followed_by");
-  const hasFollowing = groupKeys.has("following");
-  const owner: OwnerLink | null = hasMutual ? "mutual" : hasFollowedBy ? "follower" : hasFollowing ? "following" : null;
-
-  const hasSharedFollower = groupKeys.has("shared_followers");
-  const hasSharedFollowing = groupKeys.has("shared_following");
-  const you: YouLink | null =
-    hasSharedFollower && hasSharedFollowing
-      ? "mutual_with_you"
-      : hasSharedFollower
-        ? "follows_you"
-        : hasSharedFollowing
-          ? "you_follow"
-          : null;
-
-  return { owner, you };
-}
-
-const OWNER_PILL_META: Record<OwnerLink, { label: string; Icon: typeof ArrowLeft }> = {
-  mutual: { label: "Mutual", Icon: ArrowLeftRight },
-  follower: { label: "Follower", Icon: ArrowLeft },
-  following: { label: "Following", Icon: ArrowRight },
-};
-
-const YOU_PILL_META: Record<YouLink, { label: string; Icon: typeof ArrowLeft }> = {
-  mutual_with_you: { label: "Mutual with you", Icon: ArrowLeftRight },
-  follows_you: { label: "Follows you", Icon: ArrowLeft },
-  you_follow: { label: "You follow", Icon: ArrowRight },
-};
-
-const GROUP_DEFS: GroupDef[] = [
-  {
-    key: "followed_by",
-    label: "Follower",
-    colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25",
-  },
-  {
-    key: "following",
-    label: "Following",
-    colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25",
-  },
-  {
-    key: "mutual",
-    label: "Mutual",
-    colors: "bg-teal-50 dark:bg-teal-500/10 text-teal-500 dark:text-teal-400 border-teal-100 dark:border-teal-500/25",
-  },
-  {
-    key: "shared_followers",
-    label: "Shared Follower",
-    colors:
-      "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25",
-  },
-  {
-    key: "shared_following",
-    label: "Shared Following",
-    colors:
-      "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25",
-  },
-  {
-    key: "muted_by",
-    label: "Muted By",
-    colors:
-      "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25",
-  },
-  {
-    key: "muting",
-    label: "Muting",
-    colors:
-      "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25",
-  },
-  {
-    key: "reported_by",
-    label: "Reported",
-    colors: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-200 dark:border-red-500/25",
-  },
-  {
-    key: "reporting",
-    label: "Reporting",
-    colors: "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800",
-  },
-];
-
-const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: "trust-desc", label: "Trust \u2193" },
-  { value: "trust-asc", label: "Trust \u2191" },
-  { value: "name-asc", label: "A\u2013Z" },
-  { value: "name-desc", label: "Z\u2013A" },
-];
-
-const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
-  { value: "all", label: "All", color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" },
-  {
-    value: "verified",
-    label: "Verified",
-    color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link",
-  },
-  {
-    value: "high",
-    label: TIER_LABELS.high,
-    color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  },
-  {
-    value: "trusted",
-    label: TIER_LABELS.trusted,
-    color: "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400",
-  },
-  {
-    value: "neutral",
-    label: "Neutral",
-    color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link",
-  },
-  {
-    value: "low",
-    label: TIER_LABELS.low,
-    color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  },
-  {
-    value: "unverified",
-    label: "Unverified",
-    color: "bg-zinc-50 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400",
-  },
-];
-
-const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: string }[] = [
-  { value: "all", label: "All Types", dotColor: "bg-slate-300 dark:bg-slate-700" },
-  { value: "spam", label: "Spam", dotColor: "bg-amber-500" },
-  { value: "impersonation", label: "Impersonation", dotColor: "bg-red-500" },
-  { value: "nudity", label: "Nudity", dotColor: "bg-pink-500" },
-  { value: "illegal", label: "Illegal", dotColor: "bg-red-700" },
-  { value: "profanity", label: "Profanity", dotColor: "bg-orange-500" },
-  { value: "other", label: "Other", dotColor: "bg-slate-400 dark:bg-slate-600" },
-  { value: "unavailable", label: "Unavailable", dotColor: "bg-slate-300 dark:bg-slate-700" },
-];
-
-const SECTION_BORDER_COLORS: Record<string, string> = {
-  followed_by: "border-blue-300 dark:border-blue-500/30",
-  following: "border-blue-300 dark:border-blue-500/30",
-  mutual: "border-teal-300 dark:border-teal-500/30",
-  shared_followers: "border-brand-primary/25 dark:border-brand-primary/[0.3]",
-  shared_following: "border-brand-primary/25 dark:border-brand-primary/[0.3]",
-  muted_by: "border-amber-300 dark:border-amber-500/30",
-  reported_by: "border-red-300 dark:border-red-500/30",
-  muting: "border-amber-200 dark:border-amber-500/25",
-  reporting: "border-slate-300 dark:border-slate-700",
-};
-
-// Backend GR bucket name → the display key TIER_DISPLAY_CONFIG uses. The page
-// has no dedicated flagged slice, so flagged folds into unverified (same as
-// `grTierCountsToUI`).
-const GR_TIER_TO_UI: Record<string, string> = {
-  high: "high",
-  medium_high: "trusted",
-  medium: "neutral",
-  medium_low: "low",
-  low: "unverified",
-  low_and_reported_by_2_or_more_trusted_pubkeys: "unverified",
-};
-
-function useDebouncedValue<T>(value: T, delay: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const id = window.setTimeout(() => setV(value), delay);
-    return () => window.clearTimeout(id);
-  }, [value, delay]);
-  return v;
-}
-
-function getTrustForPkFromMaps(pk: string, sectionInfluenceMaps: Record<string, Map<string, number | null>>): number {
-  const cached = expandTrustCache.get(pk);
-  if (cached !== undefined && cached !== null) return cached;
-  for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"] as const) {
-    const val = sectionInfluenceMaps[groupKey]?.get(pk);
-    if (val !== undefined && val !== null) return val;
-  }
-  return -1;
-}
-
-function computeProcessedPubkeys(
-  key: string,
-  pubkeys: string[],
-  filter: FilterMode,
-  sort: SortMode,
-  search: string,
-  reportTypeFilter: ReportTypeFilter,
-  sectionInfluenceMaps: Record<string, Map<string, number | null>>,
-  getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined,
-): string[] {
-  // tier / verified filtering is applied server-side via /connections query
-  // params, so the items reaching us already match `filter`.
-  let filtered = pubkeys;
-  if (reportTypeFilter !== "all" && (key === "reported_by" || key === "reporting")) {
-    filtered = filtered.filter((pk) => {
-      const report = getReportForPubkey(key, pk);
-      if (reportTypeFilter === "unavailable") return !report;
-      return report?.reportType === reportTypeFilter;
-    });
-  }
-  const trimmed = search.toLowerCase().trim();
-  if (trimmed) {
-    filtered = filtered.filter((pk) => {
-      const profile = expandProfileCache.get(pk);
-      const name = (profile?.display_name || profile?.name || "").toLowerCase();
-      const nip05 = (profile?.nip05 || "").toLowerCase();
-      if (name.includes(trimmed) || nip05.includes(trimmed)) return true;
-      if (trimmed.startsWith("npub")) {
-        try {
-          const npub = nip19.npubEncode(pk).toLowerCase();
-          return npub.includes(trimmed);
-        } catch {
-          return false;
-        }
-      }
-      return false;
-    });
-  }
-  const sorted = [...filtered];
-  if (sort === "trust-desc" || sort === "trust-asc") {
-    sorted.sort((a, b) => {
-      const sa = getTrustForPkFromMaps(a, sectionInfluenceMaps);
-      const sb = getTrustForPkFromMaps(b, sectionInfluenceMaps);
-      return sort === "trust-desc" ? sb - sa : sa - sb;
-    });
-  } else {
-    sorted.sort((a, b) => {
-      const pa = expandProfileCache.get(a);
-      const pb = expandProfileCache.get(b);
-      const na = (pa?.display_name || pa?.name || "").toLowerCase();
-      const nb = (pb?.display_name || pb?.name || "").toLowerCase();
-      if (!na && !nb) return 0;
-      if (!na) return 1;
-      if (!nb) return -1;
-      return sort === "name-asc" ? na.localeCompare(nb) : nb.localeCompare(na);
-    });
-  }
-  return sorted;
-}
-
-interface ExpandedPanelProps {
-  sectionKey: string;
-  pubkeys: string[];
-  filter: FilterMode;
-  sort: SortMode;
-  search: string;
-  reportTypeFilter: ReportTypeFilter;
-  visibleCount: number;
-  sectionTotal?: number; // Server-truth total for this section/filter, if known.
-  filterDropdownOpen: boolean;
-  reportTypeDropdownOpen: boolean;
-  reportMetaLoading: boolean;
-  sectionInfluenceMaps: Record<string, Map<string, number | null>>;
-  groupsByPubkey: Map<string, GroupDef[]>;
-  getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined;
-  formatRelativeTime: (timestamp: number) => string;
-  navigateToProfile: (pk: string) => void;
-  onSetSort: (k: string, v: SortMode) => void;
-  onSetFilter: (k: string, v: FilterMode) => void;
-  onSetSearch: (k: string, v: string) => void;
-  onSetReportTypeFilter: (k: string, v: ReportTypeFilter) => void;
-  onSetVisibleCount: (k: string, n: number) => void;
-  onToggleFilterDropdown: (k: string, open: boolean) => void;
-  onToggleReportTypeDropdown: (k: string, open: boolean) => void;
-  onShowMore: (k: string, processed: string[], currentVisible: number) => void;
-  onEnsureVisibleFetched: (k: string, visiblePubkeys: string[]) => void;
-  renderToken: number;
-}
-
-const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
-  const tierRing = useTierRing();
-  const [granularity] = useTierGranularity();
-  // Decision 7: under Simple the menu offers the three buckets' worth of choices
-  // — All / Verified / Unknown — not five shades it never draws.
-  const visibleFilterOptions =
-    granularity === "simple"
-      ? FILTER_OPTIONS.filter((o) => o.value === "all" || o.value === "verified" || o.value === "unverified").map(
-          (o) => (o.value === "unverified" ? { ...o, label: "Unknown" } : o),
-        )
-      : FILTER_OPTIONS;
-  const {
-    sectionKey: key,
-    pubkeys,
-    filter,
-    sort,
-    search,
-    reportTypeFilter,
-    visibleCount,
-    sectionTotal,
-    filterDropdownOpen,
-    reportTypeDropdownOpen,
-    reportMetaLoading,
-    sectionInfluenceMaps,
-    groupsByPubkey,
-    getReportForPubkey,
-    formatRelativeTime,
-    navigateToProfile,
-    onSetSort,
-    onSetFilter,
-    onSetSearch,
-    onSetReportTypeFilter,
-    onSetVisibleCount,
-    onToggleFilterDropdown,
-    onToggleReportTypeDropdown,
-    onShowMore,
-    onEnsureVisibleFetched,
-    renderToken,
-  } = props;
-
-  const debouncedSearch = useDebouncedValue(search, 250);
-  const processed = useMemo(
-    () =>
-      computeProcessedPubkeys(
-        key,
-        pubkeys,
-        filter,
-        sort,
-        debouncedSearch,
-        reportTypeFilter,
-        sectionInfluenceMaps,
-        getReportForPubkey,
-      ),
-    // renderToken in deps so name-sort updates as profiles stream in
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      key,
-      pubkeys,
-      filter,
-      sort,
-      debouncedSearch,
-      reportTypeFilter,
-      sectionInfluenceMaps,
-      getReportForPubkey,
-      renderToken,
-    ],
-  );
-
-  const isReportFilterSection = key === "reported_by" || key === "reporting";
-  const isFiltered = filter !== "all" || debouncedSearch.trim().length > 0 || reportTypeFilter !== "all";
-  const visiblePubkeys = useMemo(() => processed.slice(0, visibleCount), [processed, visibleCount]);
-  const borderColor = SECTION_BORDER_COLORS[key] || "border-slate-300 dark:border-slate-700";
-
-  useEffect(() => {
-    if (visiblePubkeys.length === 0) return;
-    const needsFetch = visiblePubkeys.some((pk) => !expandProfileCache.has(pk) || !expandTrustCache.has(pk));
-    if (needsFetch) onEnsureVisibleFetched(key, visiblePubkeys);
-  }, [key, visiblePubkeys, onEnsureVisibleFetched]);
-
-  return (
-    <div className="border-t border-slate-100 bg-slate-50/50 dark:border-slate-800/60 dark:bg-slate-900/50">
-      <div className="space-y-2 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-1 flex items-center gap-1">
-            <ArrowUpDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
-            <div className="flex overflow-hidden rounded-md border border-slate-200 dark:border-slate-800">
-              {SORT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetSort(key, opt.value);
-                  }}
-                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-brand-primary text-white" : "bg-white text-slate-500 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-900"}`}
-                  data-testid={`sort-${opt.value}-${key}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFilterDropdown(key, !filterDropdownOpen);
-              }}
-              className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${filter !== "all" ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary dark:border-brand-primary/[0.3] dark:bg-brand-primary/10 dark:text-brand-link" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-900"}`}
-              data-testid={`filter-toggle-${key}`}
-            >
-              <Filter className="h-3 w-3" />
-              {filter !== "all" ? visibleFilterOptions.find((f) => f.value === filter)?.label : "Filter"}
-              <ChevronDown className="h-2.5 w-2.5" />
-            </button>
-            {filterDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFilterDropdown(key, false);
-                  }}
-                />
-                <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                  {visibleFilterOptions.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSetFilter(key, opt.value);
-                        onSetVisibleCount(key, 10);
-                        onToggleFilterDropdown(key, false);
-                      }}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium transition-colors ${filter === opt.value ? "bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900"}`}
-                      data-testid={`filter-${opt.value}-${key}`}
-                    >
-                      <span
-                        className={`h-2 w-2 rounded-full ${opt.value === "all" ? "bg-slate-300 dark:bg-slate-700" : opt.value === "verified" ? "bg-brand-primary" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-brand-primary" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400 dark:bg-slate-600"}`}
-                      />
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {isReportFilterSection && (
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleReportTypeDropdown(key, !reportTypeDropdownOpen);
-                }}
-                className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-900"}`}
-                data-testid={`report-type-filter-toggle-${key}`}
-              >
-                <span className="h-2 w-2 rounded-full bg-current opacity-50" />
-                {reportTypeFilter !== "all" ? reportTypeFilter : "Type"}
-                <ChevronDown className="h-2.5 w-2.5" />
-              </button>
-              {reportTypeDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleReportTypeDropdown(key, false);
-                    }}
-                  />
-                  <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                    {REPORT_TYPE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSetReportTypeFilter(key, opt.value);
-                          onSetVisibleCount(key, 10);
-                          onToggleReportTypeDropdown(key, false);
-                        }}
-                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium transition-colors ${reportTypeFilter === opt.value ? "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900"}`}
-                        data-testid={`report-type-filter-${opt.value}-${key}`}
-                      >
-                        <span className={`h-2 w-2 rounded-full ${opt.dotColor}`} />
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {reportMetaLoading && (
-            <span className="ml-auto flex items-center gap-1 text-[10px] text-brand-link">
-              <Loader2 className="h-2.5 w-2.5 animate-spin" />
-              <span>fetching relay data</span>
-            </span>
-          )}
-          {isFiltered && (
-            <span
-              className={`text-[10px] text-slate-400 dark:text-slate-500 ${reportMetaLoading ? "" : "ml-auto"}`}
-              data-testid={`filter-count-${key}`}
-            >
-              {processed.length} of {pubkeys.length}
-            </span>
-          )}
-        </div>
-        <div className="relative">
-          <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              onSetSearch(key, e.target.value);
-              onSetVisibleCount(key, 10);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Search by name or npub..."
-            className="w-full rounded-md border border-slate-200 bg-white py-1 pl-7 pr-7 text-[11px] text-slate-700 placeholder:text-slate-300 focus:border-brand-primary/25 focus:outline-none focus:ring-1 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-600"
-            data-testid={`search-input-${key}`}
-          />
-          {search && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSetSearch(key, "");
-                onSetVisibleCount(key, 10);
-              }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-              data-testid={`search-clear-${key}`}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className={`border-l-2 ${borderColor} ml-4`}>
-        {visiblePubkeys.map((pk) => {
-          const profile = expandProfileCache.get(pk);
-          const trustScore = expandTrustCache.get(pk);
-          const displayName = profile?.display_name || profile?.name || nip19.npubEncode(pk).slice(0, 12) + "...";
-          const overlappingGroups = (groupsByPubkey.get(pk) ?? []).filter((g) => g.key !== key);
-
-          const trustPct =
-            trustScore !== undefined && trustScore !== null
-              ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100)
-              : null;
-          const circ = 2 * Math.PI * 18;
-          const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
-          const ringColor =
-            trustPct !== null
-              ? trustPct >= 50
-                ? "text-brand-primary"
-                : trustPct >= 20
-                  ? "text-brand-link"
-                  : trustPct >= 7
-                    ? "text-brand-link"
-                    : "text-brand-link"
-              : "text-brand-link";
-
-          if (profile === undefined && !expandProfileAttempted.has(pk)) {
-            return (
-              <div
-                key={pk}
-                className="flex items-center gap-3 px-4 py-2"
-                data-testid={`expand-profile-${pk.slice(0, 8)}`}
-              >
-                <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="h-3 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-2 w-16 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                </div>
-              </div>
-            );
-          }
-
-          const isReportSection = key === "reported_by" || key === "reporting";
-          const isMuteSection = key === "muted_by" || key === "muting";
-          const reportMeta = isReportSection ? getReportForPubkey(key, pk) : undefined;
-          const muteMeta = isMuteSection ? muteMetadataCache.get(pk) : undefined;
-
-          return (
-            <div
-              key={pk}
-              className="flex cursor-pointer items-center gap-3 px-4 py-2 transition-colors hover:bg-white/80 dark:hover:bg-slate-900/80"
-              onClick={() => navigateToProfile(pk)}
-              data-testid={`expand-profile-${pk.slice(0, 8)}`}
-            >
-              <Avatar
-                className={`h-7 w-7 shrink-0 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}
-              >
-                <AvatarImage src={profile?.picture} />
-                <AvatarFallback className="bg-brand-primary/10 text-xs font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link">
-                  {displayName.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">{displayName}</p>
-                {profile?.nip05 && <p className="truncate text-xs text-brand-primary">{profile.nip05}</p>}
-                {isReportSection && reportMeta && (
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <Badge
-                      variant="outline"
-                      className={`no-default-hover-elevate no-default-active-elevate px-1.5 py-0 text-[9px] font-medium ${REPORT_TYPE_BADGE_COLORS[reportMeta.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}
-                      data-testid={`report-type-${pk.slice(0, 8)}`}
-                    >
-                      {reportMeta.reportType}
-                    </Badge>
-                    <span
-                      className="text-[10px] text-slate-400 dark:text-slate-500"
-                      data-testid={`report-time-${pk.slice(0, 8)}`}
-                    >
-                      {formatRelativeTime(reportMeta.timestamp)}
-                    </span>
-                    {reportMeta.reason && (
-                      <span
-                        className="max-w-[140px] truncate text-[10px] italic text-slate-400 dark:text-slate-500"
-                        title={reportMeta.reason}
-                        data-testid={`report-reason-${pk.slice(0, 8)}`}
-                      >
-                        "{reportMeta.reason}"
-                      </span>
-                    )}
-                  </div>
-                )}
-                {isReportSection && !reportMeta && reportMetaLoading && (
-                  <div className="mt-0.5 flex items-center gap-1">
-                    <div className="h-2 w-10 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                    <div className="h-2 w-8 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                  </div>
-                )}
-                {isReportSection && !reportMeta && !reportMetaLoading && (
-                  <span
-                    className="mt-0.5 block text-[10px] italic text-slate-300 dark:text-slate-600"
-                    data-testid={`report-unavailable-${pk.slice(0, 8)}`}
-                  >
-                    report details unavailable
-                  </span>
-                )}
-                {isMuteSection && muteMeta && (
-                  <span
-                    className="text-[10px] text-slate-400 dark:text-slate-500"
-                    data-testid={`mute-time-${pk.slice(0, 8)}`}
-                  >
-                    {formatRelativeTime(muteMeta.timestamp)}
-                  </span>
-                )}
-              </div>
-              {(() => {
-                const overlapKeySet = new Set(overlappingGroups.map((g) => g.key));
-                const { owner, you } = deriveConnectionClusters(overlapKeySet);
-                const nonConnectionGroups = overlappingGroups.filter((g) => !CONNECTION_GROUP_KEYS.has(g.key));
-                if (!owner && !you && nonConnectionGroups.length === 0) return null;
-                return (
-                  <div className="flex flex-wrap justify-end gap-1">
-                    {owner &&
-                      (() => {
-                        const meta = OWNER_PILL_META[owner];
-                        return (
-                          <Badge
-                            variant="outline"
-                            className="no-default-hover-elevate no-default-active-elevate gap-1 border-teal-200 bg-teal-50 px-1.5 py-0 text-[10px] text-teal-600 dark:border-teal-500/25 dark:bg-teal-500/10 dark:text-teal-400"
-                            data-testid={`pill-owner-${owner}-${pk.slice(0, 8)}`}
-                          >
-                            <meta.Icon className="h-2.5 w-2.5" />
-                            {meta.label}
-                          </Badge>
-                        );
-                      })()}
-                    {you &&
-                      (() => {
-                        const meta = YOU_PILL_META[you];
-                        return (
-                          <Badge
-                            variant="outline"
-                            className="no-default-hover-elevate no-default-active-elevate gap-1 border-brand-primary/20 bg-brand-primary/10 px-1.5 py-0 text-[10px] text-brand-primary dark:border-brand-primary/25 dark:bg-brand-primary/10 dark:text-brand-link"
-                            data-testid={`pill-you-${you}-${pk.slice(0, 8)}`}
-                          >
-                            <meta.Icon className="h-2.5 w-2.5" />
-                            {meta.label}
-                          </Badge>
-                        );
-                      })()}
-                    {nonConnectionGroups.map((g) => (
-                      <Badge
-                        key={g.key}
-                        variant="outline"
-                        className={`no-default-hover-elevate no-default-active-elevate px-1 py-0 text-[10px] ${g.colors}`}
-                      >
-                        {g.label}
-                      </Badge>
-                    ))}
-                  </div>
-                );
-              })()}
-              {trustScore !== undefined && trustScore !== null && (
-                <div className="relative h-6 w-6 shrink-0">
-                  <svg viewBox="0 0 44 44" className="h-full w-full -rotate-90">
-                    <circle
-                      cx="22"
-                      cy="22"
-                      r="18"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      className="text-brand-link dark:text-brand-primary/20"
-                    />
-                    <circle
-                      cx="22"
-                      cy="22"
-                      r="18"
-                      fill="none"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                      className={ringColor}
-                      style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }}
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-brand-primary dark:text-brand-link">
-                    {trustPct}
-                  </span>
-                </div>
-              )}
-              {trustScore === undefined && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-brand-link" />}
-            </div>
-          );
-        })}
-        {processed.length > visibleCount && (
-          <div className="px-3 py-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onShowMore(key, processed, visibleCount);
-              }}
-              className="w-full rounded-lg bg-brand-primary py-2 text-xs font-medium text-white shadow-sm transition-all hover:bg-brand-primary-hover hover:shadow-md"
-              data-testid={`button-show-more-${key}`}
-            >
-              Show {Math.min(10, processed.length - visibleCount)} more{" "}
-              <span className="ml-1 font-mono text-white/60">
-                ({processed.length - visibleCount} remaining
-                {typeof sectionTotal === "number" && sectionTotal > processed.length
-                  ? ` of ${sectionTotal.toLocaleString()} total`
-                  : ""}
-                )
-              </span>
-            </button>
-          </div>
-        )}
-        {processed.length === 0 && isFiltered && (
-          <div className="px-4 py-6 text-center">
-            <p className="text-xs text-slate-400 dark:text-slate-500">No users match this filter</p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSetFilter(key, "all");
-                onSetReportTypeFilter(key, "all");
-              }}
-              className="mt-1.5 text-xs font-medium text-brand-link hover:underline"
-              data-testid={`filter-clear-${key}`}
-            >
-              Clear filter
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-});
-
-/** Per-section connection page size. */
-const SECTION_LIMIT = 200;
-
+import {
+  GROUP_DEFS,
+  getSection,
+  sectionCount,
+  type FilterMode,
+  type GroupDef,
+  type ProfileResultData,
+  type ReportTypeFilter,
+  type SortMode,
+} from "./profile/connectionModel";
+import { ExpandedPanel } from "./profile/ExpandedPanel";
+import { ProfileBackButton } from "./profile/ProfileBackButton";
+import { ProfileErrorCard, ProfileSeedPreview, ProfileSkeleton } from "./profile/ProfileStates";
+import { ProfileAbout } from "./profile/ProfileAbout";
+import { ProfileActions } from "./profile/ProfileActions";
+import { ProfileVerdictBanner, SharedConnectionsBanner } from "./profile/ProfileBanners";
+import { ReportDialog } from "./profile/ReportDialog";
+import { useSectionRows } from "./profile/useSectionRows";
+import { ProfileCoverBanner, ProfileIdentity } from "./profile/ProfileIdentity";
+import { SocialReachCard } from "./profile/SocialReachCard";
+import { RiskSignalsCard, SocialContextCard } from "./profile/SocialContextCard";
+import { confidenceGuidanceFor, grTierCountsToUI, tierBreakdownRows } from "./profile/tiers";
+import { nameIn } from "@/lib/displayName";
 export default function ProfilePage() {
-  const tierRing = useTierRing();
   const [location, navigate] = useLocation();
-  const goBack = useGoBack();
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
 
   const user = useActiveAccountDisplay();
   const hasSession = useHasSession();
 
-  const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
-  const [reportMetadataLoading, setReportMetadataLoading] = useState<Record<string, boolean>>({});
   const [forceRender, setForceRender] = useState(0);
   const hasExpandedRef = useRef(false);
   const rafBumpRef = useRef<number | null>(null);
@@ -1312,12 +99,8 @@ export default function ProfilePage() {
   const [reportTypeFilterState, setReportTypeFilterState] = useState<Record<string, ReportTypeFilter>>({});
   const [reportTypeDropdownOpen, setReportTypeDropdownOpen] = useState<Record<string, boolean>>({});
 
-  const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportReason, setReportReason] = useState("spam");
-  const [followHovered, setFollowHovered] = useState(false);
-  const { toast } = useToast();
 
   const hexPubkey = useMemo(() => {
     try {
@@ -1350,37 +133,16 @@ export default function ProfilePage() {
 
   const isAdmin = user?.isAdmin === true;
 
-  const adminHistoryQuery = useQuery<{ items: AdminHistoryItem[]; total: number; page: number; pages: number }>({
-    queryKey: ["/api/admin/users", hexPubkey, "history", 50],
-    queryFn: () => apiClient.getAdminUserHistory(hexPubkey, { size: 50 }),
-    enabled: isAdmin && !!hexPubkey,
-    staleTime: 60_000,
-    retry: false,
-  });
+  const adminHistoryQuery = useAdminUserHistory(hexPubkey, isAdmin);
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   useEffect(() => {
     if (calcDoneNow) markOwnScores(user?.pubkey);
   }, [calcDoneNow, user?.pubkey]);
 
-  // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
-  // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
-  // view — no matter how they arrived (search, a shared link, a bookmark).
-  //
-  // "Logged out" means holding no Account, not holding no Session. An Account
-  // stays active with its Session cleared — a deferred re-auth, or a 401 that
-  // `handleUnauthorized` decided not to redirect over — and `RequireAuth` lets
-  // that in. Bouncing on the Session sent those users to a public page that
-  // carries no unlock prompt, and every attempt to come back bounced again.
-  useEffect(() => {
-    if (npubParam && !user) {
-      navigate(`/p/${npubParam}`, { replace: true });
-    }
-  }, [npubParam, navigate, user]);
-
+  // Only an admin reaches this page (AdminProfileRoute sends anyone else, signed
+  // out included, to the public /p/:npub), so there is always an Account here.
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const group = urlParams.get("fromGroup");
-    setFromGroup(group || null);
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
     setFromAdmin(adminFrom === "admin" ? adminPubkey || "1" : null);
@@ -1388,7 +150,10 @@ export default function ProfilePage() {
 
   // Keeps the active preset in step with the server's; the reads below don't
   // key on it, a change invalidates them (`invalidatePresetDrivenReads`).
-  useTrustPresetSync(!!user);
+  const { preset: trustPreset } = useTrustPresetSync(!!user);
+  // The rows' scores are the viewer's, under their preset: one cache per pair,
+  // so an account switch or a preset change doesn't keep showing the old ones.
+  const trustCache = useMemo(() => expandTrustCacheFor(user?.pubkey, trustPreset), [user?.pubkey, trustPreset]);
 
   // Self's own follower/following lists drive the mutual-followers/following
   // banner. `useSelfConnections` calls `/user/{pk}/connections` via
@@ -1410,28 +175,9 @@ export default function ProfilePage() {
 
   const seed = useMemo<ProfileSeed | null>(() => {
     if (!hexPubkey) return null;
-    const inMem = getProfileSeed(hexPubkey);
-    if (inMem) return inMem;
-    // Refresh-surviving fallback: if the search-click set ?showNosfabricaResult=1,
-    // hydrate from sessionStorage once, then strip the flag from the URL so a
-    // second refresh doesn't re-trigger a now-empty read.
-    if (typeof window === "undefined") return null;
-    try {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get("showNosfabricaResult") !== "1") return null;
-      const stored = consumeStoredSearchSeed(hexPubkey);
-      if (!stored) {
-        url.searchParams.delete("showNosfabricaResult");
-        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-        return null;
-      }
-      setProfileSeed(hexPubkey, stored);
-      url.searchParams.delete("showNosfabricaResult");
-      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-      return stored;
-    } catch {
-      return null;
-    }
+    // The search's seed, held in memory (useOpenProfile sends a search click to
+    // /p/, so nothing arrives here with its sessionStorage copy to restore).
+    return getProfileSeed(hexPubkey);
   }, [hexPubkey]);
 
   // Overview drives the header (influence + counts). Lists load lazily on expand.
@@ -1491,102 +237,28 @@ export default function ProfilePage() {
     select: (envelope): ProfileStats | null => selectStats(envelope),
   });
 
-  // Per-section connection queries (cursor-paginated).
-  //  - followed_by + following: eager (drive mutual/shared computations).
-  //  - the other four: lazy, only fire when their section is expanded.
-  // Map per-section SortMode → backend `order`. Name sorts stay client-side
-  // (no backend name index), and fall back to DESC for fetch purposes.
-  const orderFor = (kind: string): "asc" | "desc" => (sectionSort[kind] === "trust-asc" ? "asc" : "desc");
-
-  // Map per-section FilterMode → backend `tier` + `verified_only`. "verified"
-  // is the union of every banded tier, so it goes through `verified_only`;
-  // specific tiers go through `tier`.
-  // Map UI FilterMode keys → backend GR-style tier names.
-  const UI_TO_GR_TIER: Record<
-    string,
-    "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys"
-  > = {
-    high: "high",
-    trusted: "medium_high",
-    neutral: "medium",
-    low: "medium_low",
-    unverified: "low",
-  };
-  // Collapse backend tier_counts onto the FE display keys via the same
-  // GR_TIER_TO_UI map that names a single row's tier, so a bucket count and a
-  // row badge can't land in different slices. Slices still sum to `total`.
-  const grTierCountsToUI = (tc: Record<string, number> | null | undefined): Record<string, number> => {
-    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
-    for (const [grTier, uiKey] of Object.entries(GR_TIER_TO_UI)) {
-      counts[uiKey] += tc?.[grTier] ?? 0;
-    }
-    return counts;
-  };
-  const filterFor = (
-    kind: string,
-  ): {
-    tier?: "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys";
-    verified_only?: boolean;
-  } => {
-    const f = sectionFilter[kind] || "all";
-    if (f === "all") return {};
-    if (f === "verified") return { verified_only: true };
-    return { tier: UI_TO_GR_TIER[f] };
-  };
-
-  const useConnectionsQuery = (
-    kind: "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting",
-    eager: boolean = false,
-  ) => {
-    const order = orderFor(kind);
-    const { tier, verified_only } = filterFor(kind);
-    return useInfiniteQuery<
-      { items: GraphEntry[]; next_cursor: string | null },
-      Error,
-      { pages: { items: GraphEntry[]; next_cursor: string | null }[]; pageParams: (string | undefined)[] },
-      readonly unknown[],
-      string | undefined
-    >({
-      // No preset in the key: a preset change invalidates (`invalidatePresetDrivenReads`).
-      queryKey: ["profile-conn", hexPubkey, kind, order, tier ?? null, verified_only ?? false],
-      queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
-        const res = await apiClient.getUserConnections(hexPubkey, kind, {
-          limit: SECTION_LIMIT,
-          cursor: pageParam || undefined,
-          order,
-          tier,
-          verified_only,
-        });
-        return {
-          items: (res?.data?.items ?? []) as GraphEntry[],
-          next_cursor: (res?.data?.next_cursor ?? null) as string | null,
-        };
-      },
-      initialPageParam: undefined,
-      getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage?.next_cursor ?? undefined,
-      enabled: !!hexPubkey && (eager || !!expandedSections[kind]),
-      staleTime: 5 * 60_000,
-      retry: false,
-    });
-  };
-
-  const followedByQuery = useConnectionsQuery("followed_by", true);
-  const followingQuery = useConnectionsQuery("following", true);
-  const mutedByQuery = useConnectionsQuery("muted_by");
-  const mutingQuery = useConnectionsQuery("muting");
-  const reportedByQuery = useConnectionsQuery("reported_by");
-  const reportingQuery = useConnectionsQuery("reporting");
-
-  // Flatten paginated items per section.
-  const flattenItems = (q: { data?: { pages?: { items: GraphEntry[] }[] } }) =>
-    q.data?.pages?.flatMap((p) => p.items) ?? null;
-
-  const followedByItems = flattenItems(followedByQuery);
-  const followingItems = flattenItems(followingQuery);
-  const mutedByItems = flattenItems(mutedByQuery);
-  const mutingItems = flattenItems(mutingQuery);
-  const reportedByItems = flattenItems(reportedByQuery);
-  const reportingItems = flattenItems(reportingQuery);
+  // Per-section connection queries (cursor-paginated): followed_by and following
+  // at once (they drive the mutual and shared sets), the rest when opened. The
+  // flattened rows keep their identity until a page lands, so what is derived
+  // from them below doesn't recompute on every render.
+  const { queries: connQueries, items: connItems } = useProfileConnections(
+    hexPubkey,
+    sectionSort,
+    sectionFilter,
+    expandedSections,
+  );
+  const followedByQuery = connQueries.followed_by;
+  const followingQuery = connQueries.following;
+  const mutedByQuery = connQueries.muted_by;
+  const mutingQuery = connQueries.muting;
+  const reportedByQuery = connQueries.reported_by;
+  const reportingQuery = connQueries.reporting;
+  const followedByItems = connItems.followed_by;
+  const followingItems = connItems.following;
+  const mutedByItems = connItems.muted_by;
+  const mutingItems = connItems.muting;
+  const reportedByItems = connItems.reported_by;
+  const reportingItems = connItems.reporting;
 
   const sectionStats = useMemo<Record<string, SectionStats | null>>(
     () => ({
@@ -1600,16 +272,15 @@ export default function ProfilePage() {
     [profileStatsQuery.data],
   );
 
-  // Seed expandTrustCache from any loaded section items so subsequent
-  // ExpandedPanel renders don't fire a per-pubkey getUserOverview() each.
+  // Seed the trust cache from the loaded section rows so ExpandedPanel renders
+  // don't fire a per-pubkey getUserOverview() each. The rows are the newest
+  // answer (a preset change refetches them), so they overwrite what was held.
   useEffect(() => {
     const seedFrom = (items: GraphEntry[] | null) => {
       if (!items) return;
       for (const it of items) {
         if (typeof it === "string") continue;
-        if (!expandTrustCache.has(it.pubkey)) {
-          expandTrustCache.set(it.pubkey, it.influence ?? null);
-        }
+        trustCache.set(it.pubkey, it.influence ?? null);
       }
     };
     seedFrom(followedByItems);
@@ -1618,7 +289,7 @@ export default function ProfilePage() {
     seedFrom(mutingItems);
     seedFrom(reportedByItems);
     seedFrom(reportingItems);
-  }, [followedByItems, followingItems, mutedByItems, mutingItems, reportedByItems, reportingItems]);
+  }, [trustCache, followedByItems, followingItems, mutedByItems, mutingItems, reportedByItems, reportingItems]);
 
   // Composed ProfileResultData: counts as numbers (from overview) until each
   // section's lazy query lands its array. UI already handles the number-or-array
@@ -1714,167 +385,26 @@ export default function ProfilePage() {
 
   const isLoading = !seed && !profileResult && profileQuery.isLoading;
 
+  const {
+    reportMetadataLoading,
+    prefetchedRef,
+    fetchSectionProfiles,
+    fetchSectionMetadata,
+    getReportForPubkey,
+    resetSectionRows,
+  } = useSectionRows(hexPubkey, profileResult, bumpRerender);
+
   useEffect(() => {
     setExpandedSections({});
     setSectionVisibleCount({});
-    setReportMetadataLoading({});
     hasExpandedRef.current = false;
-    metadataFetchedRef.current.clear();
-    prefetchedRef.current.clear();
-  }, [hexPubkey]);
+    resetSectionRows();
+  }, [hexPubkey, resetSectionRows]);
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
-
-  const renderLinkedText = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s<>"')\]]+)/g;
-    const parts = text.split(urlRegex);
-    return parts.map((part, i) => {
-      if (urlRegex.test(part)) {
-        urlRegex.lastIndex = 0;
-        const display = part.replace(/^https?:\/\//, "").replace(/\/$/, "");
-        return (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noopener"
-            className="break-all text-brand-primary underline decoration-brand-primary/25 underline-offset-2"
-            data-testid={`link-about-url-${i}`}
-          >
-            {display}
-          </a>
-        );
-      }
-      return (
-        <span key={i}>
-          <EmojiText text={part} tags={liveNostrProfile.event} />
-        </span>
-      );
-    });
-  };
-
-  const fetchAbortRef = useRef<number>(0);
-  const prefetchedRef = useRef<Set<string>>(new Set());
-
-  const fetchSectionProfiles = useCallback(
-    async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
-      const fetchId = ++fetchAbortRef.current;
-      const toFetch = pubkeys.slice(startIdx, startIdx + count).filter((pk) => !expandProfileCache.has(pk));
-      if (toFetch.length === 0) return;
-      const missingProfiles: string[] = [];
-      for (const pk of toFetch) {
-        const event = eventStore.getReplaceable(0, pk);
-        if (event) {
-          if (isValidProfile(event)) expandProfileCache.set(pk, getProfileContent(event));
-        } else {
-          missingProfiles.push(pk);
-        }
-      }
-      if (fetchAbortRef.current !== fetchId) return;
-      if (missingProfiles.length > 0) {
-        bumpRerender();
-      }
-      await Promise.allSettled([
-        ...(missingProfiles.length > 0
-          ? [
-              fetchProfiles(missingProfiles, (pubkey, profile) => {
-                expandProfileCache.set(pubkey, profile);
-                bumpRerender();
-              }),
-            ]
-          : []),
-      ]);
-      if (fetchAbortRef.current !== fetchId) return;
-      // Every pubkey in this batch has now had a fetch attempt (eventStore hit or
-      // a settled relay request). Mark them so rows with no resolvable kind-0
-      // profile fall back to the npub instead of a skeleton forever.
-      toFetch.forEach((pk) => expandProfileAttempted.set(pk, true));
-      bumpRerender();
-      const nextStart = startIdx + count;
-      if (nextStart < pubkeys.length) {
-        const nextBatch = pubkeys
-          .slice(nextStart, nextStart + count)
-          .filter((pk) => !expandProfileCache.has(pk) && !eventStore.getReplaceable(0, pk));
-        if (nextBatch.length > 0) {
-          nextBatch.forEach((pk) => prefetchedRef.current.add(pk));
-          fetchProfiles(nextBatch, (pubkey, profile) => {
-            expandProfileCache.set(pubkey, profile);
-          });
-        }
-      }
-    },
-    [bumpRerender],
-  );
-
-  const metadataFetchedRef = useRef<Set<string>>(new Set());
-
-  const fetchSectionMetadata = useCallback(
-    async (sectionKey: string, extraPubkeys?: string[]) => {
-      if (!hexPubkey) return;
-      const cacheKey = `${sectionKey}:${hexPubkey}`;
-
-      if (sectionKey === "reported_by" || sectionKey === "reporting") {
-        if (metadataFetchedRef.current.has(cacheKey)) return;
-        metadataFetchedRef.current.add(cacheKey);
-      }
-
-      if (sectionKey === "muting") {
-        if (muteMetadataCache.has(hexPubkey)) return;
-      }
-
-      setReportMetadataLoading((prev) => ({ ...prev, [sectionKey]: true }));
-
-      try {
-        if (sectionKey === "reported_by") {
-          const reports = await fetchReportsForPubkey(hexPubkey);
-          reportMetadataCache.set(cacheKey, reports);
-        } else if (sectionKey === "reporting") {
-          const reports = await fetchReportsByPubkey(hexPubkey);
-          reportMetadataCache.set(cacheKey, reports);
-        } else if (sectionKey === "muted_by") {
-          const pubkeysToFetch = extraPubkeys || toPubkeys(getSection(profileResult, sectionKey)).slice(0, 50);
-          const unfetched = pubkeysToFetch.filter((pk) => !muteMetadataCache.has(pk));
-          if (unfetched.length > 0) {
-            const results = await Promise.allSettled(unfetched.map((pk) => fetchMuteListTimestamp(pk)));
-            for (const r of results) {
-              if (r.status === "fulfilled" && r.value) {
-                muteMetadataCache.set(r.value.muterPubkey, r.value);
-              }
-            }
-          }
-        } else if (sectionKey === "muting") {
-          const result = await fetchMuteListTimestamp(hexPubkey);
-          if (result) {
-            muteMetadataCache.set(hexPubkey, result);
-          }
-        }
-      } catch {}
-
-      setReportMetadataLoading((prev) => ({ ...prev, [sectionKey]: false }));
-      bumpRerender();
-    },
-    [hexPubkey, profileResult, bumpRerender],
-  );
-
-  const getReportForPubkey = useCallback(
-    (sectionKey: string, pubkey: string): ReportMetadata | undefined => {
-      const cacheKey = `${sectionKey}:${hexPubkey}`;
-      const reports = reportMetadataCache.get(cacheKey);
-      if (!reports) return undefined;
-      const matching =
-        sectionKey === "reported_by"
-          ? reports.filter((r) => r.reporterPubkey === pubkey)
-          : sectionKey === "reporting"
-            ? reports.filter((r) => r.targetPubkey === pubkey)
-            : [];
-      if (matching.length === 0) return undefined;
-      return matching.reduce((latest, r) => (r.timestamp > latest.timestamp ? r : latest), matching[0]);
-    },
-    [hexPubkey],
-  );
 
   const formatRelativeTime = useCallback((timestamp: number) => formatReportTime(timestamp), []);
 
@@ -1924,7 +454,7 @@ export default function ProfilePage() {
       });
       if (unique.length > 0) {
         unique.forEach((pk) => prefetchedRef.current.add(pk));
-        fetchProfiles(unique, (pubkey, profile) => {
+        void fetchProfiles(unique, (pubkey, profile) => {
           expandProfileCache.set(pubkey, profile);
         });
       }
@@ -1944,7 +474,7 @@ export default function ProfilePage() {
       if (isIdle && typeof cic === "function") cic(handle);
       else window.clearTimeout(handle);
     };
-  }, [profileResult, mutualPubkeys, sharedFollowerPubkeys, sharedFollowingPubkeys]);
+  }, [profileResult, mutualPubkeys, sharedFollowerPubkeys, sharedFollowingPubkeys, prefetchedRef]);
 
   const sectionInfluenceMaps = useMemo(() => {
     const out: Record<string, Map<string, number | null>> = {
@@ -1991,115 +521,14 @@ export default function ProfilePage() {
     return map;
   }, [profileResult, sectionInfluenceMaps, sharedFollowerPubkeys, sharedFollowingPubkeys]);
 
-  // Brand-aligned trust ramp (mirrors TRUST_TIER_COLORS): Aurora Purple → Cyan
-  // for the top tiers, muted violet for neutral, amber (semantic caution) for
-  // low, brand grey for unverified.
-  //
-  // No `min` here: the line moves with the preset, so a subject's bucket is
-  // read off the backend `tier` rather than rederived from a number.
-  const TIER_DISPLAY_CONFIG = [
-    {
-      key: "high",
-      name: TIER_LABELS.high,
-      color: "#7237ff",
-      bg: "bg-brand-primary/10 dark:bg-brand-primary/10",
-      text: "text-brand-primary dark:text-brand-link",
-      border: "border-brand-primary/20 dark:border-brand-primary/25",
-      ring: "stroke-brand-primary",
-    },
-    {
-      key: "trusted",
-      name: TIER_LABELS.trusted,
-      color: "#13d2e5",
-      bg: "bg-cyan-50 dark:bg-cyan-500/10",
-      text: "text-cyan-700 dark:text-cyan-300",
-      border: "border-cyan-200 dark:border-cyan-500/25",
-      ring: "stroke-cyan-500",
-    },
-    {
-      key: "neutral",
-      name: "Neutral",
-      color: "#665487",
-      bg: "bg-[#665487]/10 dark:bg-[#665487]/20",
-      text: "text-[#665487] dark:text-brand-link",
-      border: "border-[#665487]/30 dark:border-[#665487]/50",
-      ring: "stroke-[#665487]",
-    },
-    {
-      key: "low",
-      name: TIER_LABELS.low,
-      color: "#f59e0b",
-      bg: "bg-amber-50 dark:bg-amber-500/10",
-      text: "text-amber-700 dark:text-amber-300",
-      border: "border-amber-200 dark:border-amber-500/25",
-      ring: "stroke-amber-400",
-    },
-    {
-      key: "unverified",
-      name: "Unverified",
-      color: "#8c929e",
-      bg: "bg-slate-100 dark:bg-slate-800",
-      text: "text-slate-500 dark:text-slate-400",
-      border: "border-slate-200 dark:border-slate-800",
-      ring: "stroke-slate-400",
-    },
-  ];
-
   const [granularity] = useTierGranularity();
   const hasTier = !!profileOverviewQuery.data?.tier;
 
   const confidenceGuidance = useMemo(() => {
     if (!profileResult || profileResult.influence === undefined) return null;
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-    const pct = Math.round(score * 100);
-    const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
-    if (pct >= 50)
-      return {
-        label: "High confidence",
-        color: "text-emerald-700 dark:text-emerald-300",
-        iconColor: "text-emerald-500 dark:text-emerald-400",
-        iconBg: "bg-emerald-100 dark:bg-emerald-500/15",
-        bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40 dark:bg-none dark:bg-emerald-500/10",
-        border: "border-emerald-200/60 dark:border-emerald-500/25",
-        message: `Strong trust signals from your community for ${name}.`,
-        pct,
-        icon: "check" as const,
-      };
-    if (pct >= 20)
-      return {
-        label: "Moderate confidence",
-        color: "text-brand-primary dark:text-brand-link",
-        iconColor: "text-brand-primary dark:text-brand-link",
-        iconBg: "bg-brand-primary/15 dark:bg-brand-primary/15",
-        bg: "bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 dark:bg-none dark:bg-brand-primary/10",
-        border: "border-brand-primary/20 dark:border-brand-primary/25",
-        message: `Some trust signals present. Your network has limited data on ${name}.`,
-        pct,
-        icon: "shield" as const,
-      };
-    if (pct >= 7)
-      return {
-        label: "Low confidence",
-        color: "text-slate-600 dark:text-slate-300",
-        iconColor: "text-slate-400 dark:text-slate-500",
-        iconBg: "bg-slate-100 dark:bg-slate-800",
-        bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40 dark:bg-none dark:bg-slate-800/50",
-        border: "border-slate-200/60 dark:border-slate-800/60",
-        message: `Weak or mixed signals from your trusted community for ${name}.`,
-        pct,
-        icon: "alert" as const,
-      };
-    return {
-      label: "Very low confidence",
-      color: "text-amber-700 dark:text-amber-300",
-      iconColor: "text-amber-500 dark:text-amber-400",
-      iconBg: "bg-amber-100 dark:bg-amber-500/15",
-      bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40 dark:bg-none dark:bg-amber-500/10",
-      border: "border-amber-200/60 dark:border-amber-500/25",
-      message: `Your community's signals suggest careful scrutiny before trusting ${name}.`,
-      pct,
-      icon: "x" as const,
-    };
+    const name = nameIn(nostrProfile) ?? "this identity";
+    return confidenceGuidanceFor(score, name);
   }, [profileResult, nostrProfile]);
 
   const verifiedCounts = useMemo(() => {
@@ -2145,35 +574,18 @@ export default function ProfilePage() {
       // Server-side tier counts only — see followerTierBreakdown.
       const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
       if (!serverStats) return null;
-      const counts = grTierCountsToUI(serverStats.tier_counts);
-      const tierDefs: { tier: string; label: string; color: string }[] = [
-        { tier: "high", label: TIER_LABELS.high, color: "text-emerald-600" },
-        { tier: "trusted", label: TIER_LABELS.trusted, color: "text-sky-500" },
-        { tier: "neutral", label: "Neutral", color: "text-brand-link" },
-        { tier: "low", label: "Low", color: "text-amber-500" },
-        { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
-      ];
-      const rows = tierDefs
-        .filter((t) => counts[t.tier] > 0)
-        .map((t) => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-      if (granularity !== "simple") return rows;
-      const verified = tierDefs.filter((t) => t.tier !== "unverified").reduce((a, t) => a + (counts[t.tier] ?? 0), 0);
-      const unknown = counts.unverified ?? 0;
-      return [
-        { tier: "Verified", count: verified, color: "text-cyan-600" },
-        { tier: "Unknown", count: unknown, color: "text-zinc-400" },
-      ].filter((r) => r.count > 0);
+      return tierBreakdownRows(grTierCountsToUI(serverStats.tier_counts), granularity);
     },
     [sectionStats, granularity],
   );
 
   const seedTrustForSection = useCallback(
     (key: string, pubkeys: string[]) => {
-      // Seed expandTrustCache from already-known influence values so we never
+      // Seed the trust cache from already-known influence values so we never
       // need a per-pubkey apiClient.getUserByPubkey() call for these.
       const seed = (pk: string, val: number | null | undefined) => {
         if (val === undefined) return;
-        if (!expandTrustCache.has(pk)) expandTrustCache.set(pk, val);
+        if (!trustCache.has(pk)) trustCache.set(pk, val);
       };
       if (key === "mutual" || key === "shared_followers" || key === "shared_following") {
         for (const pk of pubkeys) {
@@ -2195,7 +607,7 @@ export default function ProfilePage() {
       if (!map) return;
       map.forEach((inf, pk) => seed(pk, inf));
     },
-    [sectionInfluenceMaps],
+    [sectionInfluenceMaps, trustCache],
   );
 
   const toggleSection = (key: string) => {
@@ -2214,10 +626,10 @@ export default function ProfilePage() {
                 : toPubkeys(getSection(profileResult, key));
         if (pubkeys.length > 0) {
           seedTrustForSection(key, pubkeys);
-          fetchSectionProfiles(key, pubkeys);
+          void fetchSectionProfiles(key, pubkeys);
         }
         if (["reported_by", "reporting", "muted_by", "muting"].includes(key)) {
-          fetchSectionMetadata(key);
+          void fetchSectionMetadata(key);
         }
       } else {
         setSectionVisibleCount((vc) => {
@@ -2269,7 +681,6 @@ export default function ProfilePage() {
     (pk: string) => {
       const targetNpub = nip19.npubEncode(pk);
       const params = new URLSearchParams();
-      if (fromGroup) params.set("fromGroup", fromGroup);
       if (fromAdmin) {
         params.set("from", "admin");
         if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
@@ -2277,7 +688,7 @@ export default function ProfilePage() {
       const qs = params.toString();
       navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
     },
-    [navigate, fromGroup, fromAdmin],
+    [navigate, fromAdmin],
   );
 
   const handleSetSort = useCallback((k: string, v: SortMode) => {
@@ -2303,7 +714,7 @@ export default function ProfilePage() {
   }, []);
   const handleEnsureVisibleFetched = useCallback(
     (k: string, visiblePubkeys: string[]) => {
-      fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
+      void fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
     },
     [fetchSectionProfiles],
   );
@@ -2329,10 +740,10 @@ export default function ProfilePage() {
   const handleShowMore = useCallback(
     (k: string, processed: string[], currentVisible: number) => {
       setSectionVisibleCount((prev) => ({ ...prev, [k]: currentVisible + 10 }));
-      fetchSectionProfiles(k, processed, currentVisible, 10);
+      void fetchSectionProfiles(k, processed, currentVisible, 10);
       if (k === "muted_by") {
         const nextBatch = processed.slice(currentVisible, currentVisible + 10);
-        if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
+        if (nextBatch.length > 0) void fetchSectionMetadata("muted_by", nextBatch);
       }
       // If we're approaching the end of what's loaded server-side, fetch the
       // next page. The connection query will append items; profileResult
@@ -2364,6 +775,7 @@ export default function ProfilePage() {
         reportTypeDropdownOpen={reportTypeDropdownOpen[key] || false}
         reportMetaLoading={!!reportMetadataLoading[key]}
         sectionInfluenceMaps={sectionInfluenceMaps}
+        trustCache={trustCache}
         groupsByPubkey={groupsByPubkey}
         getReportForPubkey={getReportForPubkey}
         formatRelativeTime={formatRelativeTime}
@@ -2380,13 +792,6 @@ export default function ProfilePage() {
         renderToken={forceRender}
       />
     );
-  };
-
-  const handleCopyNpub = async (text: string) => {
-    if (await copyToClipboard(text)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   const displayNpub = useMemo(() => {
@@ -2416,7 +821,7 @@ export default function ProfilePage() {
   // NOT "how others see you": every viewer with their own web of trust computes a
   // different number, so there is no single score to promise.
   const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
-  const searchPostsName = displayNostrProfile?.display_name || displayNostrProfile?.name;
+  const searchPostsName = nameIn(displayNostrProfile);
   const searchPostsLabel = isOwnProfile
     ? "Search your posts"
     : searchPostsName
@@ -2429,14 +834,7 @@ export default function ProfilePage() {
     return Math.min(1, Math.max(0, v01));
   }, [seed?.wotRankNosfabrica, nosfabricaRankQuery.data]);
 
-  if (isAuthRedirecting()) return null;
-
-  const isAnon = !user;
-  // X-style stat numbers: full under 10k ("1,234"), compact above ("114K").
-  const fmtStat = (n: number) =>
-    n >= 10000
-      ? new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n)
-      : n.toLocaleString();
+  if (isAuthRedirecting() || !user) return null;
 
   const renderTrustBadge = () => {
     if (!profileResult || profileResult.influence === undefined || !hasTier) return null;
@@ -2467,35 +865,13 @@ export default function ProfilePage() {
     >
       <GlossBackground />
 
-      {isAnon ? (
-        <header
-          className="relative z-20 flex items-center justify-between px-4 py-4 sm:px-8"
-          data-testid="header-profile-anon"
-        >
-          <button
-            type="button"
-            onClick={() => navigate("/about")}
-            className="text-sm font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
-            data-testid="link-profile-about"
-          >
-            About
-          </button>
-          <SignInButton
-            variant="primary"
-            label="Sign in"
-            className="!rounded-full sm:px-5"
-            data-testid="button-profile-sign-in"
-          />
-        </header>
-      ) : (
-        <AppHeader user={user} onLogout={handleLogout} />
-      )}
+      <AppHeader user={user} onLogout={handleLogout} />
 
       <ShareProfileModal
         open={shareOpen}
         onOpenChange={setShareOpen}
         npub={displayNpub}
-        displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+        displayName={nameIn(displayNostrProfile) || displayNpub.slice(0, 18) + "…"}
         picture={displayNostrProfile?.picture}
         nip05={displayNostrProfile?.nip05}
         shareUrl={profileShareUrl}
@@ -2508,238 +884,27 @@ export default function ProfilePage() {
           onOpenChange={setZapOpen}
           recipientPubkey={hexPubkey}
           lud16={displayNostrProfile.lud16}
-          displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+          displayName={nameIn(displayNostrProfile) || displayNpub.slice(0, 18) + "…"}
           picture={displayNostrProfile?.picture}
         />
       )}
 
       <main className={cn(pageWidth("standard"), "relative z-10 py-12")}>
         <div className="mb-6 flex items-center gap-2">
-          {(() => {
-            if (fromAdmin) {
-              const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
-              return (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="no-default-hover-elevate no-default-active-elevate -ml-1 gap-2 text-slate-500 hover:bg-amber-50/60 hover:text-amber-700 dark:text-slate-400 dark:hover:bg-amber-500/10 dark:hover:text-amber-300"
-                  onClick={() => goBack(fallback)}
-                  data-testid="button-back-to-admin"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Admin
-                </Button>
-              );
-            }
-            if (fromGroup) {
-              return (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="no-default-hover-elevate no-default-active-elevate -ml-1 gap-2 text-slate-500 hover:bg-brand-primary/10 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-brand-primary/10 dark:hover:text-brand-link"
-                  onClick={() => goBack(`/network?group=${fromGroup}`)}
-                  data-testid="button-back-to-network"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Network
-                </Button>
-              );
-            }
-            return (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="no-default-hover-elevate no-default-active-elevate -ml-1 gap-2 text-slate-500 hover:bg-brand-primary/10 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-brand-primary/10 dark:hover:text-brand-link"
-                onClick={() => goBack("/")}
-                data-testid="button-back-to-search"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Button>
-            );
-          })()}
+          <ProfileBackButton fromAdmin={fromAdmin} />
         </div>
 
-        {isLoading && (
-          <div data-testid="panel-profile-skeleton">
-            <Card className="overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-              <div className="animate-pulse p-6 sm:p-8">
-                <div className="flex items-start gap-4">
-                  <div className="h-14 w-14 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700" />
-                  <div className="flex-1 space-y-2.5 pt-1">
-                    <div className="h-4 w-36 rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-3 w-48 rounded bg-slate-100 dark:bg-slate-800" />
-                  </div>
-                </div>
-                <div className="mt-5 space-y-2">
-                  <div className="h-3 w-full rounded bg-slate-100 dark:bg-slate-800" />
-                  <div className="h-3 w-3/4 rounded bg-slate-100 dark:bg-slate-800" />
-                </div>
-                <div className="mt-5 grid grid-cols-3 gap-3">
-                  <div className="h-16 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                  <div className="h-16 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                  <div className="h-16 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900" />
-                  <div className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900" />
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
+        {isLoading && <ProfileSkeleton />}
 
-        {!isLoading && loadError && (
-          <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card
-              className="relative overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
-              data-testid="card-profile-error"
-            >
-              <div className="flex flex-col items-start gap-6 p-7 sm:flex-row sm:p-8">
-                <div className="relative">
-                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-brand-primary/[0.4] to-brand-primary/25 opacity-70 blur-md" />
-                  <div
-                    className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-brand-primary shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-brand-link dark:shadow-none sm:h-16 sm:w-16"
-                    data-testid="icon-profile-error"
-                  >
-                    <User className="h-6 w-6" />
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Profile
-                  </p>
-                  <h3
-                    className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    Profile not found
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{loadError}</p>
-                  <div className="mt-5 flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => navigate("/")}
-                      className="h-10 rounded-xl bg-brand-primary px-4 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-brand-primary-hover"
-                      data-testid="button-profile-new-search"
-                    >
-                      New Search
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
+        {!isLoading && loadError && <ProfileErrorCard loadError={loadError} />}
 
         {!loadError && !profileResult && seed && (
-          <div data-testid="card-profile-seed-preview">
-            <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-              <div className="p-5 sm:p-6">
-                <div className="mb-4 flex items-start gap-3 sm:gap-4">
-                  <Avatar
-                    className={`h-12 w-12 shrink-0 border-2 border-brand-primary/15 shadow-md dark:border-brand-primary/25 sm:h-16 sm:w-16 ${tierRing(houseInfluence01) ?? ""}`}
-                  >
-                    {displayNostrProfile?.picture && (
-                      <AvatarImage
-                        size="lg"
-                        src={displayNostrProfile.picture}
-                        alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"}
-                        className="object-cover"
-                      />
-                    )}
-                    <AvatarFallback className="bg-brand-primary/10 text-base font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link sm:text-lg">
-                      {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2))
-                        .charAt(0)
-                        .toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3
-                            className="truncate text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                            style={{ fontFamily: "var(--font-display)" }}
-                            data-testid="text-profile-title-seed"
-                          >
-                            <EmojiText
-                              text={
-                                displayNostrProfile?.display_name ||
-                                displayNostrProfile?.name ||
-                                displayNpub.slice(0, 18) + "..."
-                              }
-                              tags={liveNostrProfile.event}
-                            />
-                          </h3>
-                          <Badge
-                            variant="secondary"
-                            className="border border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
-                          >
-                            <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
-                            Loading
-                          </Badge>
-                        </div>
-                        {displayNostrProfile?.nip05 && (
-                          <p className="mt-0.5 truncate text-xs font-medium text-brand-primary">
-                            {displayNostrProfile.nip05}
-                          </p>
-                        )}
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <code className="max-w-[120px] truncate font-mono text-xs text-slate-400 dark:text-slate-500 sm:max-w-[300px]">
-                            {displayNpub}
-                          </code>
-                        </div>
-                      </div>
-                      <div
-                        className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl border border-brand-primary/20 bg-brand-primary/10 px-2 py-1.5 backdrop-blur-sm dark:border-brand-primary/25 dark:bg-brand-primary/10 sm:px-3 sm:py-2"
-                        data-testid="badge-trust-score-seed"
-                        aria-label="Brainstorm Verification Score loading"
-                      >
-                        <div className="flex items-center gap-1">
-                          <BrainLogo size={8} className="text-brand-link sm:hidden" />
-                          <BrainLogo size={10} className="hidden text-brand-link sm:block" />
-                          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-link">
-                            Brainstorm
-                          </span>
-                        </div>
-                        <div className="relative flex h-10 w-10 items-center justify-center sm:h-12 sm:w-12">
-                          <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 44 44">
-                            <circle
-                              cx="22"
-                              cy="22"
-                              r="18"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              className="text-brand-link dark:text-brand-primary/20"
-                            />
-                          </svg>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-link sm:h-4 sm:w-4" />
-                        </div>
-                        <div className="h-3 w-12 animate-pulse rounded bg-brand-primary/15 dark:bg-brand-primary/20" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {displayNostrProfile?.about && (
-                  <p
-                    className="mb-4 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
-                    style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                  >
-                    <EmojiText text={displayNostrProfile.about} tags={liveNostrProfile.event} />
-                  </p>
-                )}
-                <div className="animate-pulse space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                    <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                    <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
+          <ProfileSeedPreview
+            houseInfluence01={houseInfluence01}
+            displayNostrProfile={displayNostrProfile}
+            displayNpub={displayNpub}
+            emojiTags={liveNostrProfile.event}
+          />
         )}
 
         {!isLoading && !loadError && profileResult && (
@@ -2749,710 +914,85 @@ export default function ProfilePage() {
               data-testid="card-profile-result"
             >
               <div className="relative overflow-hidden">
-                {/* Cover banner — matches the public /p page; fills the top space. */}
-                <div className="relative h-24 w-full sm:h-32">
-                  {displayNostrProfile?.banner ? (
-                    <img
-                      src={displayNostrProfile.banner}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
-                      <img
-                        src={DEFAULT_BANNER_SRC}
-                        alt=""
-                        aria-hidden
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
-                    </div>
-                  )}
-                </div>
+                <ProfileCoverBanner banner={displayNostrProfile?.banner} />
 
                 <div className="relative z-10 px-5 pb-5 sm:px-6 sm:pb-6">
-                  {/* Avatar overlaps the banner on its own line, so the name, npub,
-                    stats and actions below all share one left edge (like /p). */}
-                  {(() => {
-                    const assistantDefaultPicture = `${publicOrigin()}/assistant-default.webp`;
-                    const effectivePicture =
-                      displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
-                    return (
-                      <Avatar
-                        className={`-mt-12 h-20 w-20 shrink-0 rounded-full border-4 border-white bg-white shadow-lg dark:border-slate-900 dark:bg-slate-900 sm:-mt-16 sm:h-24 sm:w-24 ${tierRing(profileResult?.influence ?? houseInfluence01) ?? ""}`}
-                      >
-                        <AvatarImage
-                          size="lg"
-                          src={effectivePicture}
-                          alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"}
-                          className="object-cover"
-                        />
-                        <AvatarFallback className="bg-brand-primary/10 text-base font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link sm:text-lg">
-                          {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2))
-                            .charAt(0)
-                            .toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                    );
-                  })()}
-                  {/* Two-column hero — identity + stats + actions on the left, the
-                    Web of Trust card as a top-aligned right sidebar (desktop),
-                    matching the public /p page. */}
-                  <div className="mt-2.5 md:flex md:items-start md:gap-6">
-                    <div className="min-w-0 md:flex-1">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                          <h3
-                            className="w-full truncate text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:w-auto sm:text-xl"
-                            style={{ fontFamily: "var(--font-display)" }}
-                            data-testid="text-profile-title"
-                          >
-                            <EmojiText
-                              text={
-                                displayNostrProfile?.display_name ||
-                                displayNostrProfile?.name ||
-                                displayNpub.slice(0, 18) + "..."
-                              }
-                              tags={liveNostrProfile.event}
-                            />
-                          </h3>
-                          <Nip05Handle
-                            nip05={displayNostrProfile?.nip05}
-                            pubkey={hexPubkey}
-                            className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:text-sm"
-                            iconClassName="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-primary"
-                            testId="text-profile-nip05"
-                          />
-                          {isOwnAssistant && (
-                            <Badge
-                              variant="secondary"
-                              className="self-center border border-brand-accent/30 bg-brand-accent/10 text-[10px] font-bold uppercase tracking-wider text-brand-deep"
-                              data-testid="badge-brainstorm-assistant"
-                              title="This is your Brainstorm Assistant — a bot that publishes your scores to Nostr."
-                            >
-                              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-brand-accent" />
-                              Brainstorm Assistant
-                            </Badge>
-                          )}
-                        </div>
-                        {/* Someone else's handle on this profile: often a copy of theirs. */}
-                        <HandleOwnerWarning nip05={displayNostrProfile?.nip05} pubkey={hexPubkey} className="mt-1.5" />
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <code
-                            className="max-w-[120px] truncate font-mono text-xs text-slate-400 dark:text-slate-500 sm:max-w-[300px]"
-                            data-testid="text-profile-npub"
-                          >
-                            {displayNpub}
-                          </code>
-                          <button
-                            onClick={() => handleCopyNpub(displayNpub)}
-                            className="shrink-0 p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
-                            data-testid="button-copy-profile-npub"
-                          >
-                            {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                          </button>
-                        </div>
-                        {/* Web of Trust — mobile inline; on desktop it renders in the right sidebar. */}
-                        <div className="mt-3 md:hidden">{renderTrustBadge()}</div>
-                      </div>
-                      {/* X-style inline counts — full-width so they sit on one line. */}
-                      <div
-                        className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] sm:text-sm"
-                        data-testid="row-profile-stats"
-                      >
-                        <span data-testid="stat-profile-following">
-                          <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {fmtStat(verifiedCounts.followingTotal)}
-                          </span>
-                          <span className="ml-1 text-slate-500 dark:text-slate-400">Following</span>
-                        </span>
-                        <span data-testid="stat-profile-followers">
-                          <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {fmtStat(verifiedCounts.followersTotal)}
-                          </span>
-                          <span className="ml-1 text-slate-500 dark:text-slate-400">Followers</span>
-                        </span>
-                        <span data-testid="stat-profile-mutual">
-                          <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {fmtStat(mutualPubkeys.length)}
-                          </span>
-                          <span className="ml-1 text-slate-500 dark:text-slate-400">Mutual</span>
-                        </span>
-                        {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
-                        {hasSession && !isOwnProfile && user?.pubkey && hexPubkey && hasOwnScores(user.pubkey) && (
-                          <DegreeChip
-                            fromPubkey={user.pubkey}
-                            toPubkey={hexPubkey}
-                            rawId={npubParam}
-                            pov="personalized"
-                            variant="bold"
-                          />
-                        )}
-                        {theyFollowMe && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link dark:bg-brand-primary/10"
-                            data-testid="badge-follows-you"
-                          >
-                            <ArrowLeft className="h-3 w-3" /> Follows you
-                          </span>
-                        )}
-                      </div>
-                      {/* One tidy action bar — full-width, aligned with the stats above.
-                    Follow is primary; the rest tuck into a "more" menu. */}
-                      <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="row-profile-actions">
-                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
-                          <>
-                            {social.listsLoading ? (
-                              <div
-                                className="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800"
-                                data-testid="skeleton-follow-button"
-                              />
-                            ) : (
-                              (() => {
-                                const following = social.isFollowing(hexPubkey);
-                                const pending =
-                                  social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
-                                return (
-                                  <button
-                                    type="button"
-                                    disabled={pending || social.isAnyPending}
-                                    onMouseEnter={() => following && setFollowHovered(true)}
-                                    onMouseLeave={() => setFollowHovered(false)}
-                                    onClick={async () => {
-                                      const result = following
-                                        ? await social.unfollow(hexPubkey)
-                                        : await social.follow(hexPubkey);
-                                      // A declined unlock is a deliberate no — say nothing.
-                                      if (result.cancelled) {
-                                        setFollowHovered(false);
-                                        return;
-                                      }
-                                      if (result.success) {
-                                        toast({
-                                          title: following ? "Unfollowed" : "Followed",
-                                          description: following
-                                            ? "Removed from your contact list"
-                                            : "Added to your contact list",
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Error",
-                                          description: result.error || "Action failed",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                      setFollowHovered(false);
-                                    }}
-                                    className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
-                                      following
-                                        ? followHovered
-                                          ? "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
-                                          : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700"
-                                        : "bg-brand-primary text-white shadow-sm hover:bg-brand-primary-hover"
-                                    }`}
-                                    data-testid="button-follow-toggle"
-                                  >
-                                    {following ? (
-                                      followHovered ? (
-                                        <UserMinus className="h-3.5 w-3.5" />
-                                      ) : (
-                                        <UserCheck className="h-3.5 w-3.5" />
-                                      )
-                                    ) : (
-                                      <UserPlus className="h-3.5 w-3.5" />
-                                    )}
-                                    <span>{following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
-                                  </button>
-                                );
-                              })()
-                            )}
-                            <MessageButton pubkey={hexPubkey} name={searchPostsName} />
-                            <button
-                              type="button"
-                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "top"))}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                              aria-label={searchPostsLabel}
-                              title={searchPostsLabel}
-                              data-testid="button-search-posts"
-                            >
-                              <SearchIcon className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/p/${displayNpub}`)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                              data-testid="link-public-page"
-                              title="See the public, shareable version of this profile"
-                            >
-                              <Globe className="h-3.5 w-3.5 shrink-0" /> Public page
-                            </button>
-                            {displayNostrProfile?.lud16 && (
-                              <button
-                                type="button"
-                                onClick={() => setZapOpen(true)}
-                                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                                data-testid="button-zap"
-                                title="Send a zap"
-                              >
-                                <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
-                              </button>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                                  aria-label="More actions"
-                                  data-testid="button-profile-more"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="start"
-                                className="w-44 bg-white/95 backdrop-blur-xl dark:bg-slate-900/95"
-                              >
-                                <DropdownMenuItem
-                                  className="cursor-pointer"
-                                  onClick={() => setShareOpen(true)}
-                                  data-testid="button-share-profile"
-                                >
-                                  <Share2 className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" /> Share
-                                </DropdownMenuItem>
-                                {(() => {
-                                  const muted = social.isMuted(hexPubkey);
-                                  return (
-                                    <DropdownMenuItem
-                                      className="cursor-pointer"
-                                      onClick={async () => {
-                                        const result = muted
-                                          ? await social.unmute(hexPubkey)
-                                          : await social.mute(hexPubkey);
-                                        if (result.cancelled) return;
-                                        if (result.success) {
-                                          toast({
-                                            title: muted ? "Unmuted" : "Muted",
-                                            description: muted
-                                              ? "Removed from your mute list"
-                                              : "Added to your mute list",
-                                          });
-                                        } else {
-                                          toast({
-                                            title: "Error",
-                                            description: result.error || "Action failed",
-                                            variant: "destructive",
-                                          });
-                                        }
-                                      }}
-                                      data-testid="button-mute-toggle"
-                                    >
-                                      {muted ? (
-                                        <Volume2 className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" />
-                                      ) : (
-                                        <VolumeX className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" />
-                                      )}
-                                      {muted ? "Unmute" : "Mute"}
-                                    </DropdownMenuItem>
-                                  );
-                                })()}
-                                {myReport ? (
-                                  <DropdownMenuItem
-                                    className="cursor-pointer text-amber-700 focus:text-amber-800 dark:text-amber-400 dark:focus:text-amber-300"
-                                    onClick={async () => {
-                                      setUnreporting(hexPubkey); // optimistic: chip + menu flip instantly
-                                      const result = await social.unreport(hexPubkey);
-                                      setUnreporting(null);
-                                      if (result.cancelled) return;
-                                      if (result.success) {
-                                        toast({
-                                          title: "Report removed",
-                                          description: "Scores may take a little while to reflect this.",
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Error",
-                                          description: result.error || "Couldn't remove report",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }}
-                                    data-testid="button-unreport"
-                                  >
-                                    <Flag className="mr-2 h-4 w-4" /> Undo report
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    className="cursor-pointer text-red-600 focus:text-red-700 dark:text-red-400 dark:focus:text-red-300"
-                                    onClick={() => setReportDialogOpen(true)}
-                                    data-testid="button-report"
-                                  >
-                                    <Flag className="mr-2 h-4 w-4" /> Report
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            {myReport && (
-                              <Chip
-                                tone="amber"
-                                icon={Flag}
-                                className="text-[11px]"
-                                title="Your report is published. Undo it from the ⋯ menu. Scores may take a little while to reflect changes."
-                                data-testid="chip-you-reported"
-                              >
-                                You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
-                              </Chip>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "top"))}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                              aria-label={searchPostsLabel}
-                              title={searchPostsLabel}
-                              data-testid="button-search-posts"
-                            >
-                              <SearchIcon className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/p/${displayNpub}`)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-brand-primary/20 bg-white px-3 text-xs font-semibold text-brand-primary transition-colors hover:border-brand-primary/25 hover:bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-slate-900 dark:text-brand-link dark:hover:border-brand-primary/[0.4] dark:hover:bg-brand-primary/10"
-                              data-testid="link-public-page"
-                              title="See the public, shareable version of this profile"
-                            >
-                              <Globe className="h-3.5 w-3.5 shrink-0" /> Public page
-                            </button>
-                            {!isOwnProfile && displayNostrProfile?.lud16 && (
-                              <button
-                                type="button"
-                                onClick={() => setZapOpen(true)}
-                                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                                data-testid="button-zap"
-                                title="Send a zap"
-                              >
-                                <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setShareOpen(true)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-primary"
-                              data-testid="button-share-profile"
-                            >
-                              <Share2 className="h-3.5 w-3.5 shrink-0" /> Share
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {/* Web of Trust — desktop right sidebar, top-aligned beside the identity. */}
-                    <div className="mt-1 hidden md:block md:w-64 md:shrink-0">{renderTrustBadge()}</div>
-                  </div>
+                  <ProfileIdentity
+                    displayNostrProfile={displayNostrProfile}
+                    isOwnAssistant={isOwnAssistant}
+                    avatarScore={profileResult?.influence ?? houseInfluence01}
+                    displayNpub={displayNpub}
+                    emojiTags={liveNostrProfile.event}
+                    hexPubkey={hexPubkey}
+                    npubParam={npubParam}
+                    verifiedCounts={verifiedCounts}
+                    mutualCount={mutualPubkeys.length}
+                    degreeFrom={
+                      hasSession && !isOwnProfile && user?.pubkey && hexPubkey && hasOwnScores(user.pubkey)
+                        ? user.pubkey
+                        : null
+                    }
+                    theyFollowMe={theyFollowMe}
+                    trustBadge={renderTrustBadge()}
+                    actions={
+                      <ProfileActions
+                        hexPubkey={hexPubkey}
+                        isOwnProfile={isOwnProfile}
+                        social={social}
+                        myReport={myReport}
+                        setUnreporting={setUnreporting}
+                        displayNpub={displayNpub}
+                        displayNostrProfile={displayNostrProfile}
+                        searchPostsName={searchPostsName}
+                        searchPostsLabel={searchPostsLabel}
+                        setShareOpen={setShareOpen}
+                        setZapOpen={setZapOpen}
+                        setReportDialogOpen={setReportDialogOpen}
+                      />
+                    }
+                  />
                   {displayNostrProfile?.about && (
-                    <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
-                      <p
-                        className={`overflow-wrap-anywhere whitespace-pre-line break-words text-xs leading-relaxed text-slate-500 dark:text-slate-400 ${!aboutExpanded ? "line-clamp-3" : ""}`}
-                        style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                      >
-                        {renderLinkedText(displayNostrProfile.about)}
-                      </p>
-                      {displayNostrProfile.about.length > 140 && (
-                        <button
-                          onClick={() => setAboutExpanded(!aboutExpanded)}
-                          className="mt-1 text-xs font-medium text-brand-primary"
-                          data-testid="button-about-toggle"
-                        >
-                          {aboutExpanded ? "Show less" : "Show more"}
-                        </button>
-                      )}
-                    </div>
+                    <ProfileAbout
+                      about={displayNostrProfile.about}
+                      aboutExpanded={aboutExpanded}
+                      setAboutExpanded={setAboutExpanded}
+                      emojiTags={liveNostrProfile.event}
+                    />
                   )}
 
-                  {isOwnProfile ? (
-                    <div
-                      className="mb-4 flex items-start gap-3 rounded-xl border border-brand-primary/20 bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 px-3 py-3 backdrop-blur-sm dark:border-brand-primary/25 dark:bg-brand-primary/10 dark:bg-none sm:px-4"
-                      data-testid="banner-own-profile"
-                    >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-primary/15 dark:bg-brand-primary/15 sm:h-8 sm:w-8">
-                        <Eye className="h-4 w-4 text-brand-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        {/* Was "This is how others see you" / "the score people see",
-                          which promises a single universal number. The card shows the
-                          HOUSE score — Brainstorm's vantage point, the default before
-                          a viewer's own web of trust applies. The old copy even
-                          contradicted itself by adding "scores are
-                          personalized" one sentence later. */}
-                        <span className="text-xs font-bold text-brand-primary dark:text-brand-link sm:text-sm">
-                          This is how Brainstorm sees you
-                        </span>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
-                          {houseInfluence01 != null
-                            ? "Your public score card — the default view before someone's own network applies. Everyone computes their own number for you, and to yourself you always score 100."
-                            : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so more trusted accounts vouch for you."}
-                        </p>
-                        {houseInfluence01 == null && (
-                          <button
-                            type="button"
-                            onClick={() => setShareOpen(true)}
-                            className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-brand-primary transition-colors hover:text-brand-primary dark:text-brand-link dark:hover:text-brand-link sm:text-xs"
-                            data-testid="button-own-profile-invite"
-                          >
-                            <UserPlus className="h-3.5 w-3.5" /> Invite friends
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ) : isFlaggedProfile ? (
-                    /* Flagged leads — the same verdict the public page and the
-                     dashboard's Network Alerts show, so a member who clicks
-                     "View" from an alert doesn't land on a profile that looks
-                     clean. Worded "your network" here: this is the signed-in,
-                     personalized surface (the public page says "the network"). */
-                    <div
-                      className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-3 dark:border-red-500/30 dark:bg-red-500/10 sm:px-4"
-                      data-testid="banner-profile-flagged"
-                    >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-500/15 sm:h-8 sm:w-8">
-                        <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div className="min-w-0 flex-1 text-xs leading-relaxed">
-                        <span className="text-xs font-bold text-red-700 dark:text-red-300 sm:text-sm">
-                          Flagged by your network
-                        </span>
-                        <p className="mt-0.5 text-[11px] text-red-700/90 dark:text-red-300/90 sm:text-xs">
-                          Reported by {verifiedCounts.reportedBy} verified{" "}
-                          {verifiedCounts.reportedBy === 1 ? "account" : "accounts"} in your network
-                          {verifiedCounts.mutedBy > 0 ? ` · muted by ${verifiedCounts.mutedBy}` : ""}.
-                        </p>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/p/${npubParam}/reporters`)}
-                            className="rounded font-semibold text-red-700 underline underline-offset-2 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 dark:text-red-300 dark:hover:text-red-200"
-                            data-testid="banner-profile-flagged-who"
-                          >
-                            See who reported
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate("/what-is-wot")}
-                            className="rounded font-medium text-red-700/80 underline underline-offset-2 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 dark:text-red-300/80 dark:hover:text-red-200"
-                            data-testid="banner-profile-flagged-why"
-                          >
-                            Why am I seeing this?
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    confidenceGuidance && (
-                      <div
-                        className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} flex items-start gap-3 px-3 py-3 backdrop-blur-sm sm:px-4`}
-                        data-testid="banner-confidence-guidance"
-                      >
-                        <div
-                          className={`h-7 w-7 rounded-lg sm:h-8 sm:w-8 ${confidenceGuidance.iconBg} flex shrink-0 items-center justify-center`}
-                        >
-                          {confidenceGuidance.icon === "check" && (
-                            <ShieldCheck className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                          {confidenceGuidance.icon === "shield" && (
-                            <Shield className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                          {confidenceGuidance.icon === "alert" && (
-                            <ShieldAlert className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                          {confidenceGuidance.icon === "x" && (
-                            <ShieldX className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-xs font-bold sm:text-sm ${confidenceGuidance.color}`}
-                              data-testid="text-confidence-label"
-                            >
-                              {confidenceGuidance.label}
-                            </span>
-                            <span
-                              className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${confidenceGuidance.iconBg} ${confidenceGuidance.iconColor}`}
-                            >
-                              {confidenceGuidance.pct}%
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
-                            {confidenceGuidance.message}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  )}
+                  <ProfileVerdictBanner
+                    isOwnProfile={isOwnProfile}
+                    houseInfluence01={houseInfluence01}
+                    setShareOpen={setShareOpen}
+                    isFlaggedProfile={isFlaggedProfile}
+                    verifiedCounts={verifiedCounts}
+                    npubParam={npubParam}
+                    confidenceGuidance={confidenceGuidance}
+                  />
 
-                  {(() => {
-                    if (!profileResult || (selfFollowedByList.length === 0 && selfFollowingList.length === 0))
-                      return null;
-                    const sharedUnique = new Set([...sharedFollowerPubkeys, ...sharedFollowingPubkeys]);
-                    const sharedCount = sharedUnique.size;
-                    const mutualFollowersCount = sharedFollowerPubkeys.length;
-                    const mutualFollowingCount = sharedFollowingPubkeys.length;
-                    const isExpandable = sharedCount > 0;
-                    const capHit = followedByQuery.hasNextPage || followingQuery.hasNextPage;
-                    const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
-
-                    return (
-                      <div
-                        className="mb-4 overflow-hidden rounded-xl border border-brand-primary/15 bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-brand-primary/10"
-                        data-testid="banner-shared-connections"
-                      >
-                        <div
-                          className={`flex items-start gap-3 px-4 py-3 ${isExpandable ? "cursor-pointer transition-colors hover:bg-brand-primary/10 dark:hover:bg-brand-primary/15" : ""}`}
-                          onClick={
-                            isExpandable
-                              ? () => {
-                                  if (isAnyExpanded) {
-                                    setExpandedSections((prev) => ({
-                                      ...prev,
-                                      shared_followers: false,
-                                      shared_following: false,
-                                    }));
-                                  } else {
-                                    toggleSection("shared_followers");
-                                    if (mutualFollowingCount > 0) {
-                                      setTimeout(() => toggleSection("shared_following"), 0);
-                                    }
-                                  }
-                                }
-                              : undefined
-                          }
-                        >
-                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-primary/20 bg-brand-primary/15 dark:border-brand-primary/25 dark:bg-brand-primary/15">
-                            <SharedConnectionIcon className="h-4 w-4 text-brand-primary" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            {sharedCount > 0 ? (
-                              <>
-                                <p className="text-sm font-semibold text-brand-primary dark:text-brand-link">
-                                  You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with
-                                  this person
-                                </p>
-                                <p className="mt-0.5 text-xs text-brand-primary dark:text-brand-link">
-                                  {mutualFollowersCount.toLocaleString()} mutual follower
-                                  {mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()}{" "}
-                                  mutual following
-                                </p>
-                                {capHit && (
-                                  <p
-                                    className="mt-1 text-[11px] italic text-brand-primary/60 dark:text-brand-link"
-                                    data-testid="text-shared-connections-cap-notice"
-                                  >
-                                    Based on top 200 connections — full overlap may be larger
-                                  </p>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
-                                  No shared connections
-                                </p>
-                                {capHit && (
-                                  <p
-                                    className="mt-1 text-[11px] italic text-slate-400/70 dark:text-slate-500/70"
-                                    data-testid="text-shared-connections-cap-notice"
-                                  >
-                                    Based on top 200 connections — overlap may exist beyond this sample
-                                  </p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          {isExpandable && (
-                            <ChevronDown
-                              className={`mt-1 h-4 w-4 shrink-0 text-brand-link transition-transform ${isAnyExpanded ? "rotate-180" : ""}`}
-                            />
-                          )}
-                        </div>
-                        {isAnyExpanded && (
-                          <div className="border-t border-brand-primary/15 dark:border-brand-primary/25">
-                            {mutualFollowersCount > 0 && (
-                              <div>
-                                <div
-                                  className="flex cursor-pointer items-center justify-between bg-brand-primary/10 px-4 py-2 transition-colors hover:bg-brand-primary/10 dark:bg-brand-primary/[0.06] dark:hover:bg-brand-primary/10"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleSection("shared_followers");
-                                  }}
-                                  data-testid="toggle-shared-followers"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <FollowersIcon className="h-3.5 w-3.5 text-brand-link" />
-                                    <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
-                                      Mutual Followers ({mutualFollowersCount.toLocaleString()})
-                                    </span>
-                                  </div>
-                                  <ChevronDown
-                                    className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_followers"] ? "rotate-180" : ""}`}
-                                  />
-                                </div>
-                                {renderExpandedPanel("shared_followers", sharedFollowerPubkeys)}
-                              </div>
-                            )}
-                            {mutualFollowingCount > 0 && (
-                              <div>
-                                <div
-                                  className="flex cursor-pointer items-center justify-between border-t border-brand-primary/15 bg-brand-primary/10 px-4 py-2 transition-colors hover:bg-brand-primary/10 dark:border-brand-primary/20 dark:bg-brand-primary/[0.06] dark:hover:bg-brand-primary/10"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleSection("shared_following");
-                                  }}
-                                  data-testid="toggle-shared-following"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <FollowingIcon className="h-3.5 w-3.5 text-brand-link" />
-                                    <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
-                                      Mutual Following ({mutualFollowingCount.toLocaleString()})
-                                    </span>
-                                  </div>
-                                  <ChevronDown
-                                    className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_following"] ? "rotate-180" : ""}`}
-                                  />
-                                </div>
-                                {renderExpandedPanel("shared_following", sharedFollowingPubkeys)}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <SharedConnectionsBanner
+                    profileResult={profileResult}
+                    selfFollowedByList={selfFollowedByList}
+                    selfFollowingList={selfFollowingList}
+                    sharedFollowerPubkeys={sharedFollowerPubkeys}
+                    sharedFollowingPubkeys={sharedFollowingPubkeys}
+                    followedByQuery={followedByQuery}
+                    followingQuery={followingQuery}
+                    expandedSections={expandedSections}
+                    setExpandedSections={setExpandedSections}
+                    toggleSection={toggleSection}
+                    renderExpandedPanel={renderExpandedPanel}
+                  />
 
                   {hexPubkey && <ProfileRecentPosts pubkey={hexPubkey} />}
 
                   {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) &&
                     (() => {
-                      const _ovCounts = profileOverviewQuery.data?.counts;
-                      const mutedByCount =
-                        _ovCounts?.muted_by ??
-                        (Array.isArray(profileResult.muted_by)
-                          ? toPubkeys(profileResult.muted_by).length
-                          : profileResult.muted_by || 0);
-                      const reportedByCount =
-                        _ovCounts?.reported_by ??
-                        (Array.isArray(profileResult.reported_by)
-                          ? toPubkeys(profileResult.reported_by).length
-                          : profileResult.reported_by || 0);
-                      const mutingCount =
-                        _ovCounts?.muting ??
-                        (Array.isArray(profileResult.muting)
-                          ? toPubkeys(profileResult.muting).length
-                          : profileResult.muting || 0);
-                      const reportingCount =
-                        _ovCounts?.reporting ??
-                        (Array.isArray(profileResult.reporting)
-                          ? toPubkeys(profileResult.reporting).length
-                          : profileResult.reporting || 0);
+                      const ovCounts = profileOverviewQuery.data?.counts;
+                      const mutedByCount = sectionCount(ovCounts?.muted_by, profileResult.muted_by);
+                      const reportedByCount = sectionCount(ovCounts?.reported_by, profileResult.reported_by);
+                      const mutingCount = sectionCount(ovCounts?.muting, profileResult.muting);
+                      const reportingCount = sectionCount(ovCounts?.reporting, profileResult.reporting);
                       const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0 || isProfileFlagged;
                       const totalNegativeSignals = mutedByCount + reportedByCount;
                       const vMuted = verifiedCounts.mutedBy;
@@ -3460,758 +1000,50 @@ export default function ProfilePage() {
 
                       return (
                         <div className="space-y-5">
-                          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none">
-                            <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900 sm:px-4 sm:py-2.5">
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-1.5 rounded-full bg-brand-primary" />
-                                <h4
-                                  className="text-[11px] font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-300 sm:text-xs"
-                                  data-testid="header-social-reach"
-                                >
-                                  Social Reach
-                                </h4>
-                              </div>
-                              <span className="hidden font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:inline sm:text-xs">
-                                Network Position
-                              </span>
-                            </div>
-                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                              {profileResult.followed_by !== undefined &&
-                                (() => {
-                                  const fbValue = profileResult.followed_by;
-                                  const fbArray = Array.isArray(fbValue) ? fbValue : null;
-                                  const fbCount =
-                                    _ovCounts?.followed_by ??
-                                    (fbArray ? toPubkeys(fbArray).length : (fbValue as number) || 0);
-                                  const fbExpandable = fbCount > 0;
-                                  return (
-                                    <div>
-                                      <div
-                                        className={`group flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${fbExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
-                                        onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
-                                        data-testid="metric-profile-followers"
-                                      >
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 dark:border-blue-500/25 dark:bg-blue-500/10 sm:h-8 sm:w-8">
-                                            <FollowersIcon className="h-3.5 w-3.5 text-blue-500 sm:h-4 sm:w-4" />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                              {verifiedCounts.loaded ? "Verified Followers" : "Followers"}
-                                            </p>
-                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                              People following this account
-                                            </p>
-                                            {renderTierBadges("followed_by")}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <div className="text-right">
-                                            <p
-                                              className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                                              data-testid="text-profile-followers"
-                                            >
-                                              {verifiedCounts.loaded
-                                                ? verifiedCounts.followers.toLocaleString()
-                                                : fbCount.toLocaleString()}
-                                            </p>
-                                            {verifiedCounts.loaded && (
-                                              <p
-                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
-                                                data-testid="text-verified-followers"
-                                              >
-                                                of {fbCount.toLocaleString()} total
-                                              </p>
-                                            )}
-                                          </div>
-                                          {fbExpandable && (
-                                            <ChevronDown
-                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["followed_by"] ? "rotate-180" : ""}`}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      {fbExpandable &&
-                                        fbArray &&
-                                        renderExpandedPanel("followed_by", toPubkeys(fbArray))}
-                                    </div>
-                                  );
-                                })()}
-                              {profileResult.following !== undefined &&
-                                (() => {
-                                  const fgValue = profileResult.following;
-                                  const fgArray = Array.isArray(fgValue) ? fgValue : null;
-                                  const fgCount =
-                                    _ovCounts?.following ??
-                                    (fgArray ? toPubkeys(fgArray).length : (fgValue as number) || 0);
-                                  const fgExpandable = fgCount > 0;
-                                  return (
-                                    <div>
-                                      <div
-                                        className={`group flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${fgExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
-                                        onClick={fgExpandable ? () => toggleSection("following") : undefined}
-                                        data-testid="metric-profile-following"
-                                      >
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 dark:border-blue-500/25 dark:bg-blue-500/10 sm:h-8 sm:w-8">
-                                            <FollowingIcon className="h-3.5 w-3.5 text-blue-500 sm:h-4 sm:w-4" />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                              {verifiedCounts.loaded ? "Verified Following" : "Following"}
-                                            </p>
-                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                              Accounts this person follows
-                                            </p>
-                                            {renderTierBadges("following")}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <div className="text-right">
-                                            <p
-                                              className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                                              data-testid="text-profile-following"
-                                            >
-                                              {verifiedCounts.loaded
-                                                ? verifiedCounts.following.toLocaleString()
-                                                : fgCount.toLocaleString()}
-                                            </p>
-                                            {verifiedCounts.loaded && (
-                                              <p
-                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
-                                                data-testid="text-verified-following"
-                                              >
-                                                of {fgCount.toLocaleString()} total
-                                              </p>
-                                            )}
-                                          </div>
-                                          {fgExpandable && (
-                                            <ChevronDown
-                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["following"] ? "rotate-180" : ""}`}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      {fgExpandable && fgArray && renderExpandedPanel("following", toPubkeys(fgArray))}
-                                    </div>
-                                  );
-                                })()}
-                              {(() => {
-                                const mtCount = mutualPubkeys.length;
-                                const mtExpandable = mtCount > 0;
-                                if (
-                                  !Array.isArray(profileResult.followed_by) ||
-                                  !Array.isArray(profileResult.following)
-                                )
-                                  return null;
-                                return (
-                                  <div>
-                                    <div
-                                      className={`group flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${mtExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
-                                      onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
-                                      data-testid="metric-profile-mutual"
-                                    >
-                                      <div className="flex items-center gap-2 sm:gap-3">
-                                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 dark:border-teal-500/25 dark:bg-teal-500/10 sm:h-8 sm:w-8">
-                                          <MutualIcon className="h-3.5 w-3.5 text-teal-500 sm:h-4 sm:w-4" />
-                                        </div>
-                                        <div>
-                                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                            Mutual
-                                          </p>
-                                          <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                            Follow each other mutually
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <p
-                                          className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                                          data-testid="text-profile-mutual"
-                                        >
-                                          {mtCount.toLocaleString()}
-                                        </p>
-                                        {mtExpandable && (
-                                          <ChevronDown
-                                            className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["mutual"] ? "rotate-180" : ""}`}
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-                                    {mtExpandable && renderExpandedPanel("mutual", mutualPubkeys)}
-                                  </div>
-                                );
-                              })()}
-                              {(() => {
-                                if (profileResult.influence === undefined) return null;
-                                // Own profile shows the NETWORK influence (Brainstorm's
-                                // vantage point), not the self-POV 1.00. Null = not yet scored →
-                                // skip the row (the banner already explains).
-                                const inf = isOwnProfile
-                                  ? houseInfluence01
-                                  : typeof profileResult.influence === "number"
-                                    ? profileResult.influence
-                                    : null;
-                                if (isOwnProfile && inf == null) return null;
-                                const infNum = typeof inf === "number" ? inf : 0;
-                                return (
-                                  <div
-                                    className="group flex cursor-help items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5"
-                                    title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people."
-                                    data-testid="metric-profile-influence"
-                                  >
-                                    <div className="flex items-center gap-2 sm:gap-3">
-                                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand-primary/15 bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-brand-primary/10 sm:h-8 sm:w-8">
-                                        <BrainLogo size={14} className="text-brand-primary sm:hidden" />
-                                        <BrainLogo size={16} className="hidden text-brand-primary sm:block" />
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                          Influence
-                                        </p>
-                                        <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                          Network influence rating (0-1)
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 sm:gap-2.5">
-                                      <div className="h-1.5 w-10 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 sm:w-16">
-                                        <div
-                                          className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-primary"
-                                          style={{ width: `${Math.min(infNum * 100, 100)}%` }}
-                                        />
-                                      </div>
-                                      <p
-                                        className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                                        data-testid="text-profile-influence"
-                                      >
-                                        {typeof inf === "number" ? inf.toFixed(2) : "—"}
-                                      </p>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                              {followerTierBreakdown && followerTierBreakdown.total > 0 && (
-                                <div
-                                  className="bg-slate-50/30 px-3 py-3 dark:bg-slate-900/30 sm:px-4 sm:py-4"
-                                  data-testid="card-audience-quality"
-                                >
-                                  <div className="mb-2 flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5">
-                                      <div className="h-1 w-1 rounded-full bg-brand-primary" />
-                                      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 sm:text-[11px]">
-                                        Audience Quality
-                                      </span>
-                                    </div>
-                                    <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
-                                      {followerTierBreakdown.total.toLocaleString()} followers
-                                    </span>
-                                  </div>
-                                  <div
-                                    className="flex h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
-                                    data-testid="bar-audience-quality"
-                                  >
-                                    {TIER_DISPLAY_CONFIG.map((tier) => {
-                                      const count = followerTierBreakdown.counts[tier.key] || 0;
-                                      if (count === 0) return null;
-                                      const widthPct = (count / followerTierBreakdown.total) * 100;
-                                      return (
-                                        <div
-                                          key={tier.key}
-                                          className="h-full transition-all duration-500"
-                                          style={{
-                                            width: `${widthPct}%`,
-                                            backgroundColor: tier.color,
-                                            minWidth: widthPct > 0 ? "2px" : "0",
-                                          }}
-                                          title={`${tier.name}: ${count}`}
-                                        />
-                                      );
-                                    })}
-                                  </div>
-                                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                                    {TIER_DISPLAY_CONFIG.map((tier) => {
-                                      const count = followerTierBreakdown.counts[tier.key] || 0;
-                                      if (count === 0) return null;
-                                      return (
-                                        <div
-                                          key={tier.key}
-                                          className="flex items-center gap-1.5"
-                                          data-testid={`legend-tier-${tier.key}`}
-                                        >
-                                          <div
-                                            className="h-2 w-2 shrink-0 rounded-sm"
-                                            style={{ backgroundColor: tier.color }}
-                                          />
-                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                                            {tier.name}
-                                          </span>
-                                          <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-slate-100">
-                                            {count.toLocaleString()}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                          <SocialReachCard
+                            profileResult={profileResult}
+                            ovCounts={ovCounts}
+                            verifiedCounts={verifiedCounts}
+                            mutualPubkeys={mutualPubkeys}
+                            isOwnProfile={isOwnProfile}
+                            houseInfluence01={houseInfluence01}
+                            followerTierBreakdown={followerTierBreakdown}
+                            expandedSections={expandedSections}
+                            toggleSection={toggleSection}
+                            renderExpandedPanel={renderExpandedPanel}
+                            renderTierBadges={renderTierBadges}
+                          />
 
-                          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none">
-                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 px-3 py-2 dark:border-slate-800/60 dark:bg-slate-900 dark:bg-none sm:px-4 sm:py-2.5">
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`h-1.5 w-1.5 rounded-full ${hasRiskSignals ? "bg-brand-primary" : "bg-slate-300 dark:bg-slate-700"}`}
-                                />
-                                <h4
-                                  className="text-[11px] font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-300 sm:text-xs"
-                                  data-testid="header-social-context"
-                                >
-                                  Social Context
-                                </h4>
-                              </div>
-                              <span className="hidden font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:inline sm:text-xs">
-                                {totalNegativeSignals > 0 ? `${totalNegativeSignals.toLocaleString()} total` : ""}
-                              </span>
-                            </div>
-                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                              {isProfileFlagged && (
-                                <div
-                                  className="flex items-center gap-2 bg-red-50/60 px-3 py-2.5 dark:bg-red-500/10 sm:gap-3 sm:px-4 sm:py-3.5"
-                                  data-testid="metric-profile-flagged-indicator"
-                                >
-                                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-100 dark:border-red-500/25 dark:bg-red-500/15 sm:h-8 sm:w-8">
-                                    <FlaggedIcon className="h-3.5 w-3.5 text-red-600 sm:h-4 sm:w-4" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <p className="text-xs font-semibold text-red-700 dark:text-red-300 sm:text-sm">
-                                      Flagged
-                                    </p>
-                                    <p className="text-[10px] leading-tight text-red-500 dark:text-red-400 sm:text-xs">
-                                      Low trust & reported by 2+ of your trusted contacts
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                              {profileResult.muted_by !== undefined &&
-                                (() => {
-                                  const mbExpandable = mutedByCount > 0;
-                                  return (
-                                    <div>
-                                      <div
-                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${mbExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : "cursor-help"}`}
-                                        title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
-                                        onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
-                                        data-testid="metric-profile-muted-by"
-                                      >
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                          <div
-                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border sm:h-8 sm:w-8 ${mutedByCount > 0 ? "border-amber-200 bg-amber-50 dark:border-amber-500/25 dark:bg-amber-500/10" : "border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900"}`}
-                                          >
-                                            <MutedByIcon
-                                              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`}
-                                            />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                              {verifiedCounts.loaded ? "Verified Muted By" : "Muted By"}
-                                            </p>
-                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                              Others who muted this account
-                                            </p>
-                                            {renderTierBadges("muted_by")}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <div className="text-right">
-                                            <p
-                                              className={`font-mono text-lg font-bold tabular-nums tracking-tight sm:text-xl ${mutedByCount > 0 ? "text-amber-700 dark:text-amber-300" : "text-slate-900 dark:text-slate-100"}`}
-                                              data-testid="text-profile-muted-by"
-                                            >
-                                              {verifiedCounts.loaded
-                                                ? verifiedCounts.mutedBy.toLocaleString()
-                                                : mutedByCount.toLocaleString()}
-                                            </p>
-                                            {verifiedCounts.loaded && (
-                                              <p
-                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
-                                                data-testid="text-verified-muted-by"
-                                              >
-                                                of {mutedByCount.toLocaleString()} total
-                                              </p>
-                                            )}
-                                          </div>
-                                          {mbExpandable && (
-                                            <ChevronDown
-                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["muted_by"] ? "rotate-180" : ""}`}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      {mbExpandable &&
-                                        Array.isArray(profileResult.muted_by) &&
-                                        renderExpandedPanel("muted_by", toPubkeys(profileResult.muted_by))}
-                                    </div>
-                                  );
-                                })()}
-                              {profileResult.reported_by !== undefined &&
-                                (() => {
-                                  const rbExpandable = reportedByCount > 0;
-                                  return (
-                                    <div>
-                                      <div
-                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${rbExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : "cursor-help"}`}
-                                        title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
-                                        onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
-                                        data-testid="metric-profile-reported-by"
-                                      >
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                          <div
-                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border sm:h-8 sm:w-8 ${reportedByCount > 0 ? "border-red-200 bg-red-50 dark:border-red-500/25 dark:bg-red-500/10" : "border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900"}`}
-                                          >
-                                            <ReportedByIcon
-                                              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`}
-                                            />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                              {verifiedCounts.loaded ? "Verified Reported By" : "Reported By"}
-                                            </p>
-                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                              Reports filed against this account
-                                            </p>
-                                            {renderTierBadges("reported_by")}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <div className="text-right">
-                                            <p
-                                              className={`font-mono text-lg font-bold tabular-nums tracking-tight sm:text-xl ${reportedByCount > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`}
-                                              data-testid="text-profile-reported-by"
-                                            >
-                                              {verifiedCounts.loaded
-                                                ? verifiedCounts.reportedBy.toLocaleString()
-                                                : reportedByCount.toLocaleString()}
-                                            </p>
-                                            {verifiedCounts.loaded && (
-                                              <p
-                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
-                                                data-testid="text-verified-reported-by"
-                                              >
-                                                of {reportedByCount.toLocaleString()} total
-                                              </p>
-                                            )}
-                                          </div>
-                                          {rbExpandable && (
-                                            <ChevronDown
-                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["reported_by"] ? "rotate-180" : ""}`}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      {rbExpandable &&
-                                        Array.isArray(profileResult.reported_by) &&
-                                        renderExpandedPanel("reported_by", toPubkeys(profileResult.reported_by))}
-                                    </div>
-                                  );
-                                })()}
-                              {profileResult.muting !== undefined &&
-                                (() => {
-                                  const mtExpandable = mutingCount > 0;
-                                  return (
-                                    <div>
-                                      <div
-                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${mtExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
-                                        onClick={mtExpandable ? () => toggleSection("muting") : undefined}
-                                        data-testid="metric-profile-muting"
-                                      >
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900 sm:h-8 sm:w-8">
-                                            <MutingIcon className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 sm:h-4 sm:w-4" />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                              Muting
-                                            </p>
-                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                              Accounts this person has muted
-                                            </p>
-                                            {renderTierBadges("muting")}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <p
-                                            className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                                            data-testid="text-profile-muting"
-                                          >
-                                            {mutingCount.toLocaleString()}
-                                          </p>
-                                          {mtExpandable && (
-                                            <ChevronDown
-                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["muting"] ? "rotate-180" : ""}`}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      {mtExpandable &&
-                                        Array.isArray(profileResult.muting) &&
-                                        renderExpandedPanel("muting", toPubkeys(profileResult.muting))}
-                                    </div>
-                                  );
-                                })()}
-                              {profileResult.reporting !== undefined &&
-                                (() => {
-                                  const rpExpandable = reportingCount > 0;
-                                  return (
-                                    <div>
-                                      <div
-                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${rpExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
-                                        onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
-                                        data-testid="metric-profile-reporting"
-                                      >
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900 sm:h-8 sm:w-8">
-                                            <ReportingIcon className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 sm:h-4 sm:w-4" />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
-                                              Reporting
-                                            </p>
-                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
-                                              Reports filed by this person
-                                            </p>
-                                            {renderTierBadges("reporting")}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <p
-                                            className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
-                                            data-testid="text-profile-reporting"
-                                          >
-                                            {reportingCount.toLocaleString()}
-                                          </p>
-                                          {rpExpandable && (
-                                            <ChevronDown
-                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["reporting"] ? "rotate-180" : ""}`}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      {rpExpandable &&
-                                        Array.isArray(profileResult.reporting) &&
-                                        renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
-                                    </div>
-                                  );
-                                })()}
-                            </div>
-                          </div>
+                          <SocialContextCard
+                            profileResult={profileResult}
+                            hasRiskSignals={hasRiskSignals}
+                            totalNegativeSignals={totalNegativeSignals}
+                            isProfileFlagged={isProfileFlagged}
+                            mutedByCount={mutedByCount}
+                            reportedByCount={reportedByCount}
+                            mutingCount={mutingCount}
+                            reportingCount={reportingCount}
+                            verifiedCounts={verifiedCounts}
+                            expandedSections={expandedSections}
+                            toggleSection={toggleSection}
+                            renderExpandedPanel={renderExpandedPanel}
+                            renderTierBadges={renderTierBadges}
+                          />
 
-                          {hasRiskSignals &&
-                            (() => {
-                              const barTotal = mutedByCount + reportedByCount;
-                              const mutedPct = barTotal > 0 ? (mutedByCount / barTotal) * 100 : 0;
-                              const reportedPct = barTotal > 0 ? (reportedByCount / barTotal) * 100 : 0;
-                              return (
-                                <div
-                                  className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none"
-                                  data-testid="alert-profile-trust-warning"
-                                >
-                                  <div className="bg-slate-50/30 px-3 py-3 dark:bg-slate-900/30 sm:px-4 sm:py-4">
-                                    <div className="mb-2 flex items-center justify-between">
-                                      <div className="flex items-center gap-1.5">
-                                        <div className="h-1 w-1 rounded-full bg-brand-primary" />
-                                        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 sm:text-[11px]">
-                                          Social Context
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {isProfileFlagged && (
-                                          <span className="rounded-md border border-red-100 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400">
-                                            Flagged
-                                          </span>
-                                        )}
-                                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
-                                          {barTotal.toLocaleString()} total
-                                        </span>
-                                      </div>
-                                    </div>
-                                    {barTotal > 0 && (
-                                      <div
-                                        className="flex h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
-                                        data-testid="bar-social-context"
-                                      >
-                                        {mutedByCount > 0 && (
-                                          <div
-                                            className="h-full transition-all duration-500"
-                                            style={{
-                                              width: `${mutedPct}%`,
-                                              backgroundColor: "#f59e0b",
-                                              minWidth: "2px",
-                                            }}
-                                            title={`Muted by: ${mutedByCount}`}
-                                          />
-                                        )}
-                                        {reportedByCount > 0 && (
-                                          <div
-                                            className="h-full transition-all duration-500"
-                                            style={{
-                                              width: `${reportedPct}%`,
-                                              backgroundColor: "#ef4444",
-                                              minWidth: "2px",
-                                            }}
-                                            title={`Reported by: ${reportedByCount}`}
-                                          />
-                                        )}
-                                      </div>
-                                    )}
-                                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                                      {mutedByCount > 0 && (
-                                        <div className="flex items-center gap-1.5" data-testid="legend-muted-by">
-                                          <div
-                                            className="h-2 w-2 shrink-0 rounded-sm"
-                                            style={{ backgroundColor: "#f59e0b" }}
-                                          />
-                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                                            Muted by
-                                          </span>
-                                          {vMuted > 0 ? (
-                                            <>
-                                              <span className="font-mono text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                                                {vMuted} verified
-                                              </span>
-                                              <span className="text-[10px] font-medium text-slate-300 dark:text-slate-600">
-                                                of {mutedByCount.toLocaleString()}
-                                              </span>
-                                            </>
-                                          ) : (
-                                            <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-slate-100">
-                                              {mutedByCount.toLocaleString()}
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
-                                      {reportedByCount > 0 && (
-                                        <div className="flex items-center gap-1.5" data-testid="legend-reported-by">
-                                          <div
-                                            className="h-2 w-2 shrink-0 rounded-sm"
-                                            style={{ backgroundColor: "#ef4444" }}
-                                          />
-                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                                            Reported by
-                                          </span>
-                                          {vReported > 0 ? (
-                                            <>
-                                              <span className="font-mono text-[10px] font-bold text-red-600 dark:text-red-400">
-                                                {vReported} verified
-                                              </span>
-                                              <span className="text-[10px] font-medium text-slate-300 dark:text-slate-600">
-                                                of {reportedByCount.toLocaleString()}
-                                              </span>
-                                            </>
-                                          ) : (
-                                            <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-slate-100">
-                                              {reportedByCount.toLocaleString()}
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })()}
+                          {hasRiskSignals && (
+                            <RiskSignalsCard
+                              mutedByCount={mutedByCount}
+                              reportedByCount={reportedByCount}
+                              isProfileFlagged={isProfileFlagged}
+                              vMuted={vMuted}
+                              vReported={vReported}
+                            />
+                          )}
                         </div>
                       );
                     })()}
 
-                  {isAdmin && hexPubkey && (
-                    <div
-                      className="mt-6 overflow-hidden rounded-xl border border-amber-300/60 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 dark:border-amber-500/25 dark:bg-slate-900 dark:bg-none"
-                      data-testid="card-admin-history"
-                    >
-                      <div className="flex items-center gap-2 border-b border-amber-200/60 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-500/10">
-                        <Shield className="h-4 w-4 text-amber-600" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                          Admin — Brainstorm History
-                        </span>
-                        <Badge className="ml-auto border-amber-300 bg-amber-100 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300">
-                          /admin/users/{"{pubkey}"}/history
-                        </Badge>
-                      </div>
-                      <div className="p-4">
-                        {adminHistoryQuery.isLoading ? (
-                          <div className="flex items-center justify-center gap-2 py-6">
-                            <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-                            <span className="text-xs text-slate-500 dark:text-slate-400">Loading history...</span>
-                          </div>
-                        ) : adminHistoryQuery.isError ? (
-                          <div className="py-6 text-center">
-                            <p className="text-xs text-red-500 dark:text-red-400">Failed to load admin history</p>
-                            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                              {adminHistoryQuery.error instanceof Error
-                                ? adminHistoryQuery.error.message
-                                : "Unknown error"}
-                            </p>
-                          </div>
-                        ) : !adminHistoryQuery.data?.items?.length ? (
-                          <div className="py-6 text-center" data-testid="empty-admin-history">
-                            <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              No Brainstorm calculation history for this user
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {adminHistoryQuery.data.total} calculation record
-                              {adminHistoryQuery.data.total !== 1 ? "s" : ""}
-                            </p>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="border-b border-amber-200/40 dark:border-amber-500/20">
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      ID
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      Source
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      Status
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      TA Status
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      Pub Status
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      Algorithm
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      Queue
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      Created
-                                    </th>
-                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-                                      Updated
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {adminHistoryQuery.data.items.map((item: AdminHistoryItem, idx: number) => (
-                                    <AdminHistoryRow key={item.private_id || idx} item={item} idx={idx} />
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {isAdmin && hexPubkey && <AdminHistoryCard query={adminHistoryQuery} />}
 
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     <Button
@@ -4232,141 +1064,19 @@ export default function ProfilePage() {
       </main>
 
       <style>{`
-        @keyframes profileBlobA {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(15px) scale(1.03); }
-        }
-        @keyframes profileBlobB {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(-20px) scale(1.05); }
-        }
-        @keyframes profileLineDraw {
-          0% { stroke-dashoffset: var(--dash); opacity: 0; }
-          100% { stroke-dashoffset: 0; opacity: 0.18; }
-        }
-        @keyframes profileLinePulse {
-          0%, 100% { opacity: 0.12; }
-          50% { opacity: 0.2; }
-        }
-        @keyframes profileNodePop {
-          0% { opacity: 0; transform: scale(0); }
-          60% { opacity: 0.25; transform: scale(1.15); }
-          100% { opacity: 0.18; transform: scale(1); }
-        }
-        @keyframes profileNodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.15; }
-          50% { transform: translateY(-12px); opacity: 0.25; }
-        }
         @keyframes profileFadeIn {
           0% { opacity: 0; transform: translateY(24px) scale(0.97); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
-      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="rounded-2xl border-slate-200/80 shadow-xl dark:border-slate-800/80 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle
-              className="text-base font-bold text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Report User
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
-              This will publish a kind 1984 report event to Nostr relays. Choose a reason below.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-3">
-            {[
-              { value: "spam", label: "Spam", desc: "Unsolicited or repetitive content" },
-              { value: "impersonation", label: "Impersonation", desc: "Pretending to be someone else" },
-              { value: "nudity", label: "Inappropriate Content", desc: "Offensive or explicit material" },
-              { value: "other", label: "Other", desc: "Another reason not listed above" },
-            ].map((opt) => (
-              <label
-                key={opt.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all duration-200 ${
-                  reportReason === opt.value
-                    ? "border-brand-primary/25 bg-brand-primary/10 shadow-sm dark:border-brand-primary/[0.3] dark:bg-brand-primary/10 dark:shadow-none"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:bg-slate-900/50"
-                }`}
-                data-testid={`report-option-${opt.value}`}
-              >
-                <input
-                  type="radio"
-                  name="report-reason"
-                  value={opt.value}
-                  checked={reportReason === opt.value}
-                  onChange={() => setReportReason(opt.value)}
-                  className="mt-0.5 accent-brand-link"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{opt.label}</p>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{opt.desc}</p>
-                </div>
-              </label>
-            ))}
-          </div>
-          <DialogFooter className="flex gap-2 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setReportDialogOpen(false)}
-              className="h-9 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 sm:flex-none"
-              data-testid="button-report-cancel"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={social.isPending("report", hexPubkey) || social.isAnyPending}
-              onClick={async () => {
-                const result = await social.report(hexPubkey, reportReason);
-                if (result.cancelled) return;
-                if (result.success) {
-                  toast({ title: "Reported", description: "Report published to Nostr relays" });
-                  setReportDialogOpen(false);
-                } else {
-                  toast({ title: "Error", description: result.error || "Failed to report", variant: "destructive" });
-                }
-              }}
-              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:pointer-events-none disabled:opacity-50 sm:flex-none"
-              data-testid="button-report-confirm"
-            >
-              {social.isPending("report", hexPubkey) ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Flag className="h-3.5 w-3.5" />
-              )}
-              Submit Report
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReportDialog
+        reportDialogOpen={reportDialogOpen}
+        setReportDialogOpen={setReportDialogOpen}
+        social={social}
+        hexPubkey={hexPubkey}
+      />
 
-      {isAnon ? (
-        <footer
-          className="relative z-10 mt-auto flex items-center justify-between px-4 py-4 text-xs sm:px-8"
-          data-testid="footer-profile-anon"
-        >
-          <button
-            type="button"
-            onClick={() => navigate("/developers")}
-            className="font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
-            data-testid="link-profile-developers"
-          >
-            Developers
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/how-search-works")}
-            className="font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
-            data-testid="link-profile-how-search-works"
-          >
-            How search works
-          </button>
-        </footer>
-      ) : (
-        <Footer />
-      )}
+      <Footer />
     </div>
   );
 }

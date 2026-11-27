@@ -6,17 +6,17 @@
  * results page and the composed page share it.
  */
 import { describe, expect, it } from "vitest";
+import type { SearchHit } from "@/services/search";
 import { clientFilterHits, countBelowLine, NO_REACH, peopleAboveLine } from "./clientFilters";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
 const C = "c".repeat(64);
-const hit = (pubkey: string) =>
-  ({
-    event: { id: pubkey.slice(0, 8), kind: 1, pubkey, tags: [], content: "", created_at: 1, sig: "s" },
-    author: null,
-    rank: null,
-  }) as never;
+const hit = (pubkey: string): SearchHit => ({
+  event: { id: pubkey.slice(0, 8), kind: 1, pubkey, tags: [], content: "", created_at: 1, sig: "s" },
+  author: null,
+  rank: null,
+});
 const hits = [hit(A), hit(B), hit(C)];
 const scoreOf = (pk: string) => ({ [A]: 0.9, [B]: 0.001, [C]: undefined })[pk];
 const reach = { direct: new Set([B]), ready: true };
@@ -71,12 +71,11 @@ describe("the search floor — accounts below the verified line stay off the pag
     [NODATA]: null,
   };
   const scoreOf = (pk: string) => scores[pk];
-  const h = (id: string, pubkey: string) =>
-    ({
-      event: { id, kind: 1, pubkey, tags: [], content: "", created_at: 1, sig: "s" },
-      author: null,
-      rank: null,
-    }) as never;
+  const h = (id: string, pubkey: string): SearchHit => ({
+    event: { id, kind: 1, pubkey, tags: [], content: "", created_at: 1, sig: "s" },
+    author: null,
+    rank: null,
+  });
   const hits = [h("a", SPAM), h("b", ZERO), h("c", REAL), h("d", PENDING), h("e", NODATA)];
   it("with the floor on, known-low authors go; loading and no-data authors stay", () => {
     const kept = clientFilterHits(
@@ -112,7 +111,7 @@ describe("peopleAboveLine — the search box's people under the same floor", () 
   });
 
   it("agrees with the page: the people it hides are the ones the page counts as hidden", () => {
-    const hits = people.map((p) => ({ event: { pubkey: p.pubkey } })) as never;
+    const hits = people.map((p) => hit(p.pubkey));
     expect(people.length - peopleAboveLine(people, scoreOf).length).toBe(countBelowLine(hits, scoreOf));
   });
 });

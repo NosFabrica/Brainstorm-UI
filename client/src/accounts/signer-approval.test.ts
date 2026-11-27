@@ -27,4 +27,13 @@ describe("an auth_url from a signer", () => {
     await waiting;
     expect(signerApproval$.value).toBeNull();
   });
+
+  it("never links anything but https: the url is the signer's to choose, the click is ours", async () => {
+    // A hostile or compromised bunker answers with javascript: (or data:, or
+    // plain http) and waits for the reader to click "Open my signer".
+    for (const url of ["javascript:alert(document.domain)", "data:text/html,<script>1</script>", "http://evil.test/"]) {
+      await expect(requestSignerApproval(url)).resolves.toBeUndefined();
+      expect(signerApproval$.value, url).toBeNull();
+    }
+  });
 });

@@ -162,8 +162,10 @@ export function requestNewestWithReach(
       tap((message) => {
         const from = normalize(message?.from);
         if (message?.type === "EVENT" && message.event) {
-          const stored = (eventStore.add(message.event as NostrEvent) ?? message.event) as NostrEvent;
-          if (beats(stored, newest)) newest = stored;
+          // Null is the store refusing it (a bad signature, a deleted event):
+          // never the relay's copy in its place.
+          const stored = eventStore.add(message.event as NostrEvent) as NostrEvent | null;
+          if (stored && beats(stored, newest)) newest = stored;
         } else if (message?.type === "EOSE") {
           answered.add(from);
           settled.add(from);

@@ -2,12 +2,18 @@ name: E2E (staging)
 
 on:
   workflow_dispatch:
+  # staging -> main: the release candidate, which is what staging runs.
   pull_request:
     branches: [main]
     types: [opened, reopened, ready_for_review]
+  # A merge into staging (the default branch), once staging serves it. Not on
+  # the PR into staging: staging doesn't run the PR's code until it merges, so
+  # the PR's own specs would be checked against the build before it.
+  push:
+    branches: [staging]
 
 concurrency:
-  group: e2e-staging
+  group: e2e-staging-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -15,7 +21,7 @@ jobs:
     name: Smoke against staging
     runs-on: ubuntu-latest
     environment: staging-e2e
-    timeout-minutes: 20
+    timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -31,6 +37,23 @@ jobs:
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+
+      # build.yml builds this commit's image with BUILD_ID = the commit, and the
+      # cluster rolls it out after; the service worker names its cache by it.
+      - name: Wait for staging to serve this commit
+        if: github.event_name == 'push'
+        env:
+          BASE_URL: ${{ vars.E2E_BASE_URL || 'https://brainstorm-staging.nosfabrica.com' }}
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS --max-time 15 "$BASE_URL/sw.js" | grep -q "brainstorm-${GITHUB_SHA}"; then
+              echo "staging serves ${GITHUB_SHA}"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "staging did not serve ${GITHUB_SHA} within 30 minutes"
+          exit 1
 
       - name: Run e2e
         run: npm run e2e

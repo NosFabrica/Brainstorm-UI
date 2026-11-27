@@ -21,6 +21,9 @@ vi.mock("@/services/search", async (importOriginal) => ({
   fetchRepoByAddress: (address: string) => repoMock(address),
 }));
 
+const clipboardMock = vi.hoisted(() => vi.fn(async (_text: string) => true));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => clipboardMock(text) }));
+
 import { GitItemHero } from "./GitItemHero";
 
 const SELLER = "9".repeat(64);
@@ -148,8 +151,6 @@ describe("GitItemHero", () => {
         ["clone", "https://gitnostr.com/npub15qy/gitworkshop.git"],
       ],
     };
-    const writeText = vi.fn(() => Promise.resolve());
-    Object.assign(navigator, { clipboard: { writeText } });
     render(<GitItemHero event={pr} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("fix(git-pool): recompute stale warning");
     const facts = screen.getByTestId("git-pr-facts");
@@ -157,8 +158,12 @@ describe("GitItemHero", () => {
     expect(facts).toHaveTextContent("main");
     expect(facts).toHaveTextContent("2 commits");
     fireEvent.click(screen.getByTestId("git-pr-clone"));
-    expect(writeText).toHaveBeenCalledWith("https://gitnostr.com/npub15qy/gitworkshop.git");
+    expect(clipboardMock).toHaveBeenCalledWith("https://gitnostr.com/npub15qy/gitworkshop.git");
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
     expect(screen.getByTestId("git-item-body")).toHaveTextContent("Fixes a stuck warning.");
+    clipboardMock.mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByTestId("git-pr-clone"));
+    expect(await screen.findByText("Couldn't copy")).toBeInTheDocument();
   });
 
   // Bug reports lead with screenshots as bare URLs. A reader wants the

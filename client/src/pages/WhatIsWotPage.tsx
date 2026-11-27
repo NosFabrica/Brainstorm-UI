@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { m, Motion } from "@/lib/motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useLocation } from "wouter";
 import {
@@ -309,17 +309,19 @@ export default function WhatIsWotPage() {
             className="relative aspect-[3/2] overflow-hidden rounded-3xl bg-slate-900 shadow-[0_24px_70px_-20px_rgb(var(--brand-deep)/0.30)] ring-1 ring-slate-200 dark:ring-slate-800 sm:aspect-[2/1]"
             data-testid="wot-hero-media"
           >
-            <motion.img
-              src={heroPhoto}
-              alt="A diverse group of friends laughing together at a coffee shop"
-              // Above the fold and the page's largest paint: fetched first, never deferred.
-              fetchPriority="high"
-              className="absolute inset-0 h-full w-full origin-center object-cover object-[center_35%]"
-              data-testid="wot-hero-photo"
-              initial={{ scale: 1.05 }}
-              animate={prefersReduced ? { scale: 1.05 } : { scale: [1.05, 1.12, 1.05], x: [0, -8, 0], y: [0, -5, 0] }}
-              transition={prefersReduced ? undefined : { duration: 26, repeat: Infinity, ease: "easeInOut" }}
-            />
+            <Motion>
+              <m.img
+                src={heroPhoto}
+                alt="A diverse group of friends laughing together at a coffee shop"
+                // Above the fold and the page's largest paint: fetched first, never deferred.
+                fetchPriority="high"
+                className="absolute inset-0 h-full w-full origin-center object-cover object-[center_35%]"
+                data-testid="wot-hero-photo"
+                initial={{ scale: 1.05 }}
+                animate={prefersReduced ? { scale: 1.05 } : { scale: [1.05, 1.12, 1.05], x: [0, -8, 0], y: [0, -5, 0] }}
+                transition={prefersReduced ? undefined : { duration: 26, repeat: Infinity, ease: "easeInOut" }}
+              />
+            </Motion>
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-deep/15 via-transparent to-transparent" />
             <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/10" />
           </div>

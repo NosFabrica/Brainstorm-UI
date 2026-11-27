@@ -22,12 +22,14 @@ const changes$ = { next: (change: MirroredChange) => mirror.emit(change) };
 const toast = vi.fn();
 const navigate = vi.fn();
 const clear = vi.fn();
+const clearHydratedStore = vi.fn();
 let location = "/dashboard";
 
 vi.mock("@/accounts", () => ({ accountMirror: { changes$: mirror.changes$ } }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 vi.mock("@/lib/queryClient", () => ({ queryClient: { clear: () => clear() } }));
 vi.mock("wouter", () => ({ useLocation: () => [location, navigate] }));
+vi.mock("@/services/storeHydration", () => ({ clearHydratedStore: () => clearHydratedStore() }));
 
 function accountNamed(name: string | undefined, npub: string): BrainstormAccount {
   return {
@@ -112,5 +114,24 @@ describe("following another tab's sign-out", () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Signed out" })));
     expect(clear).toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // The signing-out tab dropped the device's caches; this one still had its own copy of
+  // their prefs and its event-cache writer, which went on keeping the browsing trail.
+  it("drops what this tab keeps of the session too, as signing out here does", async () => {
+    render(<CrossTabIdentity />);
+
+    changes$.next({ account: null, previous: alice });
+
+    await waitFor(() => expect(clearHydratedStore).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the caches through a switch, which isn't a sign-out", async () => {
+    render(<CrossTabIdentity />);
+
+    changes$.next({ account: bob, previous: alice });
+
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(clearHydratedStore).not.toHaveBeenCalled();
   });
 });

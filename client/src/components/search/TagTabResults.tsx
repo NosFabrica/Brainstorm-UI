@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { AllResults } from "@/components/search/AllResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
@@ -73,32 +73,41 @@ export const TagTabResults = memo(function TagTabResults({
     }
     return [...byKey.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
   }, [tagged, loaded, groupPressed]);
+  // Keyed on the set of headers, not on `groups`: that is rebuilt on every tick of the other
+  // tags' answers while one is pressed, and each rebuild cancelled the read and sent it again.
+  const headersKey = useMemo(
+    () => [...new Set(groups.flatMap((g) => (g.header ? [g.header] : [])))].sort().join("\n"),
+    [groups],
+  );
+  const fallbackNames = useRef(new Map<string, string>());
+  fallbackNames.current = new Map(groups.flatMap((g) => (g.header ? [[g.header, g.name] as const] : [])));
+  const headersAsked = useRef(new Set<string>());
   useEffect(() => {
-    const headers = groups.flatMap((g) => (g.header && !listNames.has(g.header) ? [g.header] : []));
+    const headers = headersKey ? headersKey.split("\n").filter((h) => !headersAsked.current.has(h)) : [];
     if (!headers.length) return;
-    let current = true;
+    for (const h of headers) headersAsked.current.add(h);
+    // Not cancelled when the set grows: an answer names its own headers, whatever came after.
+    const nameAll = (found: Map<string, NostrEvent>) =>
+      setListNames((names) => {
+        const next = new Map(names);
+        for (const h of headers) {
+          const header = found.get(h);
+          next.set(h, header ? headerNames(header).plural : (fallbackNames.current.get(h) ?? h));
+        }
+        return next;
+      });
     void fetchAddressableEvents(
       headers.map((h) => {
         const [kind, pubkey, ...d] = h.split(":");
         return { kind: Number(kind), pubkey, identifier: d.join(":") };
       }),
     )
-      .then((found) => {
-        if (!current) return;
-        setListNames((names) => {
-          const next = new Map(names);
-          for (const h of headers) {
-            const header = found.get(h);
-            next.set(h, header ? headerNames(header).plural : (groups.find((g) => g.header === h)?.name ?? h));
-          }
-          return next;
-        });
-      })
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, [groups, listNames]);
+      .then(nameAll)
+      .catch(() => {
+        // Not read: asked again when the set next changes.
+        for (const h of headers) headersAsked.current.delete(h);
+      });
+  }, [headersKey]);
 
   const hits = useMemo(
     () => (groupPressed ? tagged.filter((h) => groupOf(h.event).key === groupPressed) : tagged),

@@ -24,9 +24,11 @@ export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network sp
 export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { isExpired } from "@/lib/nip40";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
+import { postedAtOf } from "@/lib/eventDate";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
@@ -35,6 +37,7 @@ import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { ARTICLE_EMBED_KINDS, embedShapeOf } from "@/lib/embedShape";
 import { nip19 } from "nostr-tools";
+import { nameIn } from "@/lib/displayName";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -133,8 +136,10 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   const [imgBroken, setImgBroken] = useState(false);
   const nip05Verified = useNip05(blank ? undefined : author?.nip05, event.pubkey) === "verified";
   const [, navigate] = useLocation();
-  if (blank)
-    return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+  if (blank) return <DeletedStub who={nameIn(author)} className="mt-2" testId="embedded-deleted" />;
+  // Past its NIP-40 expiration: the same whisper, saying so.
+  if (isExpired(event, Math.floor(Date.now() / 1000)))
+    return <DeletedStub expired className="mt-2" testId="embedded-expired" />;
 
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   // A publication's or a section's title is often missing; its `d` is a readable slug.
@@ -163,7 +168,7 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   // A book's cover is a portrait jacket: shown whole, not cropped to its middle by the 16:9 frame.
   const jacket = event.kind === PUBLICATION_INDEX_KIND && coverSrc === image;
   const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
-  const name = author?.display_name || author?.name || "Unknown";
+  const name = nameIn(author) ?? "Unknown";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/e/${naddr}` : undefined;
 
@@ -256,8 +261,9 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
               <ProfileEmojiText pubkey={event.pubkey} text={name} />
             </span>
             {nip05Verified && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}
+            {/* When it was first published (NIP-23 `published_at`), as its own page dates it — not its last edit. */}
             {event.created_at ? (
-              <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
+              <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(postedAtOf(event))}</span>
             ) : null}
             <ViaRelay event={event} />
           </div>

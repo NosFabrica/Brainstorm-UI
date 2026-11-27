@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
 const copyMock = vi.fn(async (_text: string) => true);
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => copyMock(text) }));
 
 import { useCopied } from "./useCopied";
 
@@ -44,6 +44,20 @@ describe("useCopied", () => {
     });
     expect(ok).toBe(false);
     expect(result.current.copied).toBe(false);
+  });
+
+  it("a refused copy says so for the same moment, then lets go", async () => {
+    copyMock.mockResolvedValue(false);
+    const { result } = renderHook(() => useCopied(1500));
+    await act(async () => {
+      await result.current.copy("x");
+    });
+    expect(result.current.failed).toBe(true);
+    expect(result.current.copied).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(result.current.failed).toBe(false);
   });
 
   it("unmounting mid-moment clears the timer", async () => {

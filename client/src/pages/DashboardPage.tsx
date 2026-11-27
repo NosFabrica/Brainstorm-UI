@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Loader2, ShieldAlert, RefreshCw, Keyboard } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence, Motion } from "@/lib/motion";
 import {
   ASSISTANT_UPDATED_EVENT,
   readAssistantDismissed,
@@ -266,7 +266,7 @@ export default function DashboardPage() {
       if (data?.data && typeof data.data === "object") {
         queryClient.setQueryData(GRAPERANK_RESULT_KEY, data);
       }
-      queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
+      void queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
       wasAutoTriggeredRef.current = false;
       // First-time calc vs a true recalculation reads very differently — don't
       // tell a never-scored user we're "refreshing" / "recalculating".
@@ -400,7 +400,7 @@ export default function DashboardPage() {
     setJustFollowed(true);
     // Their own reads only: other people's cached overviews didn't move.
     if (user?.pubkey) invalidateOwnScoreReads(queryClient, user.pubkey);
-    queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
+    void queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
   };
 
   // A run finishing refetches the reader's own reads from the status pill
@@ -485,6 +485,8 @@ export default function DashboardPage() {
           break;
         case "help":
           setShowShortcuts((prev) => !prev);
+          break;
+        case null:
           break;
       }
     };
@@ -905,34 +907,36 @@ export default function DashboardPage() {
               </AlertDialogContent>
             </AlertDialog>
 
-            <AnimatePresence>
-              {(isGrapeRankFailed || isPublishFailed) &&
-                !hasNoFollowing &&
-                !followsChecking &&
-                !justFollowed &&
-                !triggerGrapeRankMutation.isError &&
-                !triggerGrapeRankMutation.isPending &&
-                !triggerGrapeRankMutation.isSuccess && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="flex w-fit items-center gap-3 rounded-2xl border border-red-200/60 bg-white/60 p-3 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] backdrop-blur-xl dark:border-red-500/25 dark:bg-slate-900/60 md:ml-auto"
-                    data-testid="graperank-failed"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 dark:border-red-500/25 dark:bg-red-500/10">
-                      <ShieldAlert className="h-4 w-4 text-red-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-red-700 dark:text-red-300">Calculation incomplete</p>
-                      <p className="mt-0.5 text-xs text-red-600/80 dark:text-red-400/80">
-                        Please wait a few minutes, then try again.
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-            </AnimatePresence>
+            <Motion>
+              <AnimatePresence>
+                {(isGrapeRankFailed || isPublishFailed) &&
+                  !hasNoFollowing &&
+                  !followsChecking &&
+                  !justFollowed &&
+                  !triggerGrapeRankMutation.isError &&
+                  !triggerGrapeRankMutation.isPending &&
+                  !triggerGrapeRankMutation.isSuccess && (
+                    <m.div
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                      className="flex w-fit items-center gap-3 rounded-2xl border border-red-200/60 bg-white/60 p-3 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] backdrop-blur-xl dark:border-red-500/25 dark:bg-slate-900/60 md:ml-auto"
+                      data-testid="graperank-failed"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 dark:border-red-500/25 dark:bg-red-500/10">
+                        <ShieldAlert className="h-4 w-4 text-red-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-red-700 dark:text-red-300">Calculation incomplete</p>
+                        <p className="mt-0.5 text-xs text-red-600/80 dark:text-red-400/80">
+                          Please wait a few minutes, then try again.
+                        </p>
+                      </div>
+                    </m.div>
+                  )}
+              </AnimatePresence>
+            </Motion>
             {/* Genuinely new, zero-follows, not-yet-started users → inline
                 follow-picker (same suggestions as /welcome) so they can start
                 their Web of Trust without leaving. */}
@@ -1035,50 +1039,52 @@ export default function DashboardPage() {
         </div>
 
         {showShortcuts && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-            onClick={() => setShowShortcuts(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900"
-              onClick={(e) => e.stopPropagation()}
+          <Motion>
+            <m.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+              onClick={() => setShowShortcuts(false)}
             >
-              <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
-                <Keyboard className="h-5 w-5 text-brand-primary dark:text-brand-link" />
-                Keyboard Shortcuts
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-300">Export data</span>
-                  <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    E
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-300">Go home</span>
-                  <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    H
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-300">Toggle shortcuts</span>
-                  <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    ?
-                  </kbd>
-                </div>
-              </div>
-              <Button
-                className="mt-6 w-full bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600"
-                onClick={() => setShowShortcuts(false)}
+              <m.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900"
+                onClick={(e) => e.stopPropagation()}
               >
-                Got it
-              </Button>
-            </motion.div>
-          </motion.div>
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
+                  <Keyboard className="h-5 w-5 text-brand-primary dark:text-brand-link" />
+                  Keyboard Shortcuts
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Export data</span>
+                    <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      E
+                    </kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Go home</span>
+                    <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      H
+                    </kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Toggle shortcuts</span>
+                    <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      ?
+                    </kbd>
+                  </div>
+                </div>
+                <Button
+                  className="mt-6 w-full bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600"
+                  onClick={() => setShowShortcuts(false)}
+                >
+                  Got it
+                </Button>
+              </m.div>
+            </m.div>
+          </Motion>
         )}
 
         <Footer minimal />

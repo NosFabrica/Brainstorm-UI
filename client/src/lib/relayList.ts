@@ -112,3 +112,35 @@ export function parseRelayList(event: NostrEvent | undefined | null): RelayList 
   parsed.set(event, { list, consent: consentVersion() });
   return list;
 }
+
+/** One relay on a NIP-65 list, as its page and card show it. */
+export interface RelayListEntry {
+  /** As listed, less a trailing slash. */
+  url: string;
+  read: boolean;
+  write: boolean;
+}
+
+/**
+ * A relay list read for showing it, not for routing: every `r` with a
+ * WebSocket address, in the list's order, each once — the same marker
+ * reading as `parseRelayList` (no marker, or one NIP-65 does not define,
+ * is both; `read` or `write` is that one). A relay listed twice, once each
+ * way, is both. Local relays are shown as listed: nothing here connects.
+ */
+export function relayListEntries(event: { kind: number; tags: string[][] }): RelayListEntry[] {
+  if (event.kind !== RELAY_LIST_KIND) return [];
+  const byUrl = new Map<string, RelayListEntry>();
+  for (const tag of event.tags) {
+    if (tag[0] !== "r" || typeof tag[1] !== "string") continue;
+    const url = tag[1].trim().replace(/\/+$/, "");
+    if (!/^wss?:\/\/[^\s/]+/i.test(url)) continue;
+    const marker = typeof tag[2] === "string" ? tag[2].trim().toLowerCase() : "";
+    const key = url.toLowerCase();
+    const entry = byUrl.get(key) ?? { url, read: false, write: false };
+    if (marker !== "write") entry.read = true;
+    if (marker !== "read") entry.write = true;
+    byUrl.set(key, entry);
+  }
+  return [...byUrl.values()];
+}

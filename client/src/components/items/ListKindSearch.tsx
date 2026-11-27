@@ -12,6 +12,9 @@
  * search API returns list items with their definitions (ADR 0004).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { LocationExplainer } from "@/components/search/LocationExplainer";
 import { locate, LocateError, nearestArea, type Position } from "@/lib/nearMe";
 import { distanceKm, distanceWords } from "@/lib/placeDistance";
@@ -54,7 +57,7 @@ import { tierThreePresentation } from "@/components/items/itemViews";
 import { openingLine, placeOf, type Place } from "@/components/items/place";
 import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { eventPins } from "@/lib/eventPins";
 import { handlesPointedAt, ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
 import { externalIdentitiesOf } from "@/lib/profileContent";
@@ -104,7 +107,7 @@ function useKindHits(
     /** Places inside this area only, kept before anything is matched or counted (Search this area). */
     within?: MapView | null;
   } = {},
-): { hits: KindHit[]; pending: boolean } {
+): { hits: KindHit[]; pending: boolean; settled: boolean } {
   const dictionary = useDictionary(true, { anonymous: true });
   const entry = (dictionary.data ?? []).find((e) => e.resolved && conceptViewOf(e.communityCoordinate) === view);
   const resolved = entry?.resolved;
@@ -150,6 +153,8 @@ function useKindHits(
   return {
     hits,
     pending: dictionary.isPending || (!!entry && items.isPending) || (asksRelay && matches.isPending),
+    // Every read the hits come from has finished: what is keyed on them asks now (useTrustOrdered).
+    settled: !dictionary.isPending && (!entry || items.settled) && (!asksRelay || !matches.isPending),
   };
 }
 
@@ -203,8 +208,12 @@ const CANDIDATES = 60;
  * The hits in trust's order — what more people the reader trusts recommend
  * first (hooks/useTrustedRecommenders) — and the line that says so.
  */
-function useTrustOrdered(hits: KindHit[]) {
-  const { countOf, who } = useTrustedRecommenders(hits.flatMap((h) => h.copies));
+function useTrustOrdered(hits: KindHit[], settled: boolean) {
+  // Asked once the hits are in, not per arriving item (CODING_STANDARDS, "settled before dependents").
+  const { countOf, who } = useTrustedRecommenders(
+    hits.flatMap((h) => h.copies),
+    { settled },
+  );
   const copiesOf = new Map(hits.map((h) => [h.id, h.copies.map((c) => c.id)]));
   const count = (id: string) => countOf(copiesOf.get(id) ?? [id]);
   return { ordered: orderByTrust(hits, count), lineOf: (id: string) => recommendedLine(count(id), who) };
@@ -256,8 +265,8 @@ function Heading({
  */
 function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
   const narrow = useIsMobile(1024);
-  const { hits: found } = useKindHits("place", query, CANDIDATES);
-  const { rated, lineOf, ratingLine } = useRatedPlaces(found);
+  const { hits: found, settled } = useKindHits("place", query, CANDIDATES);
+  const { rated, lineOf, ratingLine } = useRatedPlaces(found, settled);
   const hits = rated.slice(0, 3);
   const lines = linesOf(hits);
   const town = townNamed(
@@ -272,28 +281,27 @@ function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void
   const events = useTownEventPins(map && !narrow ? town : null, pins);
   if (narrow || !town || hits.length === 0) return null;
   return (
-    <section
-      className="overflow-hidden rounded-2xl border border-slate-100 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/80"
-      data-testid="panel-places"
-    >
-      {map && <PlacesMap pins={[...pins, ...events]} className="h-36 rounded-none border-0" onOpen={onSeeAll} />}
-      <div className="p-4 sm:p-5">
-        <Heading label={`Places in ${town}`} noun={`places in ${town}`} count={found.length} onSeeAll={onSeeAll} />
-        <ul className="space-y-3">
-          {hits.map((h, i) => (
-            <PlaceRow
-              key={h.id}
-              hit={h}
-              n={i + 1}
-              trust={lineOf(h.id)}
-              rating={ratingLine(h)}
-              line={lines[i]}
-              testId="kind-preview-row"
-            />
-          ))}
-        </ul>
-      </div>
-    </section>
+    <Card asChild className="overflow-hidden border-slate-100 bg-card/80 shadow-none dark:border-slate-800/60">
+      <section data-testid="panel-places">
+        {map && <PlacesMap pins={[...pins, ...events]} className="h-36 rounded-none border-0" onOpen={onSeeAll} />}
+        <div className="p-4 sm:p-5">
+          <Heading label={`Places in ${town}`} noun={`places in ${town}`} count={found.length} onSeeAll={onSeeAll} />
+          <ul className="space-y-3">
+            {hits.map((h, i) => (
+              <PlaceRow
+                key={h.id}
+                hit={h}
+                n={i + 1}
+                trust={lineOf(h.id)}
+                rating={ratingLine(h)}
+                line={lines[i]}
+                testId="kind-preview-row"
+              />
+            ))}
+          </ul>
+        </div>
+      </section>
+    </Card>
   );
 }
 
@@ -357,8 +365,8 @@ const OWNED_MAX = 500;
 
 function BooksPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   // On the Top page a book is found by its title: a name in a byline is not a search for the book.
-  const { hits: found } = useKindHits("book", query, CANDIDATES, { titleOnly: true });
-  const { ordered, lineOf } = useTrustOrdered(found);
+  const { hits: found, settled } = useKindHits("book", query, CANDIDATES, { titleOnly: true });
+  const { ordered, lineOf } = useTrustOrdered(found, settled);
   const hits = ordered.slice(0, 6);
   // Above People when the words name Books; right after them when they're most of a title; low on
   // the page, by Media, when they only share a word with titles ("west") — that search is for people
@@ -546,8 +554,8 @@ function PlaceRow({
  * review doesn't top the list (hooks/usePlacesRatings, the contract's
  * section 8) — after trust's order among equals; and the line each shows.
  */
-function useRatedPlaces(hits: KindHit[]) {
-  const { ordered, lineOf } = useTrustOrdered(hits);
+function useRatedPlaces(hits: KindHit[], settled: boolean) {
+  const { ordered, lineOf } = useTrustOrdered(hits, settled);
   const addresses = hits.map((h) => h.address).filter((a): a is string => !!a);
   const curator = addresses[0]?.split(":")[1] ?? null;
   const ratingOf = usePlacesRatings(addresses, curator);
@@ -584,15 +592,20 @@ function useTownEventPins(
   /** A searched area: its events instead, asked for by its cells and the town (fetchAreaEvents). */
   area: MapView | null = null,
 ): TownEventPin[] {
-  const events = useQuery({
-    queryKey: area ? ["area-events", area, town] : ["town-events", town],
-    queryFn: () => (area ? fetchAreaEvents(cellsCovering(area), town) : fetchTownEvents(town!)),
-    enabled: !!area || !!town,
-    staleTime: 5 * 60_000,
-  });
-  if ((!area && !town) || !events.data) return [];
-  const byId = new Map(events.data.map((ev) => [ev.id, ev]));
-  return eventPins(events.data, Math.floor(Date.now() / 1000))
+  // A NIP-50 search the store cannot match, so no store filter: what the ask answers is the list
+  // (useStoreEvents keeps it per key, one ask per window, as every other relay read; docs/adr/0005).
+  const { events } = useStoreEvents(
+    area
+      ? `area-events:${area.south},${area.west},${area.north},${area.east}:${town ?? ""}`
+      : town
+        ? `town-events:${town}`
+        : null,
+    null,
+    () => (area ? fetchAreaEvents(cellsCovering(area), town) : fetchTownEvents(town!)),
+  );
+  if ((!area && !town) || !events.length) return [];
+  const byId = new Map(events.map((ev) => [ev.id, ev]));
+  return eventPins(events, Math.floor(Date.now() / 1000))
     .filter((e) =>
       area
         ? e.lat >= area.south && e.lat <= area.north && e.lon >= area.west && e.lon <= area.east
@@ -645,42 +658,41 @@ function EventCard({
 }) {
   const start = new Date(event.startSec * 1000);
   return (
-    <article
-      data-testid="event-picked"
-      className={`flex overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900 ${className}`}
-    >
-      {/* Its picture fills the card's height; with none, the day it's on, as a calendar shows it. */}
-      {event.image ? (
-        <img src={event.image} alt="" loading="lazy" className="w-24 shrink-0 self-stretch object-cover" />
-      ) : (
-        <span className="flex w-20 shrink-0 flex-col items-center justify-center bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
-          <span className="text-[11px] font-semibold uppercase tracking-wide">{shortMonth.format(start)}</span>
-          <span className="text-2xl font-bold leading-none">{start.getDate()}</span>
-        </span>
-      )}
-      <div className="min-w-0 flex-1 space-y-1 p-3 pr-8">
-        <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
-          {event.when}
-        </span>
-        <Link
-          href={event.href}
-          className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 hover:text-brand-link dark:text-slate-100"
-        >
-          {event.name}
-        </Link>
-        <span className="flex items-center gap-2 pt-0.5 text-xs">
-          <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">{event.where ?? ""}</span>
+    <Card asChild className={cn("flex overflow-hidden shadow-lg dark:border-slate-700 dark:shadow-lg", className)}>
+      <article data-testid="event-picked">
+        {/* Its picture fills the card's height; with none, the day it's on, as a calendar shows it. */}
+        {event.image ? (
+          <img src={event.image} alt="" loading="lazy" className="w-24 shrink-0 self-stretch object-cover" />
+        ) : (
+          <span className="flex w-20 shrink-0 flex-col items-center justify-center bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
+            <span className="text-[11px] font-semibold uppercase tracking-wide">{shortMonth.format(start)}</span>
+            <span className="text-2xl font-bold leading-none">{start.getDate()}</span>
+          </span>
+        )}
+        <div className="min-w-0 flex-1 space-y-1 p-3 pr-8">
+          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+            {event.when}
+          </span>
           <Link
             href={event.href}
-            className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-brand-link hover:underline"
+            className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 hover:text-brand-link dark:text-slate-100"
           >
-            See event
-            <ArrowRight className="h-3 w-3" aria-hidden />
+            {event.name}
           </Link>
-        </span>
-      </div>
-      <CloseButton onClose={onClose} />
-    </article>
+          <span className="flex items-center gap-2 pt-0.5 text-xs">
+            <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">{event.where ?? ""}</span>
+            <Link
+              href={event.href}
+              className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-brand-link hover:underline"
+            >
+              See event
+              <ArrowRight className="h-3 w-3" aria-hidden />
+            </Link>
+          </span>
+        </div>
+        <CloseButton onClose={onClose} />
+      </article>
+    </Card>
   );
 }
 
@@ -712,8 +724,8 @@ function pinsOf(hits: KindHit[]) {
 
 function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const narrow = useIsMobile(1024);
-  const { hits: found } = useKindHits("place", query, CANDIDATES);
-  const { rated, lineOf, ratingLine } = useRatedPlaces(found);
+  const { hits: found, settled } = useKindHits("place", query, CANDIDATES);
+  const { rated, lineOf, ratingLine } = useRatedPlaces(found, settled);
   const hits = rated.slice(0, 3);
   const lines = linesOf(hits);
   // A town the words name is said: "Places in Austin".
@@ -791,8 +803,8 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
 }
 
 function GitHubPreview({ query, slot, named, onSeeAll }: PreviewProps) {
-  const { hits: found } = useKindHits("github-account", query, CANDIDATES);
-  const { ordered, lineOf } = useTrustOrdered(found);
+  const { hits: found, settled } = useKindHits("github-account", query, CANDIDATES);
+  const { ordered, lineOf } = useTrustOrdered(found, settled);
   const hits = ordered.slice(0, 3);
   // An account the words don't name waits at the end of the page, with the other matches that
   // only share a word; a shown person who owns it carries it on their row (Suggestion `owned`).
@@ -997,8 +1009,8 @@ const shortMonth = new Intl.DateTimeFormat(undefined, { month: "short" });
 
 /** Books: a shelf, the way a bookshop shows them — covers first. */
 function BooksPage({ query }: { query: string }) {
-  const { hits: found, pending } = useKindHits("book", query, PAGE_MAX, { browse: true });
-  const { ordered: hits, lineOf } = useTrustOrdered(found);
+  const { hits: found, pending, settled } = useKindHits("book", query, PAGE_MAX, { browse: true });
+  const { ordered: hits, lineOf } = useTrustOrdered(found, settled);
   if (hits.length === 0) return <PageEmpty pending={pending} label="Books" query={query} />;
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-6 py-4 sm:grid-cols-4 lg:grid-cols-5" data-testid="kind-page-books">
@@ -1097,7 +1109,7 @@ function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab:
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
-  const { hits: townFound, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
+  const { hits: townFound, pending, settled: townSettled } = useKindHits("place", query, PAGE_MAX, { browse: true });
   const town = townNamed(
     words,
     townFound.map((h) => ({ locality: h.place?.locality ?? null })),
@@ -1163,12 +1175,12 @@ function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab:
   const townWords = new Set((town ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u));
   const areaWords = words.filter((w) => !townWords.has(w)).join(" ");
   // The words' places inside the area, however far down the list they sit.
-  const { hits: areaFound } = useKindHits("place", area ? areaWords : "", area ? PAGE_MAX : 0, {
+  const { hits: areaFound, settled: areaSettled } = useKindHits("place", area ? areaWords : "", area ? PAGE_MAX : 0, {
     browse: true,
     within: area,
   });
   const found = area ? areaFound : townFound;
-  const { rated: hits, lineOf, ratingLine, starsOf } = useRatedPlaces(found);
+  const { rated: hits, lineOf, ratingLine, starsOf } = useRatedPlaces(found, area ? areaSettled : townSettled);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
   const [sort, setSort] = useState<PlaceSort>("best");
   // A filter or a sort frames its places afresh: the area the reader had moved to is gone.
@@ -1249,25 +1261,9 @@ function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab:
   const towns = new Set(hits.map((h) => h.place?.locality).filter(Boolean)).size;
   if (hits.length === 0 && !area) return <PageEmpty pending={pending} label="Places" query={query} />;
   const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
-    <button
-      key={label}
-      type="button"
-      aria-pressed={on}
-      onClick={toggle}
-      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-        on
-          ? "border-brand-primary bg-brand-primary text-white"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-      }`}
-    >
+    <ToggleChip key={label} pressed={on} onClick={toggle} count={count}>
       {label}
-      {count != null && (
-        <>
-          {" "}
-          <span className={on ? "text-white/80" : "text-slate-400"}>{count}</span>
-        </>
-      )}
-    </button>
+    </ToggleChip>
   );
   const filtering = filter.openNow || filter.category != null;
   const clearFilters = () => {
@@ -1667,82 +1663,86 @@ function PlaceCard({
 }) {
   const label = String(n);
   return (
-    <article
-      id={onClose ? undefined : `place-card-${label}`}
-      data-label={onClose ? undefined : label}
-      data-testid={testId}
-      data-highlighted={lit ? "true" : undefined}
-      className={`rounded-2xl border bg-white p-3 transition-colors dark:bg-slate-900 ${
+    <Card
+      asChild
+      className={cn(
+        "p-3 transition-colors",
         // Open over the map it's one card, as an event's is; in the swipe row, the lit one stands out.
         onClose
-          ? "border-slate-200 shadow-lg dark:border-slate-700"
+          ? "shadow-lg dark:border-slate-700 dark:shadow-lg"
           : lit
-            ? "border-brand-primary shadow-md"
-            : "border-slate-200 shadow-md dark:border-slate-800"
-      } ${className}`}
+            ? "border-brand-primary shadow-md dark:border-brand-primary dark:shadow-md"
+            : "shadow-md dark:shadow-md",
+        className,
+      )}
     >
-      <span className={`flex items-center gap-2 ${onClose ? "pr-6" : ""}`}>
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
-          {label}
+      <article
+        id={onClose ? undefined : `place-card-${label}`}
+        data-label={onClose ? undefined : label}
+        data-testid={testId}
+        data-highlighted={lit ? "true" : undefined}
+      >
+        <span className={`flex items-center gap-2 ${onClose ? "pr-6" : ""}`}>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
+            {label}
+          </span>
+          <Link
+            href={h.href}
+            className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+          >
+            {h.shown.title}
+          </Link>
         </span>
-        <Link
-          href={h.href}
-          className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-        >
-          {h.shown.title}
-        </Link>
-      </span>
-      <span className="mt-1 block space-y-0.5">
-        {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
-        {rating && <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">{rating}</span>}
-        {h.place && <OpeningLine place={h.place} />}
-        <TrustLine text={trust} />
-      </span>
-      {h.place && <PlaceActions place={h.place} />}
-      {onClose && <CloseButton onClose={onClose} />}
-    </article>
+        <span className="mt-1 block space-y-0.5">
+          {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
+          {rating && <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">{rating}</span>}
+          {h.place && <OpeningLine place={h.place} />}
+          <TrustLine text={trust} />
+        </span>
+        {h.place && <PlaceActions place={h.place} />}
+        {onClose && <CloseButton onClose={onClose} />}
+      </article>
+    </Card>
   );
 }
 
 /** GitHub accounts: a card for each — avatar, handle, what they do — and a way to their page. */
 function GitHubPage({ query }: { query: string }) {
-  const { hits: found, pending } = useKindHits("github-account", query, PAGE_MAX, { browse: true });
-  const { ordered: hits, lineOf } = useTrustOrdered(found);
+  const { hits: found, pending, settled } = useKindHits("github-account", query, PAGE_MAX, { browse: true });
+  const { ordered: hits, lineOf } = useTrustOrdered(found, settled);
   if (hits.length === 0) return <PageEmpty pending={pending} label="GitHub accounts" query={query} />;
   return (
     <div className="mx-auto max-w-2xl space-y-3 py-4" data-testid="kind-page-github">
       {hits.map((h) => (
-        <article
-          key={h.id}
-          className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-          data-testid="kind-page-item"
-        >
-          {h.shown.image ? (
-            <img src={h.shown.image} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-full object-cover" />
-          ) : (
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
-              <Github className="h-6 w-6" />
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
+        <Card key={h.id} asChild className="flex items-center gap-4 border-slate-100 p-4 dark:border-slate-800">
+          <article data-testid="kind-page-item">
+            {h.shown.image ? (
+              <img src={h.shown.image} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
+                <Github className="h-6 w-6" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <Link
+                href={h.href}
+                className="block truncate text-base font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+              >
+                {h.shown.title}
+              </Link>
+              {h.shown.summary && (
+                <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{h.shown.summary}</p>
+              )}
+              <TrustLine text={lineOf(h.id)} className="mt-0.5" />
+            </div>
             <Link
               href={h.href}
-              className="block truncate text-base font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+              className="shrink-0 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover"
             >
-              {h.shown.title}
+              View account
             </Link>
-            {h.shown.summary && (
-              <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{h.shown.summary}</p>
-            )}
-            <TrustLine text={lineOf(h.id)} className="mt-0.5" />
-          </div>
-          <Link
-            href={h.href}
-            className="shrink-0 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover"
-          >
-            View account
-          </Link>
-        </article>
+          </article>
+        </Card>
       ))}
     </div>
   );

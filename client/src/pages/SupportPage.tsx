@@ -8,6 +8,7 @@ import { logout } from "@/accounts/login-flow";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import {
   Dialog,
   DialogContent,
@@ -205,20 +206,16 @@ function TicketList({
     <div data-testid="support-ticket-list">
       <div className="mb-3 flex flex-wrap items-center gap-1.5" data-testid="support-status-filters">
         {STATUS_FILTERS.map((s) => (
-          <button
+          <ToggleChip
             key={s}
-            type="button"
+            variant="soft"
+            pressed={statusFilter === s}
             onClick={() => setStatusFilter(s)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors ${
-              statusFilter === s
-                ? "border-brand-accent/50 bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                : "border-slate-200 text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
-            }`}
-            aria-pressed={statusFilter === s}
+            className="capitalize"
             data-testid={`filter-${s}`}
           >
             {s}
-          </button>
+          </ToggleChip>
         ))}
         <button
           type="button"
@@ -512,20 +509,16 @@ function NewTicketDialog({
             </p>
             <div className="flex flex-wrap gap-1.5" data-testid="ticket-categories">
               {SUPPORT_CATEGORIES.map((c) => (
-                <button
+                <ToggleChip
                   key={c.key}
-                  type="button"
+                  variant="soft"
+                  pressed={category === c.key}
                   onClick={() => setCategory(c.key)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    category === c.key
-                      ? "border-brand-accent/50 bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 text-slate-600 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-300"
-                  }`}
-                  aria-pressed={category === c.key}
+                  className="py-1.5"
                   data-testid={`category-${c.key}`}
                 >
                   {c.label}
-                </button>
+                </ToggleChip>
               ))}
             </div>
             {deflection.length > 0 && (

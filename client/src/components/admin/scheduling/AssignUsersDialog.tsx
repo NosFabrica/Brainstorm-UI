@@ -17,6 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { UserResultRow } from "./UserResultRow";
+import { nameIn, resultName } from "@/lib/displayName";
 
 const POLICIES_KEY = ["/api/admin/scheduling"];
 const STATS_KEY = ["/api/admin/scheduling/stats"];
@@ -38,7 +39,7 @@ function fromSearchResult(r: NostrSearchResult): ProfileLite {
   return {
     pubkey: r.pubkey,
     npub: r.npub || encodeNpub(r.pubkey),
-    name: r.displayName || r.name,
+    name: resultName(r),
     picture: r.picture,
   };
 }
@@ -144,7 +145,7 @@ export function AssignUsersDialog({
         const map = await fetchProfileMap(base.map((b) => b.pubkey)).catch(() => new Map());
         const enriched = base.map((b) => {
           const c = map.get(b.pubkey);
-          return c ? { ...b, name: c.display_name || c.name, picture: c.picture } : b;
+          return c ? { ...b, name: nameIn(c), picture: c.picture } : b;
         });
         upsertProfiles(enriched);
         setResults((prev) => prev.map((b) => enriched.find((e) => e.pubkey === b.pubkey) || b));
@@ -168,7 +169,7 @@ export function AssignUsersDialog({
       .then((map) => {
         const enriched = lite.map((l) => {
           const c = map.get(l.pubkey);
-          return c ? { ...l, name: c.display_name || c.name, picture: c.picture } : l;
+          return c ? { ...l, name: nameIn(c), picture: c.picture } : l;
         });
         upsertProfiles(enriched);
       })
@@ -282,7 +283,7 @@ export function AssignUsersDialog({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") runSearch();
+                if (e.key === "Enter") void runSearch();
               }}
               placeholder={mode === "nostr" ? "Search Nostr by name…" : "Search Brainstorm users by name or npub…"}
               className="w-full rounded-xl border border-slate-200 bg-white/80 py-2 pl-8 pr-3 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
@@ -291,7 +292,7 @@ export function AssignUsersDialog({
           </div>
           <Button
             size="sm"
-            onClick={runSearch}
+            onClick={() => void runSearch()}
             disabled={searching || !query.trim()}
             className="no-default-hover-elevate no-default-active-elevate shrink-0 gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-accent"
           >
@@ -416,7 +417,7 @@ export function AssignUsersDialog({
           </Button>
           <Button
             disabled={assigning || tray.length === 0}
-            onClick={handleAssign}
+            onClick={() => void handleAssign()}
             className="no-default-hover-elevate no-default-active-elevate gap-1.5 bg-brand-deep text-white hover:bg-brand-accent"
             data-testid="assign-confirm"
           >

@@ -34,7 +34,7 @@ export type CreateManagerOptions = {
  */
 function localAccountType(options: LocalSignerOptions) {
   return class BoundLocalAccount extends LocalAccount {
-    static fromJSON(json: SerializedAccount<LocalSignerData, AccountMetadata>): LocalAccount {
+    static override fromJSON(json: SerializedAccount<LocalSignerData, AccountMetadata>): LocalAccount {
       return LocalAccount.fromJSON(json, options);
     }
   };

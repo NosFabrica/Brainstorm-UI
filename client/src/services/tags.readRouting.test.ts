@@ -42,6 +42,9 @@ vi.mock("@/config/tagging", async (original) => ({
 }));
 
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { getReplaceable: (kind: number, pubkey: string) => store.held.get(`${kind}:${pubkey}`) },
 }));
 vi.mock("@/lib/loaders", () => ({

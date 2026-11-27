@@ -11,7 +11,9 @@ import type { NostrEvent } from "nostr-tools";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import { publishToRelays } from "@/services/nostr";
 import { relayHintFor, tagWithHint } from "@/lib/relayRouting";
-import { searchRelay } from "@/lib/searchRelay";
+import { searchOnce } from "@/lib/searchOnce";
+import { isNewerVersion } from "@/lib/newestPerAddress";
+import { capMap } from "@/lib/boundedMap";
 
 export const RSVP_KIND = 31925;
 type CalendarLike = { id: string; kind: number; pubkey: string; tags: string[][] };
@@ -94,45 +96,37 @@ export async function withdrawRsvp(rsvp: { id: string; d: string }, hostPubkey?:
 }
 
 const cache = new Map<string, Promise<MyRsvp | null>>();
+/** Readers × events asked this session; the oldest are forgotten past this. */
+const MAX_REMEMBERED = 500;
 
-/** The reader's newest RSVP to this event, from the search relay (wide
- *  corpus, one REQ), memoized per event and reader for the session. */
+/**
+ * The reader's newest RSVP to this event, from the search relay (wide corpus,
+ * one REQ), memoized per event and reader for the session — but only an
+ * answer the relay finished: a timeout or a refusal is asked again next time.
+ * Only the reader's own RSVPs that the store kept count (lib/searchOnce).
+ */
 export function fetchMyRsvp(event: CalendarLike, me: string, timeoutMs = 5000): Promise<MyRsvp | null> {
   const key = `${me}|${calendarAddress(event)}`;
-  let p = cache.get(key);
-  if (p) return p;
-  p = new Promise<MyRsvp | null>((resolve) => {
-    let relay: ReturnType<typeof searchRelay>;
-    try {
-      relay = searchRelay();
-    } catch {
-      relay = null;
+  const known = cache.get(key);
+  if (known) return known;
+  const address = calendarAddress(event);
+  const p = searchOnce(
+    { kinds: [RSVP_KIND], authors: [me], "#a": [address], search: "include:spam", limit: 10 },
+    { timeoutMs },
+  ).then(({ events, answered }) => {
+    if (!answered && cache.get(key) === p) cache.delete(key);
+    let newest: NostrEvent | undefined;
+    for (const e of events) {
+      if (e.kind !== RSVP_KIND || e.pubkey !== me) continue;
+      if (!e.tags.some((t) => t[0] === "a" && t[1] === address)) continue;
+      if (isNewerVersion(e, newest)) newest = e;
     }
-    if (!relay) return resolve(null);
-    let newest: (MyRsvp & { at: number }) | null = null;
-    let sub: { unsubscribe: () => void } | null = null;
-    const timer = setTimeout(finish, timeoutMs);
-    try {
-      sub = relay
-        .req({ kinds: [RSVP_KIND], authors: [me], "#a": [calendarAddress(event)], search: "include:spam", limit: 10 })
-        .subscribe((msg: { type: string; event?: NostrEvent }) => {
-          if (msg.type === "EVENT" && msg.event) {
-            const e = msg.event;
-            const tag = (k: string) => e.tags.find((t) => t[0] === k)?.[1];
-            const status = (tag("status") ?? "accepted") as RsvpStatus;
-            if (!newest || e.created_at > newest.at) newest = { id: e.id, d: tag("d") ?? "", status, at: e.created_at };
-          } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
-        });
-    } catch {
-      finish();
-    }
-    function finish() {
-      clearTimeout(timer);
-      sub?.unsubscribe();
-      resolve(newest ? { id: newest.id, d: newest.d, status: newest.status } : null);
-    }
+    if (!newest) return null;
+    const tag = (k: string) => newest!.tags.find((t) => t[0] === k)?.[1];
+    return { id: newest.id, d: tag("d") ?? "", status: (tag("status") ?? "accepted") as RsvpStatus };
   });
   cache.set(key, p);
+  capMap(cache, MAX_REMEMBERED);
   return p;
 }
 

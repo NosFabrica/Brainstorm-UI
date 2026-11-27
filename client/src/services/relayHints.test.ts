@@ -22,6 +22,9 @@ const held = new Map<string, NostrEvent>();
 const signed: Record<string, unknown>[] = [];
 
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => held.get(`${kind}:${pubkey}`),
     getEvent: () => undefined,
@@ -41,6 +44,12 @@ vi.mock("@/accounts/signing", () => ({
     return { ...template, pubkey: ME, id: "e".repeat(64), sig: "s" };
   },
   signingFailure: (e: unknown) => ({ success: false, error: String(e) }),
+}));
+// No relay is asked: a follow reads the user's kind 3 from the relays before it builds on one.
+vi.mock("@/lib/relayRequest", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/relayRequest")>()),
+  requestAll: async () => [],
+  requestNewestWithReach: async () => ({ newest: undefined, reach: { asked: [], answered: [] } }),
 }));
 vi.mock("@/services/nostr", () => ({
   publishToRelays: async () => ({ success: true }),

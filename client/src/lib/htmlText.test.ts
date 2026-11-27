@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { htmlToText, looksLikeHtml, normalizeMarkup, stripStrayHtml } from "@/lib/htmlText";
+import { expectLinear } from "@/test/linearTime";
 
 describe("htmlToText", () => {
   // Shape of a real kind-30402 listing description (a mod shared as HTML).
@@ -158,15 +159,13 @@ describe("audit of #97 (stray HTML)", () => {
 
 describe("audit of #97 (linear on hostile input)", () => {
   it.each([
-    ["unclosed links", '<a href="https://x.y">'.repeat(10000) + "</b>"],
-    ["unclosed comments", "<!--".repeat(10000) + "</b>"],
-    ["unclosed headings", "<h2>".repeat(10000) + "</b>"],
-    ["unclosed lists", "<ul>".repeat(10000) + "</b>"],
-    ["unclosed pre", "<pre>".repeat(10000) + "</b>"],
-  ])("%s stay fast", (_, text) => {
-    const t = performance.now();
-    normalizeMarkup(text);
-    expect(performance.now() - t).toBeLessThan(500);
+    ["unclosed links", '<a href="https://x.y">'],
+    ["unclosed comments", "<!--"],
+    ["unclosed headings", "<h2>"],
+    ["unclosed lists", "<ul>"],
+    ["unclosed pre", "<pre>"],
+  ])("%s stay linear", (_, unit) => {
+    expectLinear((n) => unit.repeat(n) + "</b>", normalizeMarkup, 2500);
   });
 
   it("still pairs a heading, a link and a comment", () => {

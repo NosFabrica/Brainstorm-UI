@@ -35,6 +35,9 @@ vi.mock("@/lib/loaders", () => ({
 }));
 
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: (kind: number) => (kind === 10002 ? outbox.event : undefined),
     getEvent: () => undefined,

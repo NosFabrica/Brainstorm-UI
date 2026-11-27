@@ -51,8 +51,24 @@ jobs:
       - name: Typecheck
         run: npm run check
 
+      - name: Typecheck tests
+        run: npm run check:tests
+
       - name: Test
         run: npm test
+
+      # Fails when the entry chunk is over its gzipped budget or the first
+      # page's chunks import each other in a circle (vite.config.ts
+      # bundle-budget, client/src/buildChecks/bundleBudget.ts).
+      - name: Build and check the bundle budget
+        run: npm run build
+
+      - name: Build the list tools
+        run: npm run build:lists
+
+      # What ships to the browser only; dev tooling's advisories don't reach users.
+      - name: Audit shipped dependencies
+        run: npm audit --omit=dev --audit-level=high
 
   build:
     name: Build and push image

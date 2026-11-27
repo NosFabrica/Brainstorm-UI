@@ -1,5 +1,6 @@
 import { replacesFromServer, statusFromServer, type CompromisedStatus } from "@/lib/compromised";
 import { getBrainstormApi } from "@/services/api/core";
+import { capSettledMemo } from "@/lib/boundedMap";
 
 /**
  * Which accounts are Compromised, for every surface that shows a person.
@@ -22,6 +23,8 @@ const HEX_PUBKEY = /^[0-9a-f]{64}$/i;
 
 const cache = new Map<string, Promise<CompromisedStatus | null>>();
 const settled = new Map<string, CompromisedStatus | null>();
+/** Keys remembered at most, oldest answered first (one still waiting is never dropped). */
+const MAX_SETTLED = 10_000;
 /** An owner's new account → the Compromised account it replaces (the server's `replaces`). */
 const replacing = new Map<string, CompromisedStatus>();
 /**
@@ -92,6 +95,7 @@ function flush(): void {
       for (const [pubkey, resolve] of chunk) {
         const status = found.get(pubkey) ?? null;
         settled.set(pubkey, status);
+        capSettledMemo(cache, settled, MAX_SETTLED);
         const successor = status?.successorPubkey;
         if (successor && !bySuccessor.has(successor)) bySuccessor.set(successor, status);
         resolve(status);

@@ -22,9 +22,10 @@ import { BrainstormUserPicker } from "@/components/admin/billing/BrainstormUserP
 import type { BrainstormUser } from "@/components/admin/billing/brainstormUserSearch";
 import { apiClient, TrustedListsUnavailableError, type TrustedListRunData } from "@/services/api";
 import { resolveHouseObserver } from "@/services/trustSource";
-import { fetchProfileMap } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { npubFromPubkey } from "@/lib/shareId";
 import { TrustedListRunResult } from "./TrustedListRunResult";
+import { nameIn } from "@/lib/displayName";
 
 const HOUSE_NAME = "Brainstorm (house)";
 
@@ -78,23 +79,15 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
     }
   }
 
-  // Sent from the Users tab with only a key: fill in who it is, best-effort.
+  // Sent from the Users tab with only a key: fill in who it is, best-effort, from the
+  // EventStore as the profile arrives (useLiveProfile, docs/adr/0005).
+  const initialProfile = useLiveProfile(initialObserver || undefined).profile;
   useEffect(() => {
-    if (!initialObserver) return;
-    let cancelled = false;
-    fetchProfileMap([initialObserver])
-      .then((profiles) => {
-        const p = profiles.get(initialObserver);
-        if (cancelled || !p) return;
-        setObserver((o) =>
-          o && o.pubkey === initialObserver ? { ...o, name: p.display_name || p.name, picture: p.picture } : o,
-        );
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [initialObserver]);
+    if (!initialObserver || !initialProfile) return;
+    setObserver((o) =>
+      o && o.pubkey === initialObserver ? { ...o, name: nameIn(initialProfile), picture: initialProfile.picture } : o,
+    );
+  }, [initialObserver, initialProfile]);
 
   // Until a new run replaces it, the last one this browser saw for them.
   const remembered = observer && !result && !publishing ? lastRunFor(observer.pubkey) : null;
@@ -166,7 +159,7 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
         </div>
       ) : (
         <div className="space-y-2">
-          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={chooseHouse}>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => void chooseHouse()}>
             <Home className="h-4 w-4" /> {HOUSE_NAME}
           </Button>
           <BrainstormUserPicker

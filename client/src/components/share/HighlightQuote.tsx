@@ -11,12 +11,12 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { BookOpen, ExternalLink } from "lucide-react";
-import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useRefEvent } from "@/hooks/useRefEvent";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
-import { eventStore } from "@/lib/eventStore";
-import { coordOfAddr, fetchRefBatched } from "@/services/refBatch";
-import { HEX64, clip, type ResultRef } from "@/lib/resultReaders";
-import { parseHighlight, tailOf, type HighlightSource } from "@/lib/nip84";
+import { clip, type ResultRef } from "@/lib/resultReaders";
+import { parseHighlight, tailOf, type Attribution, type HighlightSource } from "@/lib/nip84";
+import { kindTypeLabel } from "@/lib/kindLabel";
+import { refPath } from "@/lib/refPath";
 import { READER_KINDS, eventPath } from "@/lib/shareId";
 import { Favicon, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { MentionChip } from "@/components/share/MentionChip";
@@ -57,23 +57,9 @@ export function HighlightQuote({
   );
 }
 
-/** The Nostr event a highlight is from — store-first, asked in the page's batch for what the store lacks. */
+/** The Nostr event a highlight is from — store-first, asked in the page's batch (hooks/useRefEvent). */
 export function useHighlightSourceEvent(ref: ResultRef | null): NostrEvent | null {
-  const coord = ref?.addr ? coordOfAddr(ref.addr) : null;
-  const id = !coord && ref?.id && HEX64.test(ref.id) ? ref.id.toLowerCase() : null;
-  const coordKey = coord ? `${coord.kind}:${coord.pubkey}:${coord.identifier}` : null;
-  const filters = useMemo(() => {
-    const c = coordKey ? coordOfAddr(coordKey) : null;
-    return c ? [{ kinds: [c.kind], authors: [c.pubkey], "#d": [c.identifier] }] : id ? [{ ids: [id] }] : null;
-  }, [coordKey, id]);
-  const held = coord
-    ? !!eventStore.getReplaceable(coord.kind, coord.pubkey, coord.identifier)
-    : !!(id && eventStore.getEvent(id));
-  const key = held || !(coordKey || id) ? null : `highlight-source:${coordKey ?? id}`;
-  const found = useStoreEvents(key, filters, () => fetchRefBatched(ref!));
-  const events = found.events as NostrEvent[];
-  // An address can answer with several versions: the newest is the article.
-  return events.length ? events.reduce((a, b) => (b.created_at > a.created_at ? b : a)) : null;
+  return useRefEvent(ref).event;
 }
 
 // A publication or section without a title is named by its slug, never by its AsciiDoc.
@@ -136,12 +122,41 @@ export function HighlightSourceLine({
       </a>
     );
   } else if (source.title) {
+    const name = (
+      <span className="min-w-0 truncate font-medium text-slate-600 dark:text-slate-300">{source.title}</span>
+    );
     body = (
       <>
         <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 truncate font-medium text-slate-600 dark:text-slate-300">{source.title}</span>{" "}
+        {/* A NIP-73 id with a public home (a DOI) links there. */}
+        {source.identifier?.href ? (
+          <a
+            href={source.identifier.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={stop}
+            className="min-w-0 truncate hover:text-brand-link hover:underline"
+          >
+            {name}
+          </a>
+        ) : (
+          name
+        )}{" "}
         {source.author && <span className="min-w-0 truncate">· {source.author}</span>}
       </>
+    );
+  } else if (source.ref) {
+    // The Nostr event it is from, not in hand (yet, or on no relay asked): still a way to it.
+    const kind = source.ref.addr ? Number(source.ref.addr.split(":")[0]) : null;
+    body = (
+      <Link
+        href={refPath(source.ref)}
+        onClick={stop}
+        className="min-w-0 truncate font-medium text-slate-600 hover:text-brand-link hover:underline dark:text-slate-300"
+        data-testid="highlight-source-ref"
+      >
+        {kind !== null && Number.isFinite(kind) ? `${aKind(kind)} on Nostr` : "a note on Nostr"}
+      </Link>
     );
   }
   if (!body) return null;
@@ -151,6 +166,56 @@ export function HighlightSourceLine({
       data-testid={testId}
     >
       <span className="shrink-0">From</span> {body}
+    </p>
+  );
+}
+
+/** "an article", "a note": a kind's label as a noun. */
+const aKind = (kind: number) => {
+  const noun = kindTypeLabel(kind).toLowerCase();
+  return `${/^[aeiou]/.test(noun) ? "an" : "a"} ${noun}`;
+};
+
+/**
+ * Who the passage is by, as the highlight attributes it (NIP-84 `p` with a
+ * role): "By @alice · edited by @bob". Never a comment's `mention`. The
+ * source's own author, when its card already says so, is left out.
+ */
+export function HighlightAttribution({
+  attributions,
+  except,
+  className = "",
+  testId = "highlight-attribution",
+}: {
+  attributions: Attribution[];
+  except?: string | null;
+  className?: string;
+  testId?: string;
+}) {
+  const shown = attributions.filter((a) => a.pubkey !== except);
+  if (!shown.length) return null;
+  const groups = new Map<string, string[]>();
+  for (const a of shown) {
+    const role = a.role ?? "author";
+    groups.set(role, [...(groups.get(role) ?? []), a.pubkey]);
+  }
+  const word = (role: string, first: boolean) =>
+    role === "author" ? (first ? "By" : "by") : role === "editor" ? (first ? "Edited by" : "edited by") : `${role}:`;
+  return (
+    <p
+      className={`flex flex-wrap items-center gap-1 text-xs text-slate-500 dark:text-slate-400 ${className}`}
+      data-testid={testId}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {[...groups].map(([role, keys], i) => (
+        <span key={role} className="inline-flex flex-wrap items-center gap-1" data-testid={`${testId}-${role}`}>
+          {i > 0 && <span aria-hidden="true">·</span>}
+          <span>{word(role, i === 0)}</span>
+          {keys.map((pk) => (
+            <MentionChip key={pk} uri={`nostr:${nip19.npubEncode(pk)}`} />
+          ))}
+        </span>
+      ))}
     </p>
   );
 }
@@ -261,6 +326,12 @@ export function HighlightHero({ event }: { event: { kind: number; tags: string[]
             ))}
           </figcaption>
         )}
+        {/* Editors, and any other role the highlight names (NIP-84 "Attribution"). */}
+        <HighlightAttribution
+          attributions={highlight.attributions.filter((a) => a.role && a.role !== "author")}
+          className="ml-4 mt-1"
+          testId="highlight-roles"
+        />
       </figure>
       {hasSource && (
         <div className="mt-5" data-testid="highlight-source">

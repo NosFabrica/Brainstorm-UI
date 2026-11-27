@@ -46,6 +46,10 @@ const searchReqMock = vi.fn((_filter: unknown) => {
 vi.mock("@/lib/searchRelay", () => ({ searchRelay: () => ({ req: (f: unknown) => searchReqMock(f) }) }));
 
 import { __resetRsvpCache, fetchMyRsvp, publishRsvp, withdrawRsvp } from "./rsvp";
+import { eventStore } from "@/lib/eventStore";
+
+/** What the store answers an add with: the event, kept, unless a case says otherwise. */
+const storeAdd = vi.fn((e: NostrEvent): NostrEvent | null => e);
 
 const meetup = {
   id: "1".repeat(64),
@@ -111,6 +115,54 @@ describe("withdrawRsvp", () => {
 });
 
 describe("fetchMyRsvp", () => {
+  beforeEach(() => {
+    __resetRsvpCache();
+    searchReqMock.mockClear();
+    storeAdd.mockReset();
+    storeAdd.mockImplementation((e) => e);
+    vi.spyOn(eventStore, "add").mockImplementation((e) => storeAdd(e as NostrEvent));
+  });
+  const rsvpOf = (id: string, status: string, created_at: number, pubkey = ME): NostrEvent =>
+    ({
+      id,
+      kind: 31925,
+      pubkey,
+      created_at,
+      content: "",
+      sig: "",
+      tags: [
+        ["a", `31923:${HOST}:north-chicago-sep`],
+        ["d", id],
+        ["status", status],
+      ],
+    }) as NostrEvent;
+
+  // Someone else's RSVP, or one the store refused, is not mine.
+  it("takes only my own RSVPs that the store kept", async () => {
+    storeAdd.mockImplementation((e) => (e.id === "forged" ? null : e));
+    const p = fetchMyRsvp(meetup, ME);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
+    searchSubject!.next({ type: "EVENT", event: rsvpOf("mine", "tentative", 100) });
+    searchSubject!.next({ type: "EVENT", event: rsvpOf("forged", "declined", 300) });
+    searchSubject!.next({ type: "EVENT", event: rsvpOf("theirs", "declined", 400, HOST) });
+    searchSubject!.next({ type: "EOSE" });
+    expect(await p).toEqual({ id: "mine", d: "mine", status: "tentative" });
+  });
+
+  // A timeout is not "never answered": it must not be remembered for the session.
+  it("asks again after an ask the relay never finished", async () => {
+    vi.useFakeTimers();
+    try {
+      const p = fetchMyRsvp(meetup, ME, 1000);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await p).toBeNull();
+      void fetchMyRsvp(meetup, ME, 1000);
+      expect(searchReqMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("asks the search relay for my RSVP to this event and returns the newest", async () => {
     const p = fetchMyRsvp(meetup, ME);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));

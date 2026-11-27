@@ -11,10 +11,14 @@
  *     Infinity`, lib/queryClient), so after a long absence they are refetched —
  *     the screen on view at once, the rest when next opened — as when the API
  *     recovers from an outage.
+ *   - The relay reads: each is asked once per key per window (lib/askOnce);
+ *     after a long absence every window re-opens, so the next screen mounted
+ *     asks its relays again rather than trusting an answer from before.
  *
  * The private-message outbox retries on its own return (services/dm/engine).
  */
 import { onAppResume } from "@/lib/appResume";
+import { reopenWindows } from "@/lib/askOnce";
 import { queryClient } from "@/lib/queryClient";
 import { wakeRelays } from "@/lib/relayPool";
 import { checkForUpdate } from "@/lib/serviceWorker";
@@ -40,8 +44,10 @@ export function startAppResume(now: () => number = Date.now): () => void {
       checkedAt = now();
       checkForUpdate();
     }
-    if (awayMs >= REFRESH_AFTER_MS)
+    if (awayMs >= REFRESH_AFTER_MS) {
+      reopenWindows();
       void queryClient.invalidateQueries({ predicate: (query) => !keepsItsOwnTime(query) });
+    }
   });
 }
 

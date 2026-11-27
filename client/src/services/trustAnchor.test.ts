@@ -5,12 +5,13 @@
  * publish button, so an explicit decline must beat every implicit yes.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as Nostr from "./nostr";
 
 const triggerGrapeRank = vi.fn(async () => ({}));
 const getUserHistory = vi.fn(async () => ({ data: {} }));
 const signNip85 = vi.fn(async () => ({ id: "e".repeat(64), pubkey: "a".repeat(64) }));
 const signNip85Deactivation = vi.fn(async (..._a: unknown[]) => ({ id: "d".repeat(64), pubkey: "a".repeat(64) }));
-const publishToRelays = vi.fn(async () => ({ success: true }));
+const publishToRelays = vi.fn<typeof Nostr.publishToRelays>(async () => ({ success: true }));
 const fetchTrustProviderList = vi.fn(async (): Promise<{ tags: string[][] } | undefined> => undefined);
 const probeTrustProviderList = vi.fn(
   async (..._a: unknown[]): Promise<{ event: { tags: string[][] } | undefined; provenAbsent: boolean }> => ({
@@ -19,7 +20,7 @@ const probeTrustProviderList = vi.fn(
   }),
 );
 const fetchOutboxRelayList = vi.fn(async () => undefined);
-const isUnlockCancelled = vi.fn(() => false);
+const isUnlockCancelled = vi.fn((_e: unknown) => false);
 const identityHas = vi.fn(() => false);
 const isNip85Activated = vi.fn(() => false);
 const markNip85Activated = vi.fn();
@@ -43,7 +44,7 @@ vi.mock("./nostr", () => ({
   fetchTrustProviderList: (...a: unknown[]) => fetchTrustProviderList(...(a as [])),
   getNip85RelayUrl: () => "wss://nip85.example",
   probeTrustProviderList: (...a: unknown[]) => probeTrustProviderList(...a),
-  publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
+  publishToRelays: (...a: Parameters<typeof Nostr.publishToRelays>) => publishToRelays(...a),
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
   signNip85Deactivation: (...a: unknown[]) => signNip85Deactivation(...a),
 }));
@@ -236,7 +237,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
   });
 
   it("relay rejection surfaces the message and does not mark activated", async () => {
-    publishToRelays.mockResolvedValueOnce({ success: false, error: "all relays refused" } as never);
+    publishToRelays.mockResolvedValueOnce({ success: false, error: "all relays refused" });
     const res = await publishBrainstormTrustAnchor(ME, TA);
     expect(res).toMatchObject({ status: "error", message: "all relays refused" });
     expect(markNip85Activated).not.toHaveBeenCalled();
@@ -369,6 +370,18 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [], take: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
+  /**
+   * Two callers at once — the post-score poll and the app-load self-heal
+   * (AutoActivateBrainstorm) — each read "none" and each signed: two kind
+   * 10040s, signed without the user, for one activation.
+   */
+  it("signs once when two callers ask at the same time", async () => {
+    await Promise.all([ensureBrainstormTrustAnchor(ME, TA), ensureBrainstormTrustAnchor(ME, TA)]);
+
+    expect(signNip85).toHaveBeenCalledTimes(1);
+    expect(publishToRelays).toHaveBeenCalledTimes(1);
+  });
+
   // Nobody is present to retry, and "found nothing" is also what a missed read
   // looks like. Started from nothing, our rows would replace their whole Map.
   it("does nothing when the Map can't be read", async () => {

@@ -80,12 +80,21 @@ export async function uploadToBlossom(
 }
 
 /** Publish the account's Blossom server list (BUD-03, kind 10063) to its outbox relays. */
-export async function publishBlossomServers(servers: string[]): Promise<PublishOutcome> {
+export async function publishBlossomServers(
+  servers: string[],
+  /** Seconds: past the version this edit replaces (hooks/useReplaceableListDraft). */
+  { createdAt }: { createdAt?: number } = {},
+): Promise<PublishOutcome> {
   const account = accountManager.active;
   if (!account) return { success: false, error: "Sign in first." };
   let signed: NostrEvent;
   try {
-    signed = await signAs(account, { kind: BLOSSOM_SERVER_LIST_KIND, tags: blossomServerTags(servers), content: "" });
+    signed = await signAs(account, {
+      kind: BLOSSOM_SERVER_LIST_KIND,
+      tags: blossomServerTags(servers),
+      content: "",
+      ...(createdAt ? { created_at: createdAt } : {}),
+    });
   } catch (error) {
     return signingFailure(error);
   }

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { timeZoneSetter } from "@/test/utils";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -13,6 +13,11 @@ import type {
   FlashServiceItem,
 } from "@/services/api";
 import { AdminBillingCards } from "./AdminBillingCards";
+import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
+import { stubControllableIntersectionObserver } from "@/test/controllableIntersectionObserver";
+import { __resetNearViewport } from "@/hooks/useNearViewport";
+import { __resetAskedProfiles } from "@/hooks/useLiveProfile";
+import { eventStore } from "@/lib/eventStore";
 
 const getAdminBillingSubscriptions =
   vi.fn<
@@ -100,8 +105,12 @@ vi.mock("@/services/nostr", async () => ({
 
 const PUBKEY = "a".repeat(64);
 
+let lastClient: QueryClient | null = null;
+const qcOf = () => lastClient!;
+
 function renderCards() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastClient = qc;
   return render(
     <QueryClientProvider client={qc}>
       <AdminBillingCards active />
@@ -111,11 +120,16 @@ function renderCards() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Rows read their Flash record once near the screen; here every row is on it.
+  __resetNearViewport();
+  stubVisibleIntersectionObserver();
   getAdminBillingDivergence.mockResolvedValue({});
   // Flash's live list is unavailable by default, so the mapping dialog falls
   // back to its typed-id fields; the roster's service tests resolve it.
   getAdminBillingFlashServices.mockReset().mockRejectedValue(new Error("Flash list unavailable in this test"));
   fetchProfileMap.mockResolvedValue(new Map());
+  // The roster's names come through the shared profile queue (useLiveProfiles): a fresh one per test.
+  __resetAskedProfiles();
 });
 
 describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", () => {
@@ -773,9 +787,11 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     });
     dismissAdminBillingUnresolved.mockResolvedValue({
       subscription_id: "sub_14",
+      resolution: "dismissed",
+      pubkey: null,
       applied: false,
-      reason: "dismissed",
-    } as AdminBillingResolution);
+      events_settled: 0,
+    });
     renderCards();
     // The exhausted event a signup already lists folds into that signup: its
     // attempts ride the delivery line, and the one menu sits on the signup.
@@ -833,9 +849,36 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
   });
 
   // Enes: the roster fetched 100 rows and said "Showing N of total" with no
-  // way to the rest. A pager, only when there is more than one page; filters
-  // and sort stay where they were when the page turns.
-  it("pages the roster when the server says there is more, keeping the filters", async () => {
+  // way to the rest. A pager, only when there is more than one page.
+  it("pages the roster when the server says there is more", async () => {
+    const SUB = {
+      pubkey: PUBKEY,
+      flash_status: "active",
+      scheduling_source: "billing",
+      billing_blocked: false,
+    } as AdminBillingSubscription;
+    const pageOf = (n: number): AdminBillingSubscription[] =>
+      Array.from({ length: 3 }, (_, i) => ({ ...SUB, pubkey: `${n}${i}`.padEnd(64, "f") }));
+    getAdminBillingSubscriptions.mockImplementation(async (page = 1) => ({
+      items: pageOf(page),
+      total: 150,
+      pages: 2,
+      page,
+    }));
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 1 of 2");
+    expect(screen.queryByText(/Showing \d+ of/)).toBeNull();
+    await userEvent.click(screen.getByTestId("billing-pager-next"));
+    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenLastCalledWith(2, 100));
+    await waitFor(() => expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 2 of 2"));
+    expect(screen.getByTestId("billing-pager-next")).toBeDisabled();
+  });
+
+  // A search, a filter or a sort over the page on screen said "N subscribers
+  // (filtered)" while it had looked at 100 of them. It reads every page.
+  it("searches, filters and sorts every page, and says so", async () => {
     const SUB = {
       pubkey: PUBKEY,
       flash_status: "active",
@@ -850,23 +893,117 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
       }));
     getAdminBillingSubscriptions.mockImplementation(async (page = 1) => ({
       items: pageOf(page),
-      total: 150,
+      total: 6,
       pages: 2,
       page,
     }));
     getAdminBillingDivergence.mockResolvedValue({});
     renderCards();
     await screen.findAllByTestId(/^billing-sub-/);
-    expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 1 of 2");
-    expect(screen.queryByText(/Showing \d+ of/)).toBeNull();
-    // Filter to the paid policy, then turn the page: the filter survives.
+
     fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "Paid Staging" } });
-    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
-    await userEvent.click(screen.getByTestId("billing-pager-next"));
-    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenLastCalledWith(2, 100));
-    await waitFor(() => expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 2 of 2"));
-    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
-    expect(screen.getByTestId("billing-pager-next")).toBeDisabled();
+
+    // One match on each backend page: both are listed, out of all six.
+    await waitFor(() => expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(2));
+    expect(getAdminBillingSubscriptions).toHaveBeenCalledWith(2, 100);
+    expect(screen.getByTestId("billing-sub-10ffffff")).toBeInTheDocument();
+    expect(screen.getByTestId("billing-sub-20ffffff")).toBeInTheDocument();
+    expect(screen.getByTestId("billing-filter-count")).toHaveTextContent("2 of 6");
+    expect(screen.queryByTestId("billing-pager")).toBeNull();
+  });
+
+  // No batch read exists, so a row asks Flash only once it nears the screen.
+  it("reads a row's Flash record only when the row comes near the screen", async () => {
+    __resetNearViewport();
+    const io = stubControllableIntersectionObserver();
+    const SUB = { flash_status: "active", scheduling_source: "billing", billing_blocked: false };
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 3,
+      pages: 1,
+      items: ["1", "2", "3"].map((c) => ({ ...SUB, pubkey: c.repeat(64) })) as AdminBillingSubscription[],
+    });
+    getAdminBillingFlashRecordForSubscriber.mockResolvedValue({ subscriptions: [] });
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(getAdminBillingFlashRecordForSubscriber).not.toHaveBeenCalled();
+
+    const row = screen.getByTestId("billing-sub-22222222");
+    for (const o of io.observers) if (o.observed.has(row)) o.report(row, true);
+    await waitFor(() => expect(getAdminBillingFlashRecordForSubscriber).toHaveBeenCalledWith("2".repeat(64)));
+    expect(getAdminBillingFlashRecordForSubscriber).toHaveBeenCalledTimes(1);
+  });
+
+  // Each row's actions spinner is its own: one finishing must not clear another's.
+  it("keeps a row busy while its own action runs, whatever the other rows do", async () => {
+    const A = "a".repeat(64);
+    const B = "b".repeat(64);
+    const SUB = { flash_status: "active", scheduling_source: "billing", billing_blocked: false };
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { ...SUB, pubkey: A },
+        { ...SUB, pubkey: B },
+      ] as AdminBillingSubscription[],
+    });
+    const release = new Map<string, () => void>();
+    resyncAdminBillingSubscription.mockImplementation(
+      (pubkey: string) =>
+        new Promise((resolve) => release.set(pubkey, () => resolve({ applied: true, reason: "applied" }))),
+    );
+    const spinning = (pk: string) =>
+      !!screen.getByTestId(`billing-actions-${pk.slice(0, 8)}`).querySelector(".animate-spin");
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${A.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-resync"));
+    await userEvent.click(screen.getByTestId(`billing-actions-${B.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-resync"));
+    await waitFor(() => expect(release.size).toBe(2));
+    expect(spinning(A)).toBe(true);
+    expect(spinning(B)).toBe(true);
+
+    release.get(B)!();
+    await waitFor(() => expect(spinning(B)).toBe(false));
+    expect(spinning(A)).toBe(true);
+    release.get(A)!();
+    await waitFor(() => expect(spinning(A)).toBe(false));
+  });
+
+  // A roster profile fetch per change of who is on screen, not per change of the list.
+  // The shared queue asks again only for someone it hasn't found: here the profile is found.
+  it("asks for each subscriber's profile once, not again when the list around them changes", async () => {
+    const realVerify = eventStore.verifyEvent;
+    eventStore.verifyEvent = undefined;
+    fetchProfileMap.mockImplementation(async (pubkeys: string[]) => {
+      for (const pubkey of pubkeys)
+        eventStore.add({ id: pubkey, kind: 0, pubkey, created_at: 1, tags: [], content: "{}", sig: "s" });
+      return new Map(pubkeys.map((pk) => [pk, {}]));
+    });
+    onTestFinished(() => {
+      eventStore.verifyEvent = realVerify;
+    });
+    const SUB = { flash_status: "active", scheduling_source: "billing", billing_blocked: false };
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ ...SUB, pubkey: PUBKEY }] as AdminBillingSubscription[],
+    });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await waitFor(() => expect(fetchProfileMap).toHaveBeenCalledWith([PUBKEY]));
+    // The divergence report lands later and brings someone new.
+    const OTHER = "c".repeat(64);
+    getAdminBillingDivergence.mockResolvedValue({
+      blocked_but_paying: { count: 1, rows: [{ pubkey: OTHER }] },
+    } as unknown as Record<string, AdminBillingDivergenceSection>);
+    await act(async () => {
+      await qcOf().invalidateQueries();
+    });
+    await waitFor(() => expect(fetchProfileMap).toHaveBeenCalledWith([OTHER]));
+    expect(fetchProfileMap.mock.calls.filter(([pks]) => pks.includes(PUBKEY))).toHaveLength(1);
   });
 
   it("no pager on a single page", async () => {
@@ -1094,7 +1231,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(within(header).getByTestId("select-billing-status")).toBeInTheDocument();
     const table = screen.getByTestId("table-billing-subscribers");
     expect(table.className).toMatch(/border-collapse/);
-    const firstTh = table.querterySelector ? null : table.querySelector("thead th");
+    const firstTh = table.querySelector("thead th");
     expect(firstTh?.className).toMatch(/border-r/);
     expect(table.querySelector("thead tr")?.className).toMatch(/bg-slate-50/);
   });
@@ -1443,8 +1580,8 @@ describe("cancelling and pausing from the billing tab", () => {
 
     const dialog = await screen.findByTestId("dialog-billing-cancel-confirm");
     expect(cancelAdminBillingSubscription).not.toHaveBeenCalled();
-    const who = screen.getByTestId("billing-cancel-confirm-who");
-    expect(who.textContent).toContain("Lira Flint");
+    // Names come through the shared profile queue, which batches its asks.
+    await waitFor(() => expect(screen.getByTestId("billing-cancel-confirm-who").textContent).toContain("Lira Flint"));
     // Never the raw hex — the same rule the tier picker holds to.
     expect(dialog.textContent).not.toContain(PUBKEY);
 
@@ -2274,7 +2411,7 @@ describe("the Flash service each subscriber lives on", () => {
     expect(screen.getByTestId(`billing-service-${B.slice(0, 8)}`)).toHaveTextContent("Brainstorm Staging");
   });
 
-  it("a service switch narrows the roster to one environment, counts it, and survives turning the page", async () => {
+  it("a service switch narrows the whole roster to one environment, and counts it", async () => {
     getAdminBillingFlashServices.mockResolvedValue(SERVICES);
     const pageOf = (n: number): AdminBillingSubscription[] =>
       Array.from({ length: 3 }, (_, i) => ({ ...SUB, pubkey: `${n}${i}`.padEnd(64, "f") }));
@@ -2294,15 +2431,13 @@ describe("the Flash service each subscriber lives on", () => {
     expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(3);
     await userEvent.click(screen.getByTestId("billing-service-filter-svc-stg"));
     expect(screen.getByTestId("billing-service-filter-svc-stg")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
-    expect(screen.getByTestId("billing-filter-count")).toHaveTextContent("1 of 3");
-    await userEvent.click(screen.getByTestId("billing-pager-next"));
-    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenLastCalledWith(2, 100));
-    await waitFor(() => expect(screen.getByTestId("billing-service-20ffffff")).toHaveTextContent("Brainstorm Staging"));
-    expect(screen.getByTestId("billing-service-filter-svc-stg")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    // Every page's staging signup, not only this page's.
+    await waitFor(() => expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(2));
+    expect(screen.getByTestId("billing-service-20ffffff")).toHaveTextContent("Brainstorm Staging");
+    expect(screen.getByTestId("billing-filter-count")).toHaveTextContent("2 of 6");
     await userEvent.click(screen.getByTestId("billing-service-filter-all"));
     expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(3);
+    expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 1 of 2");
   });
 
   it("a subscriber Flash has no record for shows a dash, stays under All services, and leaves a chosen service", async () => {

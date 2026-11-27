@@ -36,7 +36,8 @@ function fillPassword(password = PASSWORD) {
 beforeEach(() => {
   vi.clearAllMocks();
   deliverBackup.mockReturnValue({ npub: NPUB, ncryptsec: NCRYPTSEC });
-  Object.assign(navigator, { clipboard: { writeText } });
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  Object.defineProperty(window, "isSecureContext", { value: true, configurable: true }); // jsdom says false
 });
 
 describe("an account that already holds a backup", () => {
@@ -139,6 +140,20 @@ describe("once they're holding it", () => {
 
     fireEvent.click(screen.getByTestId("backup-prompt-copy"));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(NCRYPTSEC));
+  });
+
+  // In-app webviews (Slack, X, Instagram) have no clipboard API: lib/clipboard's fallback copies there.
+  it("copies the key where the browser has no clipboard API, as an in-app webview", async () => {
+    await deliver();
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    const exec = vi.fn(() => true);
+    Object.defineProperty(document, "execCommand", { value: exec, configurable: true });
+
+    fireEvent.click(screen.getByTestId("backup-prompt-copy"));
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Recovery key copied" })));
+    expect(exec).toHaveBeenCalledWith("copy");
+    Object.defineProperty(document, "execCommand", { value: undefined, configurable: true });
   });
 });
 

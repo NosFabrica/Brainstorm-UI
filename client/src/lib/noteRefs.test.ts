@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { analyzeNote, noteHeadingOf, replyRefs, sameScope } from "./noteRefs";
+import { analyzeNote, collectRefs, noteHeadingOf, replyRefs, sameScope } from "./noteRefs";
+import { signed, TEST_PUBKEY } from "@/test/signedEvent";
 import { externalRef } from "./nip73";
 
 const ev = (kind: number, tags: string[][]) => ({ id: "", kind, pubkey: "", created_at: 0, content: "", tags });
@@ -304,5 +305,40 @@ describe("threading, second audit (2026-10)", () => {
       ).isReply,
     ).toBe(true);
     expect(replyRefs(ev(1111, [["E", A]], "hi"))).toMatchObject({ rootId: A, parentId: A });
+  });
+});
+
+describe("the note a repost carries (NIP-18)", () => {
+  const inner = signed({ kind: 1, content: "the original" });
+  const repost = (content: string, tags: string[][] = [["e", inner.id]]) => ({
+    id: "9".repeat(64),
+    kind: 6,
+    pubkey: "1".repeat(64),
+    created_at: 2,
+    content,
+    tags,
+  });
+
+  it("is the note when it is signed by its author", () => {
+    const a = analyzeNote(repost(JSON.stringify(inner)));
+    expect(a.repostEvent?.id).toBe(inner.id);
+    expect(collectRefs([repost(JSON.stringify(inner))]).pubkeys).toContain(TEST_PUBKEY);
+  });
+
+  it("is nothing when the JSON only claims to be a note: its `e` is still asked for", () => {
+    // Any truthy id and pubkey used to pass, and crashed the card that drew it.
+    expect(analyzeNote(repost('{"id":"x","pubkey":"y"}')).repostEvent).toBeUndefined();
+    const forged = { ...inner, pubkey: "2".repeat(64) };
+    const a = analyzeNote(repost(JSON.stringify(forged)));
+    expect(a.repostEvent).toBeUndefined();
+    expect(a.repostId).toBe(inner.id);
+    expect(collectRefs([repost(JSON.stringify(forged))]).pubkeys).not.toContain("2".repeat(64));
+  });
+
+  it("is nothing when it is another note than the one its `e` names", () => {
+    const other = signed({ kind: 1, content: "another" });
+    const a = analyzeNote(repost(JSON.stringify(other)));
+    expect(a.repostEvent).toBeUndefined();
+    expect(a.repostId).toBe(inner.id);
   });
 });

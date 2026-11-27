@@ -6,29 +6,41 @@ import { Chip } from "@/components/ui/chip";
 import { PersonCell } from "@/components/admin/billing/DivergenceRows";
 import { useToast } from "@/hooks/use-toast";
 import { copyToClipboard } from "@/lib/clipboard";
+import { ListAddresses, ListNotes } from "@/components/share/ItemListHero";
+import { parseATag } from "@/lib/noteRefs";
 import { loadTrustedList } from "./listMembers";
+import { nameIn } from "@/lib/displayName";
 
-/** One published list's members, read back from the relay it went to. */
+/**
+ * One published list's members, read back from the relay it went to, as its
+ * kind says they are: people (30392) as rows, notes (30393) and addressed
+ * events (30394) as their cards, each with its score.
+ */
 export function TrustedListMembers({
   observer,
   signingPubkey,
   dTag,
+  kind = 30392,
   testId,
 }: {
   observer: string;
   signingPubkey: string;
   dTag: string;
+  /** The run result's kind: which kind to read at the `d`. */
+  kind?: number;
   testId: string;
 }) {
   const { toast } = useToast();
   const list = useQuery({
     // A relay probe: read back from the relay it was published to, never a cache.
-    queryKey: ["trusted-list", observer, signingPubkey, dTag],
+    queryKey: ["trusted-list", observer, signingPubkey, dTag, kind],
     staleTime: 0,
     gcTime: 0,
-    queryFn: () => loadTrustedList({ observer, signingPubkey, dTag }),
+    queryFn: () => loadTrustedList({ observer, signingPubkey, dTag, kind }),
   });
-  const pubkeys = list.data?.members.map((m) => m.pubkey) ?? [];
+  const people = list.data?.kind === 30392;
+  const pubkeys = people ? (list.data?.members.map((m) => m.value) ?? []) : [];
+  const scoreOf = new Map(list.data?.members.map((m) => [m.value, m.score]) ?? []);
   // Names and pictures are best-effort: a member without a kind-0 still shows.
   const profilesMap = useLiveProfiles(pubkeys);
 
@@ -63,42 +75,58 @@ export function TrustedListMembers({
               variant="ghost"
               size="sm"
               className="h-7 gap-1.5 text-xs"
-              onClick={async () => {
-                const ok = await copyToClipboard(list.data!.naddr);
-                toast({
-                  title: ok ? "Link copied" : "Couldn't copy the link",
-                  description: ok ? "Paste it into any Nostr app to open the list." : undefined,
-                });
+              onClick={() => {
+                void copyToClipboard(list.data!.naddr).then((ok) =>
+                  toast({
+                    title: ok ? "Link copied" : "Couldn't copy the link",
+                    description: ok ? "Paste it into any Nostr app to open the list." : undefined,
+                  }),
+                );
               }}
             >
               <Copy className="h-3.5 w-3.5" /> Copy link
             </Button>
           </div>
-          <ul className="space-y-1">
-            {list.data.members.map((m) => {
-              const p = profilesMap?.get(m.pubkey);
-              return (
-                <li key={m.pubkey} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <PersonCell
-                    pubkey={m.pubkey}
-                    profile={p ? { name: p.display_name || p.name, picture: p.picture } : undefined}
-                  />
-                  <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    {m.endorsements !== undefined && (
-                      <span>
-                        {m.endorsements} {m.endorsements === 1 ? "endorsement" : "endorsements"}
-                      </span>
-                    )}
-                    {m.score !== null && (
-                      <Chip tone="brand" size="sm">
-                        score {m.score}
-                      </Chip>
-                    )}
-                  </span>
+          {list.data.kind === 30393 ? (
+            <ListNotes notes={list.data.members.map((m) => ({ id: m.value }))} scoreOf={(id) => scoreOf.get(id)} />
+          ) : list.data.kind === 30394 ? (
+            <ListAddresses
+              addresses={list.data.members.flatMap((m) => parseATag(m.value) ?? [])}
+              scoreOf={(c) => list.data!.members.find((m) => m.value.toLowerCase() === c.toLowerCase())?.score}
+            />
+          ) : list.data.kind === 30395 ? (
+            <ul className="space-y-1 font-mono text-xs">
+              {list.data.members.map((m) => (
+                <li key={m.value} className="flex justify-between gap-3">
+                  <span className="truncate">{m.value}</span>
+                  {m.score !== null && <span>{m.score}</span>}
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          ) : (
+            <ul className="space-y-1">
+              {list.data.members.map((m) => {
+                const p = profilesMap?.get(m.value);
+                return (
+                  <li key={m.value} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <PersonCell pubkey={m.value} profile={p ? { name: nameIn(p), picture: p.picture } : undefined} />
+                    <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      {m.endorsements !== undefined && (
+                        <span>
+                          {m.endorsements} {m.endorsements === 1 ? "endorsement" : "endorsements"}
+                        </span>
+                      )}
+                      {m.score !== null && (
+                        <Chip tone="brand" size="sm">
+                          score {m.score}
+                        </Chip>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </>
       )}
     </div>

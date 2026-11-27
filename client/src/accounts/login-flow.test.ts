@@ -4,6 +4,7 @@
  * them, and what follows is the part that can't be seen from a component.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Sessions } from "./session";
 import { generateSecretKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
@@ -13,14 +14,14 @@ import { getMetadata, type BrainstormAccount } from "./metadata";
 import { createFakeUnlockCache } from "./test-fakes";
 import type { LocalAccount } from "@/accounts/local-account";
 
-const ensureSession = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
-const authenticate = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
+const ensureSession = vi.fn<Sessions["ensureSession"]>(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
+const authenticate = vi.fn<Sessions["authenticate"]>(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
 const clear = vi.fn();
 
 vi.mock("./session", () => ({
   sessions: {
-    ensureSession: (account: BrainstormAccount) => ensureSession(account),
-    authenticate: (account: BrainstormAccount) => authenticate(account),
+    ensureSession: (...a: Parameters<Sessions["ensureSession"]>) => ensureSession(...a),
+    authenticate: (...a: Parameters<Sessions["authenticate"]>) => authenticate(...a),
   },
   SessionTransportError: class SessionTransportError extends Error {},
   SESSION_SIGN_TIMEOUT_MS: 90_000,
@@ -166,7 +167,7 @@ describe("an extension that never answers the sign-in", () => {
   // its deadline, and the login screen says what happened instead of "couldn't sign".
   it("says the extension didn't answer, and how to go on", async () => {
     const { handleLogin, LoginError } = await import("./login-flow");
-    const { RemoteSignerTimeoutError } = await import("./remote-signer");
+    const { RemoteSignerTimeoutError } = await import("./signer-timeout");
     (window as { nostr?: unknown }).nostr = { getPublicKey: async () => "a".repeat(64), signEvent: async () => ({}) };
     authenticate.mockRejectedValueOnce(new RemoteSignerTimeoutError("Your signer didn't answer the sign-in request."));
 

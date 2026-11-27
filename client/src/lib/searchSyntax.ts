@@ -147,6 +147,8 @@ export function sinceForPreset(preset: DatePreset, now: Date = new Date()): stri
     case "year":
       d.setFullYear(d.getFullYear() - 1);
       return ymd(d);
+    case "any":
+    case "custom":
     default:
       return null;
   }

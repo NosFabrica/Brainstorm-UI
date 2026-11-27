@@ -31,11 +31,37 @@ import {
   zapAmount,
   type EventRef,
 } from "@/lib/activity";
-import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
-import { ITEM_LIST_KINDS } from "@/lib/listItems";
+import {
+  TRUSTED_ADDRESSES_KIND,
+  TRUSTED_EVENTS_KIND,
+  TRUSTED_IDENTIFIERS_KIND,
+  TRUSTED_PEOPLE_KIND,
+  readTrustedList,
+  trustedMemberNoun,
+} from "@/lib/trustedList";
+import {
+  GIT_REPLY_KIND,
+  REPO_STATE_KIND,
+  gitStatusLabel,
+  readGitReply,
+  readGitStatus,
+  readRepoState,
+  shortCommit,
+} from "@/lib/gitEvents";
+import { RELEASE_KIND, platformFamilies, readRelease, releaseName } from "@/lib/release";
+import { BADGE_LIST_KINDS, ITEM_LIST_KINDS, listNoteNoun, listTitle } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
+import { mediaItemsOf } from "@/lib/mediaKind";
+import { formatBytes } from "@/lib/formatBytes";
 import { identifierName } from "@/lib/nip73";
-import { tagValue } from "@/lib/tagValue";
+import { OPAQUE_D, tagValue } from "@/lib/tagValue";
+import { closingWords, parsePoll, parseZapPoll, zapRangeWords } from "@/lib/polls";
+import { describeDesignation } from "@/lib/nip85Declaration";
+import { gitItemSummaryOf, gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
+import { platformWords } from "@/lib/appPlatforms";
+import { RELAY_LIST_KIND, relayListEntries } from "@/lib/relayList";
+import { USER_STATUS_KIND, readUserStatus } from "@/lib/userStatus";
+import { CHANNEL_MESSAGE_KIND, CHAT_MESSAGE_KIND, LIVE_CHAT_KIND, chatContextOf } from "@/lib/chatMessage";
 
 export type ReaderEvent = {
   id: string;
@@ -65,15 +91,9 @@ export interface ReaderResult {
 // ---- shared by the All tab's reading (lib/resultSummary, components/search/AllResults) ----
 
 export const HEX64 = /^[0-9a-f]{64}$/i;
-/** A `d` that is a UUID, a hex blob or a bare timestamp is never a name. */
-// An app's own record key is a key, not a name: Shopstr writes its escrow
-// records under `shopstr:p2pk-escrow:<uuid>`.
-export const OPAQUE_D =
-  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,}|shopstr:[\s\S]*)$/i;
-
-// Lives in a leaf of its own (lib/nip71 needs it, and this module needs lib/nip71); still
-// exported here, where its callers have always found it.
-export { tagValue };
+// Live in a leaf of their own (lib/nip71 and lib/thing need them, and this module needs
+// both); still exported here, where their callers have always found them.
+export { OPAQUE_D, tagValue };
 
 /** A url or relay as its host: "wss://nos.lol/" → "nos.lol". */
 export const hostOf = (url: string) =>
@@ -191,7 +211,10 @@ function readList(ev: ReaderEvent): ReaderResult {
     if (Number.isFinite(k)) byKind.set(k, (byKind.get(k) ?? 0) + 1);
   }
   const counts = [
-    ...LIST_NOUNS.filter(([tag]) => tag !== "a").map(([tag, one, many]) => ({ n: tagsOf(ev, tag).length, one, many })),
+    ...LIST_NOUNS.filter(([tag]) => tag !== "a")
+      // NIP-51: a badge list's `e` is the award behind its badge; a curation set's are videos or pictures.
+      .filter(([tag]) => tag !== "e" || !BADGE_LIST_KINDS.has(ev.kind))
+      .map(([tag, one, many]) => ({ n: tagsOf(ev, tag).length, one: tag === "e" ? listNoteNoun(ev.kind) : one, many })),
     ...[...byKind].map(([k, n]) => {
       const one = kindTypeLabel(k).toLowerCase();
       return { n, one, many: one.endsWith("y") ? `${one.slice(0, -1)}ies` : `${one}s` };
@@ -223,7 +246,13 @@ function readList(ev: ReaderEvent): ReaderResult {
   return {
     // Nothing in the open and nothing sealed: say so. Sealed only: the row says it is private.
     // A named list keeps its name (the row's title), however empty.
-    title: total || encrypted || tagOf(ev, "title") || tagOf(ev, "name") || tagOf(ev, "d") ? null : "An empty list",
+    // A list of things says its name as its card and page do (lib/listItems' listTitle): pins,
+    // bookmarks and profile badges have no title of their own, and no `d`, or a slug.
+    title: ITEM_LIST_KINDS.has(ev.kind)
+      ? listTitle(ev)
+      : total || encrypted || tagOf(ev, "title") || tagOf(ev, "name") || tagOf(ev, "d")
+        ? null
+        : "An empty list",
     body: preview || null,
     facts: total ? facts : [],
     encrypted,
@@ -320,6 +349,41 @@ read([1018], (ev) => {
   const vote = readPollVote(ev);
   const n = vote.responses.length;
   return { title: "Voted in a poll", body: null, facts: n > 1 ? [plural(n, "choice")] : [], ref: vote.poll };
+});
+
+// A poll (NIP-88 1068; a zap poll, 6969): its question is the generic reading's (the content),
+// its options and rules are facts — the same parse the poll card draws from (lib/polls).
+read([1068], (ev) => {
+  const poll = parsePoll(ev);
+  if (!poll) return null;
+  return {
+    facts: [
+      firstOf(
+        poll.options.map((o) => o.label || o.id),
+        4,
+        " / ",
+      ),
+      poll.multiple ? "Pick any" : "Pick one",
+      closingWords(poll.endsAt, Math.floor(Date.now() / 1000)),
+    ].filter((f): f is string => !!f),
+  };
+});
+
+read([6969], (ev) => {
+  const poll = parseZapPoll(ev);
+  if (!poll) return null;
+  return {
+    facts: [
+      firstOf(
+        poll.options.map((o) => o.label || `Option ${o.index + 1}`),
+        4,
+        " / ",
+      ),
+      "Zap poll",
+      zapRangeWords(poll),
+      closingWords(poll.closedAt, Math.floor(Date.now() / 1000)),
+    ].filter((f): f is string => !!f),
+  };
 });
 
 read([1312], (ev) => {
@@ -446,6 +510,16 @@ read([30382, 30383, 30384, 30385], (ev) => {
   };
 });
 
+// A NIP-85 designation (10040): its rows, read for people (lib/nip85Declaration) — no content to read.
+read([10040], (ev) => {
+  const d = describeDesignation(ev);
+  return {
+    title: "Trust designation",
+    body: d.summary,
+    facts: unique(d.providers.map((p) => (p.relay ? hostOf(p.relay) : null))).slice(0, 2),
+  };
+});
+
 // A Trusted List of people: who is on it, best first, whose tag it was built
 // from and whose web of trust ranked it. Its JSON content is not read.
 read([TRUSTED_PEOPLE_KIND], (ev) => {
@@ -459,6 +533,99 @@ read([TRUSTED_PEOPLE_KIND], (ev) => {
       list.sourceTag ? `From ${who(list.sourceTag.authorPubkey)}'s tag` : null,
       list.perspective ? `Ranked by ${who(list.perspective)}` : null,
     ].filter((f): f is string => !!f),
+  };
+});
+
+// A Trusted List of things: how many, from whose tag, ranked by whom — and the
+// best member quoted under the row. Only the kind's member tag is a member
+// (lib/trustedList): a 30393's discovery `a` and `p` are not counted.
+read([TRUSTED_EVENTS_KIND, TRUSTED_ADDRESSES_KIND, TRUSTED_IDENTIFIERS_KIND], (ev) => {
+  const list = readTrustedList(ev);
+  const n = list.entries.length;
+  const best = list.retracted ? undefined : list.entries[0];
+  return {
+    title: null,
+    body:
+      ev.kind === TRUSTED_IDENTIFIERS_KIND && !list.retracted
+        ? firstOf(
+            list.entries.flatMap((m) => identifierName(m.value) ?? []),
+            4,
+          ) || null
+        : null,
+    facts: [
+      list.retracted
+        ? "Retracted"
+        : n
+          ? plural(n, trustedMemberNoun(ev.kind, 1), trustedMemberNoun(ev.kind, 2))
+          : "Empty",
+      list.truncated ? (list.truncated.total ? `of ${list.truncated.total.toLocaleString()}` : "Partial") : null,
+      list.sourceTag ? `From ${who(list.sourceTag.authorPubkey)}'s tag` : null,
+      list.perspective ? `Ranked by ${who(list.perspective)}` : null,
+    ].filter((f): f is string => !!f),
+    ref: !best
+      ? null
+      : ev.kind === TRUSTED_EVENTS_KIND
+        ? { id: best.value, relay: best.hint }
+        : ev.kind === TRUSTED_ADDRESSES_KIND
+          ? { addr: best.value, relay: best.hint }
+          : null,
+  };
+});
+
+// NIP-34: a status says what it set and quotes its item; a state its refs; a legacy reply its thread.
+read([1630, 1631, 1632, 1633], (ev) => {
+  const status = readGitStatus(ev);
+  const repo = status.repo?.split(":").slice(2).join(":") || null;
+  return {
+    title: `Marked ${gitStatusLabel(status).toLowerCase()}`,
+    body: status.note || null,
+    facts: unique([
+      repo ? `in ${repo}` : null,
+      status.mergeCommit ? `merged as ${shortCommit(status.mergeCommit)}` : null,
+      status.appliedCommits.length ? `applied as ${plural(status.appliedCommits.length, "commit")}` : null,
+    ]),
+    ref: status.target,
+  };
+});
+
+read([REPO_STATE_KIND], (ev) => {
+  const state = readRepoState(ev);
+  return {
+    title: state.repoId ? `${state.repoId}: branches and tags` : "Repository state",
+    body: state.tags.length
+      ? firstOf(
+          state.tags.map((t) => t.name),
+          4,
+        )
+      : null,
+    facts: unique([
+      state.head ? `HEAD ${state.head}` : null,
+      plural(state.branches.length, "branch", "branches"),
+      plural(state.tags.length, "tag"),
+    ]),
+  };
+});
+
+read([GIT_REPLY_KIND], (ev) => {
+  const reply = readGitReply(ev);
+  const repo = reply.repo?.split(":").slice(2).join(":") || null;
+  // Its words are the generic reading's: a comment.
+  return { facts: repo ? [`Git reply in ${repo}`] : ["Git reply"], ref: reply.root };
+});
+
+// A release: which version of what, its channel, what it runs on, its files — the app quoted under it.
+read([RELEASE_KIND], (ev) => {
+  const release = readRelease(ev);
+  const app = release.app?.address.split(":").slice(2).join(":") || null;
+  return {
+    title: release.version && app ? `${app} ${release.version}` : `Release ${releaseName(release)}`,
+    body: release.notes ? clip(release.notes, 280) : null,
+    facts: unique([
+      release.channel,
+      ...platformFamilies(release.platforms),
+      release.assets.length ? plural(release.assets.length, "file") : null,
+    ]),
+    ref: release.app ? { addr: release.app.address, relay: release.app.relay } : null,
   };
 });
 
@@ -509,7 +676,84 @@ read([30054, 30055], (ev) => {
   };
 });
 
-read([30312], (ev) => ({ ref: refOf(ev, "first") }));
+// NIP-65: each `r` is a relay, read, write or (with no marker) both.
+read([RELAY_LIST_KIND], (ev) => {
+  const entries = relayListEntries(ev);
+  if (!entries.length) return { title: "An empty relay list", body: null };
+  const reads = entries.filter((e) => e.read).length;
+  const writes = entries.filter((e) => e.write).length;
+  const only = (e: { read: boolean; write: boolean }) => (e.read && e.write ? "" : e.read ? " (read)" : " (write)");
+  return {
+    title: null,
+    body: firstOf(
+      entries.map((e) => `${hostOf(e.url)}${only(e)}`),
+      4,
+    ),
+    facts: [plural(entries.length, "relay"), `${reads} read · ${writes} write`],
+  };
+});
+
+// NIP-38: the status is the content; an empty one clears it; the `d` says which kind of status.
+read([USER_STATUS_KIND], (ev) => {
+  const status = readUserStatus(ev)!;
+  const expired = status.expiresAt !== undefined && status.expiresAt <= Math.floor(Date.now() / 1000);
+  return {
+    title: status.text ? clip(status.text, 120) : status.cleared ? "Cleared their status" : null,
+    body: null,
+    facts: unique([status.label, expired ? "Expired" : null]),
+    encrypted: !status.text && !status.cleared && contentShape(ev.content).kind === "encrypted",
+    ref: status.link?.type === "event" ? { id: status.link.id, relay: status.link.relay } : null,
+  };
+});
+
+// A chat message's words are the generic reading's; where it was said is a fact, and the
+// channel or stream is the event the row is about (lib/chatMessage, as each spec reads it).
+read([CHANNEL_MESSAGE_KIND, LIVE_CHAT_KIND, CHAT_MESSAGE_KIND], (ev) => {
+  const context = chatContextOf(ev);
+  const place = context?.place;
+  return {
+    facts:
+      place?.type === "channel"
+        ? ["In a channel"]
+        : place?.type === "stream"
+          ? ["Live chat"]
+          : place?.type === "group"
+            ? [`In group ${clip(place.id, 24)}`]
+            : [],
+    ref:
+      place?.type === "channel"
+        ? { id: place.id, relay: place.relay }
+        : place?.type === "stream"
+          ? {
+              addr: `${place.address.kind}:${place.address.pubkey}:${place.address.identifier}`,
+              relay: place.address.relays?.[0],
+            }
+          : context?.replyTo
+            ? { id: context.replyTo.id, relay: context.replyTo.relay }
+            : null,
+  };
+});
+
+// NIP-34: a patch is git's own text — its subject and message, never its mail headers or diff —
+// and an issue or pull request its `subject`, else its first line: the reading its card and page
+// use (lib/gitPatch). An issue's `t` labels are facts; a patch's `root` marks are not labels.
+read([1617, 1618, 1621], (ev) => {
+  const patch = ev.kind === 1617 ? parsePatch(ev.content || "") : null;
+  const labels = tagsOf(ev, "t")
+    .map((t) => t[1])
+    .filter((t) => t !== "root" && t !== "root-revision");
+  return {
+    title: gitItemTitleOf(ev),
+    body: gitItemSummaryOf(ev) || null,
+    facts: unique([
+      patch?.files ? `${plural(patch.files, "file")} · +${patch.added} −${patch.removed}` : null,
+      ...labels.slice(0, 3),
+    ]),
+  };
+});
+
+// A Zap Store app: what it runs on, as its card says (its name, summary and icon are the generic reading's).
+read([32267], (ev) => ({ facts: platformWords(ev) }));
 
 read([1163], (ev) => ({ facts: unique([tagOf(ev, "dim")]), ref: refOf(ev, "first") }));
 
@@ -533,6 +777,29 @@ read([21, 22, 34235, 34236], (ev) => {
       video.vine?.loops ? plural(video.vine.loops, "loop") : null,
     ]),
   };
+});
+
+// A NIP-94 file: its content is its caption, `summary` an excerpt under it (the generic
+// reading's `summary`), and its size in pixels and bytes said as facts.
+read([1063], (ev) => {
+  const dim = /^(\d+)x(\d+)$/.exec(tagOf(ev, "dim") ?? "");
+  const bytes = Number(tagOf(ev, "size"));
+  return {
+    title: ev.content.trim() ? clip(ev.content.trim(), 160) : null,
+    body: null,
+    facts: unique([dim ? `${dim[1]}×${dim[2]}` : null, bytes > 0 ? formatBytes(bytes) : null]),
+  };
+});
+
+// A NIP-A0 voice message or reply: its content is the file's URL, never words to read — what
+// is said beside it is a caption. How long it runs is its imeta's `duration`.
+read([1222, 1244], (ev) => {
+  const caption = ev.content
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const seconds = mediaItemsOf(ev).find((i) => i.kind === "audio")?.durationSec;
+  return { title: null, body: caption || null, facts: seconds ? [videoLength(seconds)] : [] };
 });
 
 /** DVM job requests (5000–5999), results (6000–6999) and feedback (7000). */
@@ -572,7 +839,24 @@ function readJob(ev: ReaderEvent): ReaderResult | null {
 }
 
 /** What a reader knows of this kind, or null where the generic reading is the right one. */
+/*
+ * One reading per event object: a quoted activity's shape (lib/embedShape) and
+ * its card (EmbeddedActivity) both ask, and a feed re-renders as hits stream
+ * in. Some readers say how long ago or until (a poll's "closes in 2h", a status
+ * that expired), so a reading is kept for the minute it was made in.
+ */
+const READINGS = new WeakMap<object, { minute: number; read: ReaderResult | null }>();
+
 export function readKind(ev: ReaderEvent): ReaderResult | null {
+  const minute = Math.floor(Date.now() / 60_000);
+  const held = READINGS.get(ev);
+  if (held && held.minute === minute) return held.read;
+  const read = readKindNow(ev);
+  READINGS.set(ev, { minute, read });
+  return read;
+}
+
+function readKindNow(ev: ReaderEvent): ReaderResult | null {
   const reader = READERS.get(ev.kind);
   if (reader) return reader(ev);
   const job = readJob(ev);

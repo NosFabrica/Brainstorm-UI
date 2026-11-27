@@ -10,7 +10,6 @@ import { ListingCard } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
 import { ReadingText } from "@/components/share/ReadingText";
 import { MediaImg } from "@/components/ui/media-img";
-import { fetchFromSearch } from "@/services/search";
 import { amountOf } from "@/lib/listing";
 import { cardGroupOf, productsFromEvents } from "@/lib/listingVariants";
 import { describeThing } from "@/lib/thing";
@@ -23,7 +22,7 @@ import {
   PeopleRoster,
   Section,
   SectionNote,
-  useFetched,
+  useSearchEvents,
   type PageEvent,
   SafeImg,
   useAuthors,
@@ -132,10 +131,15 @@ export function ShopPlaceSections({ event, detail }: { event: PageEvent; detail:
   const json = jsonOf(event.content);
   const stallId = str(json?.id) ?? event.tags.find((t) => t[0] === "d")?.[1];
   // A stall's products are its merchant's 30018s that name the stall.
-  const products = useFetched(detail.variant === "stall" ? `stall-products:${event.id}` : null, async () => {
-    const evs = await fetchFromSearch([{ kinds: [30018], authors: [event.pubkey] }], { limit: 200 });
-    return evs.filter((e) => str(jsonOf(e.content)?.stall_id) === stallId);
-  });
+  const merchantProducts = useSearchEvents(
+    detail.variant === "stall" ? `stall-products:${event.id}` : null,
+    [{ kinds: [30018], authors: [event.pubkey] }],
+    { limit: 200 },
+  );
+  const products = useMemo(
+    () => merchantProducts?.filter((e) => str(jsonOf(e.content)?.stall_id) === stallId),
+    [merchantProducts, stallId],
+  );
   // For sale only, one card per product: a sold-out (quantity 0) or priceless
   // product is not stock this shop can sell.
   const forSale = useMemo(() => (products ? productsFromEvents(products) : undefined), [products]);
@@ -145,11 +149,12 @@ export function ShopPlaceSections({ event, detail }: { event: PageEvent; detail:
       : [];
   // Only stalls a card can draw: other apps' records share kind 30017, and a
   // count that includes them promises shops the grid never shows.
-  const stalls = useFetched(merchants.length ? `market-stalls:${event.id}` : null, async () =>
-    (await fetchFromSearch([{ kinds: [30017], authors: merchants.slice(0, 100) }], { limit: 60 })).filter(
-      (s) => describeThing(s) !== null,
-    ),
+  const merchantStalls = useSearchEvents(
+    merchants.length ? `market-stalls:${event.id}` : null,
+    [{ kinds: [30017], authors: merchants.slice(0, 100) }],
+    { limit: 60 },
   );
+  const stalls = useMemo(() => merchantStalls?.filter((s) => describeThing(s) !== null), [merchantStalls]);
   const stallAuthors = useAuthors((stalls ?? []).map((s) => s.pubkey));
   if (detail.variant === "stall") {
     return (

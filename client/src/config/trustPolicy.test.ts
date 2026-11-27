@@ -25,10 +25,12 @@ const THROWAWAY = "a9e96194e7fc" + HEX("2").slice(12); // "Brainstorm QA Alpha",
 /** A relay that knows about `scored` and has never heard of anyone else. */
 function trustSourceOver(scored: Record<string, { rank: number; hops?: number }>) {
   return createHouseTrustSource({
-    fetchEvents: async ({ "#d": subjects }: { "#d": string[] }) =>
-      subjects
-        .filter((pk) => scored[pk])
-        .map((pk) => ({
+    fetchEvents: async (filter) => {
+      const subjects: unknown = filter["#d"];
+      if (!Array.isArray(subjects)) throw new Error("the trust source asked without a #d");
+      return subjects
+        .filter((pk: string) => scored[pk])
+        .map((pk: string) => ({
           kind: 30382,
           pubkey: NIP85_AUTHOR_PUBKEYS[0],
           created_at: 1_700_000_000,
@@ -37,7 +39,8 @@ function trustSourceOver(scored: Record<string, { rank: number; hops?: number }>
             ["rank", String(scored[pk].rank)],
             ...(scored[pk].hops === undefined ? [] : [["hops", String(scored[pk].hops)]]),
           ],
-        })),
+        }));
+    },
     assertionAuthorPubkeys: NIP85_AUTHOR_PUBKEYS,
     minRank: TRUST_SETTINGS.minRank,
     maxHops: TRUST_SETTINGS.maxHops,

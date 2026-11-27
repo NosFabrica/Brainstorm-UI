@@ -12,11 +12,11 @@
  */
 import { nip19, getPublicKey, generateSecretKey } from "nostr-tools";
 
-import { announceRelayList, cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
+import { cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
 import { loadRelayList } from "@/lib/relayRouting";
 import { clearHydratedStore } from "@/services/storeHydration";
 import { sessions, SessionTransportError, SESSION_SIGN_TIMEOUT_MS } from "@/accounts/session";
-import { withTimeout } from "@/accounts/remote-signer";
+import { withTimeout } from "@/accounts/signer-timeout";
 import { classifySignerError } from "@/accounts/signer-errors";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";
@@ -39,6 +39,7 @@ import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
 import { clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
 import { passkeyVaultApi, PasskeyNotReadyError } from "@/services/api/passkeyVault";
+import { fetchContactList } from "@/services/socialActions";
 import {
   assertPasskey,
   credentialIdHash,
@@ -114,7 +115,6 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
       // matter of course — so without this the whole app falls back to the
       // hardcoded relay set and the user's own relays are never asked.
       await loadRelayList(pubkey).catch(() => null);
-      const { fetchContactList } = await import("@/services/socialActions");
       const ev = await fetchContactList(pubkey);
       if (ev) recordFollowList(pubkey, ev);
     } catch {
@@ -343,14 +343,12 @@ export async function runInitialSetup(
   const content: Record<string, unknown> = { name: profile.name, display_name: profile.name };
   if (profile.about) content.about = profile.about;
   if (profile.picture) content.picture = profile.picture;
+  // Also announces the relay list (`announceRelayListAs`, never `publishRelayList`:
+  // a replaceable kind-10002 of our defaults would overwrite a list an existing key
+  // already has elsewhere), pinned to the account it signed as. Not announced again
+  // here: after the profile's backoff the Active Account may be someone else.
   try {
     await publishProfile(content);
-  } catch {}
-  // `announceRelayList`, not `publishRelayList`: this runs for any account
-  // finishing signup, and a replaceable kind-10002 carrying our defaults would
-  // overwrite a list an existing key already has elsewhere.
-  try {
-    await announceRelayList();
   } catch {}
 
   // NOTE: we intentionally do NOT publish a seed follow list or trigger scoring

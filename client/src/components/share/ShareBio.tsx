@@ -3,6 +3,8 @@ import { useShareNav } from "@/components/share/ShareNavContext";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { HOUSE_POV, suggestProfiles } from "@/services/search";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { nameIn, resultName } from "@/lib/displayName";
+import { asyncHandler } from "@/lib/asyncHandler";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
@@ -38,7 +40,7 @@ function PlainMention({ name }: { name: string }) {
       type="button"
       disabled={busy}
       data-testid="bio-orgmention"
-      onClick={async (e) => {
+      onClick={asyncHandler(async (e) => {
         e.stopPropagation();
         if (busy) return;
         setBusy(true);
@@ -49,14 +51,14 @@ function PlainMention({ name }: { name: string }) {
             requestNav({
               kind: "profile",
               target: top.npub,
-              label: top.displayName || top.name || `@${name}`,
+              label: resultName(top) ?? `@${name}`,
               picture: top.picture,
             });
         } catch {
           /* ignore — leave as plain text on failure */
         }
         setBusy(false);
-      }}
+      })}
       className="font-medium text-brand-link hover:underline disabled:opacity-60"
     >
       @{name}
@@ -115,7 +117,7 @@ export function ShareBio({
           const bech32 = part.replace(/^nostr:/i, "");
           const { pubkey } = decodeNostrEntity(bech32);
           const prof = pubkey ? profiles?.get(pubkey) : undefined;
-          const name = prof?.display_name || prof?.name;
+          const name = nameIn(prof);
           const label = name ? `@${name}` : `@${bech32.slice(0, 10)}…`;
           return (
             <button

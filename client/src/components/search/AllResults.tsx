@@ -9,7 +9,7 @@
  */
 import { isReady, useItemView } from "@/hooks/useItemView";
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { AllResultRow } from "@/components/search/AllResultRow";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -19,6 +19,7 @@ import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { wantProfile } from "@/services/authorProfileQueue";
 import { kind0ToSearchResult, type SearchHit } from "@/services/search";
+import { resultName } from "@/lib/displayName";
 
 type Coord = { kind: number; pubkey: string; identifier: string };
 
@@ -48,7 +49,7 @@ function mentionedIn(text: string | null | undefined, into: Set<string>): void {
 type Person = { name?: string; picture?: string };
 const personOf = (profile: NostrEvent): Person => {
   const r = kind0ToSearchResult(profile);
-  return { name: r.displayName || r.name || undefined, picture: r.picture || undefined };
+  return { name: resultName(r), picture: r.picture || undefined };
 };
 
 /**
@@ -119,11 +120,16 @@ export const AllResults = memo(function AllResults({
     return { ids: [...ids].sort(), coords: [...coords.values()].sort((a, b) => keyOf(a).localeCompare(keyOf(b))) };
   }, [hits, settled]);
 
+  // What has been asked already: a "More" page asks for the targets it adds, not every earlier
+  // one again (the store holds what those found, and the filters below read it).
+  const asked = useRef({ ids: new Set<string>(), coords: new Set<string>() });
   const idsKey = refs.ids.join(",");
   const idFilters = useMemo(() => (idsKey ? [{ ids: idsKey.split(",") }] : null), [idsKey]);
-  const byIdAsk = useStoreEvents(idsKey ? `all-refs:${idsKey}` : null, idFilters, () =>
-    fetchEventsByIds(idsKey.split(",")),
-  );
+  const byIdAsk = useStoreEvents(idsKey ? `all-refs:${idsKey}` : null, idFilters, () => {
+    const fresh = idsKey.split(",").filter((id) => !asked.current.ids.has(id));
+    for (const id of fresh) asked.current.ids.add(id);
+    return fresh.length ? fetchEventsByIds(fresh) : Promise.resolve([]);
+  });
 
   // Addresses read from the store, live — a held copy shows at once and stays shown while
   // a later page's ask is out — and only the ones it lacks go to the relays.
@@ -134,7 +140,10 @@ export const AllResults = memo(function AllResults({
     [coordsKey],
   );
   const byAddrAsk = useStoreEvents(coordsKey ? `all-addrs:${coordsKey}` : null, addrFilters, async () => {
-    const missing = refs.coords.filter((c) => !eventStore.getReplaceable(c.kind, c.pubkey, c.identifier));
+    const missing = refs.coords.filter(
+      (c) => !asked.current.coords.has(keyOf(c)) && !eventStore.getReplaceable(c.kind, c.pubkey, c.identifier),
+    );
+    for (const c of missing) asked.current.coords.add(keyOf(c));
     if (!missing.length) return [];
     return Array.from((await fetchAddressableEvents(missing).catch(() => new Map<string, NostrEvent>())).values());
   });

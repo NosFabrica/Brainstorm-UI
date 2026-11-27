@@ -19,6 +19,8 @@ import {
   keepRelayAlive,
   profileIndexAnswers,
   relayWake$,
+  standaloneRelay,
+  STRAGGLER_GRACE_MS,
   wakeableBackoff,
   wakeRelays,
   warmRelay,
@@ -29,7 +31,7 @@ import { PROFILE_RELAYS, SEARCH_RELAY } from "./relays";
  * A relay on a fake socket. `answer` is what it says to any REQ: an event
  * then EOSE (an open relay), or CLOSED auth-required (a gated one).
  */
-type Script = (id: string, send: (frame: unknown[]) => void, socket: FakeSocket) => void;
+type Script = (id: string, send: (frame: unknown[]) => void, socket: FakeSocket, filters: unknown[]) => void;
 const scripts = new Map<string, Script>();
 
 class FakeSocket {
@@ -76,7 +78,7 @@ class FakeSocket {
     if (frame[0] !== "REQ") return;
     const id = frame[1] as string;
     const script = scripts.get(this.url.replace(/\/$/, ""));
-    setTimeout(() => script?.(id, reply, this), 0);
+    setTimeout(() => script?.(id, reply, this, frame.slice(2)), 0);
   }
   close() {
     this.readyState = 3;
@@ -108,8 +110,10 @@ const SLOW = "wss://slow.example";
  */
 const FLAKY = "wss://flaky.example";
 let flakyDropsLeft = 0;
-scripts.set(OPEN, (id, send) => {
-  send(["EVENT", id, EVENT]);
+/** The open relay answers in the kind it was asked for, so a read of any kind gets its one event. */
+scripts.set(OPEN, (id, send, _socket, filters) => {
+  const kind = (filters[0] as { kinds?: number[] } | undefined)?.kinds?.[0] ?? EVENT.kind;
+  send(["EVENT", id, { ...EVENT, kind }]);
   send(["EOSE", id]);
 });
 scripts.set(FLAKY, (id, send) => {
@@ -150,38 +154,48 @@ const read = (pool: RelayPool, relays = [OPEN, GATED]) =>
 
 afterEach(() => vi.useRealTimers());
 
+/**
+ * Runs `start` on fake timers, stepping the clock until it settles: how long a read waits is
+ * then read off the fake clock, the same on any machine, and a 5 s wait takes no real time.
+ */
+async function onFakeTime<T>(start: () => Promise<T>): Promise<{ value: T; took: number }> {
+  // Once per test: installing them again would drop the timers already set (a relay's backoff).
+  if (!vi.isFakeTimers()) vi.useFakeTimers();
+  const started = Date.now();
+  let settled = false;
+  const pending = start().finally(() => (settled = true));
+  while (!settled && Date.now() - started < 60_000) await vi.advanceTimersByTimeAsync(10);
+  return { value: await pending, took: Date.now() - started };
+}
+
 describe("the app's relay pool", () => {
   it("completes a read as soon as the relays that can answer have — a relay demanding auth is skipped, not waited for", async () => {
     const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
-    const started = Date.now();
-    const events = await read(pool);
+    const { value: events, took } = await onFakeTime(() => read(pool));
     expect(events.map((e) => e.id)).toEqual([EVENT.id]);
-    expect(Date.now() - started).toBeLessThan(1500);
-  }, 4000);
+    expect(took).toBeLessThan(STRAGGLER_GRACE_MS); // not even the stragglers' grace
+  });
 
   // An author's relay list names a relay nobody can reach (`umbrel.local`).
   // The library retries its connection three times, with backoff, before
   // the relay counts as done — and the article waited on it (2026-09-24).
   it("completes a read at once past a relay whose socket never connects — a one-shot read does not retry a dead relay", async () => {
     const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
-    const started = Date.now();
-    const events = await read(pool, [OPEN, DEAD]);
+    const { value: events, took } = await onFakeTime(() => read(pool, [OPEN, DEAD]));
     expect(events.map((e) => e.id)).toEqual([EVENT.id]);
-    expect(Date.now() - started).toBeLessThan(1500);
-  }, 4000);
+    expect(took).toBeLessThan(STRAGGLER_GRACE_MS);
+  });
 
   // A relay that connects and never answers used to hold a read for the
   // library's 5s fallback. No single relay decides when a read is done: once
   // one relay has answered, the rest get a short grace, then the read completes.
   it("gives the other relays a short grace after the first answer, then completes", async () => {
     const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
-    const started = Date.now();
-    const events = await read(pool, [OPEN, SLOW]);
+    const { value: events, took } = await onFakeTime(() => read(pool, [OPEN, SLOW]));
     expect(events.map((e) => e.id)).toEqual([EVENT.id]);
-    const took = Date.now() - started;
-    expect(took).toBeGreaterThan(500); // it did wait for the straggler a moment
-    expect(took).toBeLessThan(2500);
-  }, 4000);
+    expect(took).toBeGreaterThanOrEqual(STRAGGLER_GRACE_MS); // it did wait for the straggler a moment
+    expect(took).toBeLessThan(STRAGGLER_GRACE_MS + 100);
+  });
 
   // A gated relay or a dead one now fails in milliseconds. A relay waiting out
   // its reconnect backoff has not reported anything yet, so the library's own
@@ -190,10 +204,10 @@ describe("the app's relay pool", () => {
   it("waits for a relay that is reconnecting, even when another has already failed", async () => {
     const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
     flakyDropsLeft = 1;
-    await read(pool, [FLAKY]); // its socket drops; the relay now waits out its backoff
-    const events = await read(pool, [DEAD, FLAKY]);
+    await onFakeTime(() => read(pool, [FLAKY])); // its socket drops; the relay now waits out its backoff
+    const { value: events } = await onFakeTime(() => read(pool, [DEAD, FLAKY]));
     expect(events.map((e) => e.id)).toEqual([EVENT.id]);
-  }, 6000);
+  });
 
   // Only one-shot reads skip a gated relay. A live subscription (the NIP-46
   // signer's, for one) waits for the login and then gets that relay's events.
@@ -224,10 +238,79 @@ describe("the app's relay pool", () => {
   // The control: what the library does on its own, and what the team saw.
   it("(control) a stock pool holds the same reads for the library's 5s fallback", async () => {
     const pool = new RelayPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
-    const started = Date.now();
-    await Promise.all([read(pool), read(pool, [OPEN, DEAD]), read(pool, [OPEN, SLOW])]);
-    expect(Date.now() - started).toBeGreaterThan(4500);
-  }, 9000);
+    for (const relays of [undefined, [OPEN, DEAD], [OPEN, SLOW]]) {
+      const { took } = await onFakeTime(() => read(pool, relays));
+      expect(took).toBeGreaterThanOrEqual(5000);
+    }
+  });
+});
+
+/**
+ * A relay sends whatever it likes. applesauce-relay passes every EVENT on a
+ * REQ's subscription id through, matched or not, so a relay asked for
+ * `{ authors: [me], kinds: [3] }` could answer with someone else's contact
+ * list, and the app's "newest wins" reads would take it for the user's own
+ * (services/socialActions re-signed it). The pool drops what was not asked for.
+ */
+describe("events a relay sends that the filter didn't ask for", () => {
+  const ME = "a".repeat(64);
+  const STRANGER = "b".repeat(64);
+  const LIAR = "wss://liar.example";
+  const mine = { ...EVENT, id: "3".repeat(64), kind: 3, pubkey: ME, created_at: 10 } as NostrEvent;
+  const foreign = { ...EVENT, id: "4".repeat(64), kind: 3, pubkey: STRANGER, created_at: 99 } as NostrEvent;
+  const wrongKind = { ...EVENT, id: "5".repeat(64), kind: 1, pubkey: ME, created_at: 99 } as NostrEvent;
+  scripts.set(LIAR, (id, send) => {
+    send(["EVENT", id, foreign]);
+    send(["EVENT", id, wrongKind]);
+    send(["EVENT", id, { kind: 3, pubkey: ME }]);
+    send(["EVENT", id, mine]);
+    send(["EOSE", id]);
+  });
+  const asked = { kinds: [3], authors: [ME] };
+
+  it("are dropped from a one-shot read", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(pool.request([LIAR], asked, { eventStore: null }).pipe(toArray()));
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
+  }, 4000);
+
+  it("are dropped from a live subscription", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(
+      // The pool's subscription carries events only: the group drops EOSE before it.
+      pool.subscription([LIAR], asked, { eventStore: null }).pipe(take(1), toArray()),
+    );
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
+  }, 4000);
+
+  it("are dropped from the raw frames pool.req and relay.req hand out", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    for (const req of [pool.req([LIAR], asked), pool.relay(LIAR).req(asked, { waitForAuth: false })]) {
+      const frames = await firstValueFrom(
+        req.pipe(
+          filter((m) => m.type === "EVENT" || m.type === "EOSE"),
+          take(2),
+          toArray(),
+        ),
+      );
+      expect(frames.map((m) => (m.type === "EVENT" ? m.event.id : m.type))).toEqual([mine.id, "EOSE"]);
+    }
+  }, 4000);
+
+  it("are dropped on a socket of its own, outside the pool (the search page's side socket)", async () => {
+    const relay = standaloneRelay(LIAR, { WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(relay.request(asked).pipe(toArray()));
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
+    relay.close();
+  }, 4000);
+
+  it("a NIP-50 search term is the relay's to judge: an event that matches the rest of the filter is kept", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(
+      pool.request([LIAR], { ...asked, search: "anything" }, { eventStore: null }).pipe(toArray()),
+    );
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
+  }, 4000);
 });
 
 describe("purplepag.es, the profile index", () => {
@@ -236,7 +319,7 @@ describe("purplepag.es, the profile index", () => {
   const received: unknown[][] = [];
   scripts.set(PURPLE, (id, send) => send(["EOSE", id]));
   class RecordingSocket extends FakeSocket {
-    send(data: string) {
+    override send(data: string) {
       const frame = JSON.parse(data) as unknown[];
       if (frame[0] === "REQ" && this.url.startsWith(PURPLE)) received.push(frame.slice(2));
       super.send(data);
@@ -254,14 +337,15 @@ describe("purplepag.es, the profile index", () => {
   it("gets no REQ for a read it can't answer, and the read doesn't wait on it", async () => {
     received.length = 0;
     const pool = createPool({ WebSocket: RecordingSocket as unknown as typeof WebSocket });
-    const started = Date.now();
-    const events = await firstValueFrom(
-      pool.request([OPEN, PURPLE], { kinds: [1], authors: ["a".repeat(64)] }, { eventStore: null }).pipe(toArray()),
+    const { value: events, took } = await onFakeTime(() =>
+      firstValueFrom(
+        pool.request([OPEN, PURPLE], { kinds: [1], authors: ["a".repeat(64)] }, { eventStore: null }).pipe(toArray()),
+      ),
     );
     expect(events.map((e) => e.id)).toEqual([EVENT.id]);
     expect(received).toEqual([]);
-    expect(Date.now() - started).toBeLessThan(1000);
-  }, 4000);
+    expect(took).toBeLessThan(STRAGGLER_GRACE_MS);
+  });
 
   it("gets only the filters it can answer from a mixed read", async () => {
     received.length = 0;
@@ -309,7 +393,7 @@ describe("warming a relay", () => {
         super(url);
         opened.push(url);
       }
-      send(data: string) {
+      override send(data: string) {
         sent.push(JSON.parse(data) as unknown[]);
         super.send(data);
       }

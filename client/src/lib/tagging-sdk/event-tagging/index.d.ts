@@ -79,6 +79,20 @@ export type EventTagTarget =
   | { id: string; relays?: string[] }
   | { address: string };
 
+/**
+ * The unsigned tagging assertion (kind 39999) applying or disputing a tag on a target. `hash8`
+ * (first 8 hex of SHA-256 over the coordinate) is required for an `address` target.
+ */
+export function buildEventTaggingAssertion(args: {
+  headerAuthorPubkey: string;
+  slug: string;
+  target: EventTagTarget;
+  polarity: 1 | -1;
+  asserterPubkey: string;
+  taPubkeys: string[];
+  hash8?: (coordinate: string) => string;
+}): UnsignedPartialEvent;
+
 /** Candidates that tag a given event. Results are candidates, not truth. */
 export function filterTagsAppliedToEvent(args: { target: EventTagTarget }): Record<string, unknown>;
 

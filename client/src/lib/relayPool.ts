@@ -29,6 +29,7 @@ import {
   type RelayOptions,
 } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
+import type { Filter as NostrFilter } from "applesauce-core/helpers/filter";
 import {
   EMPTY,
   Subject,
@@ -52,6 +53,7 @@ import {
   type Observable,
 } from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
+import { answersFilters } from "./relayAnswers";
 import { PROFILE_RELAYS, SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
 /**
@@ -162,6 +164,29 @@ export function isAuthRequiredReason(reason: string | undefined): boolean {
 
 type ReqOptions = NonNullable<Parameters<Relay["req"]>[1]>;
 type ReqMessages = ReturnType<Relay["req"]>;
+type ReqMessage = ReqMessages extends Observable<infer M> ? M : never;
+
+/**
+ * Drop every EVENT the relay sent that its REQ didn't ask for. applesauce-relay
+ * passes on whatever arrives on a subscription id, so a relay asked for
+ * `{ authors: [me], kinds: [3] }` could answer with another key's contact list,
+ * and every "newest wins" read (requestNewest, pickAuthoritativeBase,
+ * fetchTrustProviderList) would take it for the user's own. The filters are the
+ * ones the library reports sending, on its OPEN frame — so a live REQ whose
+ * filters change is judged by the filters now on the wire.
+ */
+function onlyWhatWasAsked(source: ReqMessages): ReqMessages {
+  return defer(() => {
+    let asked: NostrFilter[] | undefined;
+    return source.pipe(
+      filter((message: ReqMessage) => {
+        if (message.type === "OPEN") asked = message.filters as NostrFilter[];
+        if (message.type !== "EVENT") return true;
+        return !!asked && answersFilters(asked, message.event);
+      }),
+    );
+  }) as ReqMessages;
+}
 
 /** How many times a live REQ is asked again after the relay CLOSEs it; the library's `resubscribe` shape. */
 function resubscribeCount(resubscribe: ReqOptions["resubscribe"]): number {
@@ -177,7 +202,7 @@ class ReadFirstRelay extends Relay {
    * One-shot reads never wait for a login; live ones do, and are asked again
    * by [liveReq]'s rules rather than the library's.
    */
-  req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+  override req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
     if (normalizeURL(this.url) === PROFILE_INDEX) {
       const answerable = forProfileIndex(filters);
       // Nothing it can answer: done at once, as an EOSE, so a read waiting on
@@ -191,7 +216,7 @@ class ReadFirstRelay extends Relay {
     }
     const asked = this.url === SEARCH_RELAY ? withSearchToken(filters) : filters;
     if (opts?.waitForAuth) return this.liveReq(asked, opts);
-    return super.req(asked, { ...opts, waitForAuth: false }).pipe(
+    return onlyWhatWasAsked(super.req(asked, { ...opts, waitForAuth: false })).pipe(
       // A refusal the library didn't recognise still tells services/relayAuth to log in.
       tap((message) => {
         if (message.type === "CLOSED" && isAuthRequiredReason(message.reason)) this.flagAuthRequired();
@@ -199,7 +224,7 @@ class ReadFirstRelay extends Relay {
     );
   }
 
-  subscription(
+  override subscription(
     filters: Parameters<Relay["subscription"]>[0],
     opts?: Parameters<Relay["subscription"]>[1],
   ): ReturnType<Relay["subscription"]> {
@@ -246,7 +271,7 @@ class ReadFirstRelay extends Relay {
         defer(() => {
           sentLoggedIn = this.authenticated;
           closedByRelay = false;
-          return super.req(filters, { ...opts, waitForAuth: false, resubscribe: undefined });
+          return onlyWhatWasAsked(super.req(filters, { ...opts, waitForAuth: false, resubscribe: undefined }));
         }),
       ),
     );
@@ -301,6 +326,22 @@ class ReadFirstRelay extends Relay {
     this.attempts$.next(0);
     this._ready$.next(true);
   }
+}
+
+/**
+ * A relay outside the pool (lib/searchRelay's side sockets) that still drops
+ * what its REQs didn't ask for — the one rule here that holds for every read,
+ * whichever socket it rides.
+ */
+class AskedOnlyRelay extends Relay {
+  override req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+    return onlyWhatWasAsked(super.req(filters, opts));
+  }
+}
+
+/** A socket of its own, outside the pool, under the pool's rule on answers. */
+export function standaloneRelay(url: string, options?: RelayOptions): Relay {
+  return new AskedOnlyRelay(url, options);
 }
 
 /**
@@ -375,7 +416,7 @@ function reachableMap(relays: FilterMapInput): FilterMapInput {
 
 class ReadFirstPool extends RelayPool {
   /** Every one-shot read gets the app's completion rule unless the caller brings its own. */
-  request(
+  override request(
     relays: Parameters<RelayPool["request"]>[0],
     filters: Parameters<RelayPool["request"]>[1],
     opts?: Parameters<RelayPool["request"]>[2],
@@ -389,7 +430,7 @@ class ReadFirstPool extends RelayPool {
    * a publish waits seconds for a socket that is never going to open before it
    * counts the relay as failed.
    */
-  publish(
+  override publish(
     relays: Parameters<RelayPool["publish"]>[0],
     event: Parameters<RelayPool["publish"]>[1],
     opts?: Parameters<RelayPool["publish"]>[2],
@@ -411,7 +452,7 @@ class ReadFirstPool extends RelayPool {
    * waits on nothing, and a refused socket in it would be retried with backoff
    * for the rest of the session.
    */
-  subscription(
+  override subscription(
     relays: Parameters<RelayPool["subscription"]>[0],
     filters: Parameters<RelayPool["subscription"]>[1],
     options?: Parameters<RelayPool["subscription"]>[2],
@@ -420,7 +461,7 @@ class ReadFirstPool extends RelayPool {
   }
 
   /** The same for per-relay filters, which `outboxSubscription` rides on too. */
-  subscriptionMap(
+  override subscriptionMap(
     relays: Parameters<RelayPool["subscriptionMap"]>[0],
     options?: Parameters<RelayPool["subscriptionMap"]>[1],
   ): ReturnType<RelayPool["subscriptionMap"]> {
@@ -428,7 +469,7 @@ class ReadFirstPool extends RelayPool {
   }
 
   /** The library's `relay()`, minting ReadFirstRelay — it takes no factory. */
-  relay(url: string): Relay {
+  override relay(url: string): Relay {
     url = normalizeURL(url);
     const existing = this.relays.get(url);
     if (existing) return existing;

@@ -186,7 +186,7 @@ export function ImageUpload({
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
+      if (file) void handleFile(file);
     },
     [handleFile],
   );
@@ -243,7 +243,7 @@ export function ImageUpload({
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) handleFile(f);
+            if (f) void handleFile(f);
           }}
         />
       </div>
@@ -294,7 +294,7 @@ export function ImageUpload({
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) handleFile(f);
+            if (f) void handleFile(f);
           }}
         />
       </div>
@@ -334,7 +334,7 @@ export function ImageUpload({
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) handleFile(f);
+          if (f) void handleFile(f);
         }}
       />
     </div>

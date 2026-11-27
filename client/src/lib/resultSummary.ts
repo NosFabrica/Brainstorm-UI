@@ -16,12 +16,15 @@ import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarE
 import { formatListingPrice, listingStatus, parseListing } from "@/lib/listing";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
-import { describeDesignation } from "@/lib/nip85Declaration";
 import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { kindLabel } from "@/lib/kindLabel";
+import { liveStateLabel, liveStateOf, parseLiveStream, readMeeting } from "@/lib/liveStream";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
-import { wikiPlainText } from "@/lib/wiki";
+import { articleBrief, wikiPlainText } from "@/lib/wiki";
+
+/** Long-form kinds read by their brief: article, draft, publication, spec. */
+const LONG_FORM_KINDS: ReadonlySet<number> = new Set([30023, 30024, 30040, 30817]);
 import {
   articleTitle,
   BOOKSHELF_KIND,
@@ -32,6 +35,7 @@ import {
 } from "@/lib/publication";
 import { eventPath, profilePath } from "@/lib/shareId";
 import { OPAQUE_D, hostOf, readKind, tagValue, who, type ResultRef } from "@/lib/resultReaders";
+import { readEmbeddedEvent } from "@/lib/embeddedEvent";
 
 export type { ResultRef } from "@/lib/resultReaders";
 
@@ -173,6 +177,8 @@ function contentWords(ev: SummaryEvent): { body: string | null; shape: ResultSum
   // A shelf has no words; what is on it says what it is.
   if (shape.kind === "empty") return { body: ev.kind === BOOKSHELF_KIND ? shelfLine(ev) || null : null, shape: null };
   if (ev.kind === 30818) return { body: wikiPlainText(ev.content), shape: null };
+  // Long-form opens on its own heading: its brief (lib/wiki), as its card and row read it.
+  if (LONG_FORM_KINDS.has(ev.kind)) return { body: articleBrief(ev) || null, shape: null };
   // A section is AsciiDoc: its words, not its `==` and `[NOTE]`.
   if (ev.kind === PUBLICATION_SECTION_KIND) return { body: sectionPlainText(ev) || null, shape: null };
   // Notes are written in markdown too ("[Fiatjaf](https://…)"): every body is read as prose.
@@ -234,12 +240,16 @@ function itemFacts(ev: SummaryEvent): string[] {
   return out;
 }
 
-/** The `e` (else `a`) a repost names, when it does not carry its note. */
+/**
+ * The post a repost names, when it does not carry it: its `e`, or — a generic
+ * repost (16) of a replaceable event — its `a`, which NIP-18 uses to name the
+ * event's address (its latest version); an `e` alone names one version.
+ */
 function refFromTags(ev: SummaryEvent): ResultRef | null {
   const e = ev.tags.find((t) => t[0] === "e" && /^[0-9a-f]{64}$/i.test(t[1] ?? ""));
-  if (e) return { id: e[1].toLowerCase(), relay: e[2] || undefined };
   const a = ev.tags.find((t) => t[0] === "a" && /^\d+:[0-9a-f]{64}:/i.test(t[1] ?? ""));
-  return a ? { addr: a[1], relay: a[2] || undefined } : null;
+  if (a && (ev.kind === 16 || !e)) return { addr: a[1], relay: a[2] || undefined };
+  return e ? { id: e[1].toLowerCase(), relay: e[2] || undefined } : null;
 }
 
 /**
@@ -294,26 +304,11 @@ export function summarizeResult(ev: SummaryEvent): ResultSummary {
   };
 }
 
-const EVENT_SHAPE = (v: unknown): v is SummaryEvent => {
-  const e = v as SummaryEvent | null;
-  return (
-    !!e &&
-    typeof e.id === "string" &&
-    typeof e.pubkey === "string" &&
-    typeof e.kind === "number" &&
-    typeof e.content === "string" &&
-    Array.isArray(e.tags)
-  );
-};
-
-/** A repost's note, when the repost carries it (NIP-18 puts the JSON in the content). */
+/** A repost's note, when the repost carries it signed (NIP-18 puts the JSON in the content; anyone can write JSON). */
 function repostedEvent(ev: SummaryEvent): SummaryEvent | null {
-  try {
-    const inner: unknown = JSON.parse(ev.content);
-    return EVENT_SHAPE(inner) ? inner : null;
-  } catch {
-    return null;
-  }
+  const e = ev.tags.find((t) => t[0] === "e" && /^[0-9a-f]{64}$/i.test(t[1] ?? ""))?.[1];
+  const a = ev.kind === 16 ? ev.tags.find((t) => t[0] === "a" && typeof t[1] === "string")?.[1] : undefined;
+  return readEmbeddedEvent(ev.content, { expectId: e, expectAddr: e ? undefined : a });
 }
 
 function summarizeKind(ev: SummaryEvent): ResultSummary {
@@ -388,6 +383,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       body: cal.summary ? markdownExcerpt(cal.summary) : null,
       image: isHttp(cal.image) ? cal.image : base.image,
       facts: [
+        cal.cancelled ? "Cancelled" : null,
         cal.startSec ? formatEventDate(cal.startSec, cal.isDateOnly) : null,
         cal.location ? shortPlace(cal.location) : null,
       ].filter((f): f is string => !!f),
@@ -428,11 +424,6 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
     }
   }
 
-  if (ev.kind === 10040) {
-    const d = describeDesignation(ev);
-    return { ...base, title: base.title ?? "Trust designation", body: d.summary || null };
-  }
-
   if (THING_KINDS.has(ev.kind)) {
     const thing = describeThing(ev);
     if (thing)
@@ -447,12 +438,36 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       });
   }
 
+  // A stream's state as the Live tab reads it — a "live" untouched for a week is over — and who is watching.
   if (ev.kind === 30311) {
-    const status = tagOf(ev, "status");
+    const state = liveStateOf(ev);
+    const viewers = parseLiveStream(ev)?.viewers;
     return fillFromContent({
       ...base,
-      facts: status ? [status.charAt(0).toUpperCase() + status.slice(1)] : [],
+      facts: [
+        liveStateLabel(state),
+        state === "live" && viewers ? `${viewers.toLocaleString("en-US")} watching` : null,
+      ].filter((f): f is string => !!f),
     });
+  }
+
+  // A NIP-53 meeting space (named by `room`) or a meeting in one (by `title`): its status,
+  // a meeting's start, and the space a meeting is in as what the row is about.
+  if (ev.kind === 30312 || ev.kind === 30313) {
+    const meeting = readMeeting(ev);
+    if (meeting) {
+      const space = meeting.space;
+      return fillFromContent({
+        ...base,
+        title: meeting.title,
+        body: meeting.summary ? markdownExcerpt(meeting.summary) : null,
+        facts: [
+          meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : null,
+          meeting.startsSec ? formatEventDate(meeting.startsSec, false) : null,
+        ].filter((f): f is string => !!f),
+        ref: space ? { addr: `30312:${space.pubkey}:${space.identifier}`, relay: space.relays?.[0] } : null,
+      });
+    }
   }
 
   // A D-list item is its fields: a place's name, then what it is and where.

@@ -1,3 +1,4 @@
+import { httpsHref } from "@/lib/safeHref";
 import { useState } from "react";
 import { productName } from "@/lib/plans";
 import { Link } from "wouter";
@@ -60,13 +61,15 @@ export function BillingCard() {
     currentPeriodEnd,
     nextBillingDate,
     cancelEffectiveDate,
-    manageUrl,
+    manageUrl: rawManageUrl,
     isPaid: paid,
     isLoading,
     isError,
     needsSession,
     refetch,
   } = useSubscription();
+  // The API's answer goes into href, window.open and location: https or nothing (lib/safeHref).
+  const manageUrl = httpsHref(rawManageUrl) ?? null;
   const { plans, billingAvailable, solePurchasableName } = useBillingPlans();
   const [confirming, setConfirming] = useState(false);
 

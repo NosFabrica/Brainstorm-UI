@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { nip19 } from "nostr-tools";
 
-const specsMock = vi.fn(() =>
+const specsMock = vi.fn((_kind: number) =>
   Promise.resolve(
     [] as { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number }[],
   ),

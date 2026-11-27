@@ -18,15 +18,8 @@
 import { NostrConnectSigner } from "applesauce-signers";
 import type { Observable } from "rxjs";
 
-import {
-  isRemoteSignerTimeout,
-  NIP46_PERMISSIONS,
-  PAIRING_TIMEOUT_MS,
-  RemoteAccount,
-  RemoteSigner,
-  RemoteSignerTimeoutError,
-  subscribeRelays,
-} from "./remote-signer";
+import { advertisedRelays, NIP46_PERMISSIONS, PAIRING_TIMEOUT_MS, RemoteAccount, RemoteSigner } from "./remote-signer";
+import { isRemoteSignerTimeout, RemoteSignerTimeoutError } from "./signer-timeout";
 
 /** A pairing we started: the URI to show, the Account it becomes, and the way out. */
 export type RemotePairing = {
@@ -98,7 +91,7 @@ export function isPairingCancelled(error: unknown): boolean {
  * error anywhere, and without a deadline the screen would wait forever.
  */
 export function beginRemotePairing(): RemotePairing {
-  const relays = subscribeRelays();
+  const relays = advertisedRelays();
   const signer = new RemoteSigner({ relays, requireConnectSecret: true });
   const uri = signer.nostrConnectURI();
 
@@ -161,9 +154,26 @@ export function beginRemotePairing(): RemotePairing {
 export async function connectWithBunkerURI(uri: string): Promise<RemoteAccount> {
   const { remote, relays, bunkerSecret } = NostrConnectSigner.parseBunkerURI(uri.trim());
   const signer = new RemoteSigner({ relays, remote, bunkerSecret });
-  await signer.connect(bunkerSecret, NIP46_PERMISSIONS);
-  await followSignerRelays(signer);
-  return new RemoteAccount(await signer.getPublicKey(), signer);
+  try {
+    await signer.connect(bunkerSecret, NIP46_PERMISSIONS);
+    await followSignerRelays(signer);
+    return new RemoteAccount(await signer.getPublicKey(), signer);
+  } catch (error) {
+    // The library closes on a refusal, not on our deadline running out (connect,
+    // getPublicKey): every failed paste would leave its subscription running.
+    void Promise.resolve(signer.close()).catch(() => {});
+    throw error;
+  }
+}
+
+/**
+ * A remote Account whose sign-in failed before it was adopted: nothing will ever
+ * sign over its connection, so close it. One that was adopted keeps it — closing
+ * would leave that Account unable to sign.
+ */
+export function releaseUnadopted(account: RemoteAccount, adopted: (id: string) => boolean): void {
+  if (adopted(account.id)) return;
+  void Promise.resolve(account.signer.close()).catch(() => {});
 }
 
 /**

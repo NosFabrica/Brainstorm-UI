@@ -111,7 +111,7 @@ export function PasskeyOffer() {
             type="button"
             variant="neutral"
             size="lg"
-            onClick={turnOn}
+            onClick={() => void turnOn()}
             disabled={busy}
             data-testid="button-passkey-offer-accept"
           >

@@ -228,6 +228,7 @@ export function TagPersonButton({
     try {
       // Reuse the tag everyone else already uses when there is one, so counts
       // accumulate on a single tag instead of splitting across duplicates.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: the tag a write applies, minted when none exists
       const tag = await resolveOrMintTag(name, description?.trim() || undefined);
       const result = await applyTag.mutateAsync({ tag, displayName: name });
 

@@ -33,7 +33,7 @@ import { verifyEvent, type EventTemplate, type VerifiedEvent } from "applesauce-
 import { ExtensionMissingError, ExtensionSigner } from "applesauce-signers";
 
 import type { AccountMetadata } from "./metadata";
-import { isRemoteSignerTimeout, withTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout, withTimeout } from "./signer-timeout";
 import { classifySignerError, SignerCouldNotDecryptError, SignerDeclinedError } from "./signer-errors";
 
 export const EXTENSION_TIMEOUT_MS = 90_000;
@@ -246,14 +246,14 @@ export class TimedExtensionSigner extends ExtensionSigner {
     return Date.now() - this.quickAt < STILL_QUICK_MS;
   }
 
-  get nip04() {
+  override get nip04() {
     return timedCipher("NIP-04", (nostr) => nostr.nip04, this);
   }
-  get nip44() {
+  override get nip44() {
     return timedCipher("NIP-44", (nostr) => nostr.nip44, this);
   }
 
-  async getPublicKey(): Promise<string> {
+  override async getPublicKey(): Promise<string> {
     const nostr = extension();
     if (this.pubkey) return this.pubkey;
     const key = answered(await oneAtATime(() => withTimeout(nostr.getPublicKey(), EXTENSION_TIMEOUT_MS, LATE)));
@@ -262,7 +262,7 @@ export class TimedExtensionSigner extends ExtensionSigner {
     return key;
   }
 
-  async signEvent(template: EventTemplate): Promise<VerifiedEvent> {
+  override async signEvent(template: EventTemplate): Promise<VerifiedEvent> {
     const event = answered(
       await oneAtATime(() => withTimeout(extension().signEvent(template), EXTENSION_TIMEOUT_MS, LATE)),
     );
@@ -336,7 +336,7 @@ export class BrainstormExtensionAccount<Metadata = AccountMetadata> extends Exte
     if (signer instanceof TimedExtensionSigner) signer.owner = pubkey;
   }
 
-  static fromJSON<Metadata = AccountMetadata>(
+  static override fromJSON<Metadata = AccountMetadata>(
     json: SerializedAccount<void, Metadata>,
   ): BrainstormExtensionAccount<Metadata> {
     const account = new BrainstormExtensionAccount<Metadata>(json.pubkey);
@@ -344,7 +344,7 @@ export class BrainstormExtensionAccount<Metadata = AccountMetadata> extends Exte
   }
 
   /** Asks the extension for its pubkey — so this both waits for it and proves it will answer. */
-  static async fromExtension<Metadata = AccountMetadata>(): Promise<BrainstormExtensionAccount<Metadata>> {
+  static override async fromExtension<Metadata = AccountMetadata>(): Promise<BrainstormExtensionAccount<Metadata>> {
     const signer = new TimedExtensionSigner();
     return new BrainstormExtensionAccount<Metadata>(await signer.getPublicKey(), signer);
   }

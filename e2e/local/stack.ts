@@ -85,6 +85,24 @@ export async function signedOut(page: Page, { dropCache }: { dropCache: boolean 
   );
 }
 
+/**
+ * The first run (/start) marked done for every account on the device, at each
+ * load: a new account's server history says its scores were never calculated,
+ * so FirstRunGate would send it there from any page these flows open.
+ */
+export async function skipFirstRun(context: BrowserContext) {
+  await context.addInitScript((key) => {
+    try {
+      for (const account of JSON.parse(localStorage.getItem(key) || "[]")) {
+        const done = `brainstorm_first_run:${account.pubkey}`;
+        if (!localStorage.getItem(done)) localStorage.setItem(done, String(Date.now()));
+      }
+    } catch {
+      /* nothing stored yet */
+    }
+  }, ACCOUNTS_KEY);
+}
+
 /** Everything this origin keeps, gone: what a new device starts from. */
 export async function wipeDevice(page: Page) {
   await page.evaluate(async () => {

@@ -18,7 +18,7 @@
  */
 import type { NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
-import { searchRelay } from "@/lib/searchRelay";
+import { searchOnce } from "@/lib/searchOnce";
 import { loadReplaceable } from "@/lib/loaders";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { outboxRelays } from "@/lib/relayRouting";
@@ -27,34 +27,18 @@ import type { SearchResult } from "@/lib/profileSearch";
 
 const TIMEOUT_MS = 5000;
 
-/** Every kind-0 the search relay holds for these keys. Never rejects: a blank pill beats a crash. */
-function fromSearchRelay(pubkeys: string[], timeoutMs: number): Promise<NostrEvent[]> {
-  const relay = searchRelay();
-  if (!relay || !pubkeys.length) return Promise.resolve([]);
-  return new Promise((resolve) => {
-    const found: NostrEvent[] = [];
-    let done = false;
-    // Declared before the subscribe: a relay that answers or fails synchronously calls
-    // `finish` while these are still being assigned.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let sub: { unsubscribe: () => void } | undefined;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      sub?.unsubscribe();
-      resolve(found);
-    };
-    sub = relay.req({ kinds: [0], authors: pubkeys, search: "include:spam", limit: pubkeys.length }).subscribe({
-      error: finish,
-      next: (msg: { type: string; event?: NostrEvent }) => {
-        if (msg.type === "EVENT" && msg.event?.kind === 0) found.push(msg.event);
-        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
-      },
-    });
-    timer = setTimeout(finish, timeoutMs);
-    if (done) clearTimeout(timer);
-  });
+/**
+ * Every kind-0 the search relay holds for these keys, as the store kept them
+ * (lib/searchOnce): one it refused never makes a face. Never rejects: a blank
+ * pill beats a crash.
+ */
+async function fromSearchRelay(pubkeys: string[], timeoutMs: number): Promise<NostrEvent[]> {
+  if (!pubkeys.length) return [];
+  const { events } = await searchOnce(
+    { kinds: [0], authors: pubkeys, search: "include:spam", limit: pubkeys.length },
+    { timeoutMs },
+  );
+  return events;
 }
 
 /**
@@ -86,8 +70,11 @@ export async function fetchPillProfiles(pubkeys: string[], timeoutMs = TIMEOUT_M
   if (!want.length) return out;
 
   const newest = new Map<string, NostrEvent>();
+  const wanted = new Set(want);
+  // Every source hands back the store's kept copy (the store, searchOnce, the
+  // loader), so only who it is about is checked here.
   const take = (event: NostrEvent | undefined) => {
-    if (!event || event.kind !== 0) return;
+    if (!event || event.kind !== 0 || !wanted.has(event.pubkey)) return;
     const held = newest.get(event.pubkey);
     if (!held || held.created_at < event.created_at) newest.set(event.pubkey, event);
   };
@@ -121,16 +108,10 @@ export async function fetchPillProfiles(pubkeys: string[], timeoutMs = TIMEOUT_M
   }
 
   for (const [pubkey, event] of newest) {
-    // Into the store, so the next pill drawing this person needs no round trip at all.
-    try {
-      eventStore.add(event);
-    } catch {
-      /* a malformed event is not a face */
-    }
     try {
       out.set(pubkey, kind0ToSearchResult(event));
     } catch {
-      /* nor is an unparseable one */
+      /* an unparseable one is not a face */
     }
   }
   return out;

@@ -1,6 +1,8 @@
 import { Copy, Info, Reply } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { reactionLabel } from "@/lib/dm/rooms";
+import { copyToClipboard, dialogOf } from "@/lib/clipboard";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * What holding a message opens on a phone: quick reactions on top, then
@@ -26,6 +28,7 @@ export function MessageSheet({
   onReply: () => void;
   onDetails: () => void;
 }) {
+  const { toast } = useToast();
   const pick = (fn: () => void) => () => {
     onOpenChange(false);
     fn();
@@ -54,7 +57,17 @@ export function MessageSheet({
             <Reply className="h-5 w-5 text-slate-500" /> Reply
           </button>
           {text !== null && (
-            <button type="button" onClick={pick(() => void navigator.clipboard?.writeText(text))} className={row}>
+            <button
+              type="button"
+              onClick={(e) => {
+                // Started before the sheet closes: its fallback copies from inside it (lib/clipboard).
+                void copyToClipboard(text, { container: dialogOf(e.currentTarget) }).then((ok) =>
+                  toast(ok ? { title: "Copied", duration: 1500 } : { title: "Couldn't copy", variant: "destructive" }),
+                );
+                onOpenChange(false);
+              }}
+              className={row}
+            >
               <Copy className="h-5 w-5 text-slate-500" /> Copy text
             </button>
           )}

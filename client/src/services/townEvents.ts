@@ -3,13 +3,14 @@
  * (kind 39999 under the Events lists, config/events) — as our index answers
  * for the town's name: what a town search's map pins beside its places
  * (lib/eventPins keeps the ones to come that say where they are). One event
- * once, where an item and an aggregator's copy both describe it
- * (lib/eventDedupe).
+ * once: the newest version at each address (lib/newestPerAddress), and one
+ * where an item and an aggregator's copy both describe it (lib/eventDedupe).
  */
 import type { NostrEvent } from "nostr-tools";
 import { EVENT_LISTS } from "@/config/events";
 import { EVENT_ITEM_KIND } from "@/lib/calendarEvent";
 import { dedupeEvents } from "@/lib/eventDedupe";
+import { newestPerAddress } from "@/lib/newestPerAddress";
 import { fetchFromSearchRelayByFilters } from "@/services/nostr";
 
 const TIMEOUT_MS = 6000;
@@ -23,7 +24,8 @@ export async function fetchTownEvents(town: string): Promise<NostrEvent[]> {
     ],
     TIMEOUT_MS,
   ).catch(() => []);
-  return dedupeEvents([...new Map(events.map((e) => [e.id, e])).values()]);
+  // Addressable, each of them: an edit and the version it replaced are one event (NIP-01).
+  return dedupeEvents(newestPerAddress(events));
 }
 
 /**
@@ -44,5 +46,6 @@ export async function fetchAreaEvents(cells: string[], town: string | null): Pro
       : []),
   ];
   const events = await fetchFromSearchRelayByFilters(filters, TIMEOUT_MS).catch(() => []);
-  return dedupeEvents([...new Map(events.map((e) => [e.id, e])).values()]);
+  // Addressable, each of them: an edit and the version it replaced are one event (NIP-01).
+  return dedupeEvents(newestPerAddress(events));
 }

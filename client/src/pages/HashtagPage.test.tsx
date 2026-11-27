@@ -14,6 +14,7 @@ vi.mock("@/services/api", () => ({ apiClient: { createShortUrl: (...a: unknown[]
 const copyMock = vi.fn(async (_text: string) => true);
 const copyPromisedMock = vi.fn(async (_text: Promise<string>, _fallback: string) => true);
 vi.mock("@/lib/clipboard", () => ({
+  dialogOf: () => null,
   copyToClipboard: (text: string) => copyMock(text),
   copyPromisedText: (text: Promise<string>, fallback: string) => copyPromisedMock(text, fallback),
 }));

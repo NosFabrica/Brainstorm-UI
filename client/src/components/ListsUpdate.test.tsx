@@ -93,6 +93,30 @@ describe("ListsUpdatePill", () => {
     expect(publish).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * One update at a time, wherever it's tapped: the header pill and the setup
+   * page's line each kept their own "busy", so tapping the pill, moving to
+   * /setup and tapping the line there asked for a second signature and
+   * published a second kind 10040 while the first was out.
+   */
+  it("publishes once while an update is out, even from the other surface", async () => {
+    let finish!: (r: unknown) => void;
+    publish.mockImplementation(() => new Promise((r) => (finish = r)));
+    const pill = render(<ListsUpdatePill />);
+    tap();
+    pill.unmount();
+
+    render(<ListsUpdateLine />);
+    const line = screen.getByTestId("button-lists-update");
+    expect(line).toBeDisabled();
+    expect(line).toHaveTextContent("Updating…");
+    fireEvent.click(line);
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    finish({ status: "success" });
+    await waitFor(() => expect(screen.getByTestId("button-lists-update")).not.toBeDisabled());
+  });
+
   it("shows nothing when there's nothing to update, and never asks on its own", () => {
     const { unmount } = render(<ListsUpdatePill />);
     expect(publish).not.toHaveBeenCalled();

@@ -6,6 +6,7 @@ import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObser
 import { renderWithProviders } from "@/test/utils";
 import { ShareNoteCard } from "./ShareNoteCard";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { signed } from "@/test/signedEvent";
 
 // The page is not what's under test; the card is a player either way.
 vi.mock("@/lib/fountain", async (importOriginal) => ({
@@ -21,6 +22,11 @@ const clientLink = vi.hoisted(() => ({
 }));
 vi.mock("@/services/clientLinks", () => ({ resolveClientLink: clientLink.resolve, peekClientLink: clientLink.peek }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+// A market the note names is read from the relays when the card doesn't hold it; these do.
+vi.mock("@/services/nostr", async (orig) => ({
+  ...(await orig<typeof import("@/services/nostr")>()),
+  fetchAddressableEvents: async () => new Map(),
+}));
 
 const PUBKEY = "a".repeat(64);
 const base = { pubkey: PUBKEY, tags: [] as string[][], created_at: 1_700_000_000 };
@@ -220,5 +226,55 @@ describe("ShareNoteCard — headings and polls", () => {
     // The poll card is loaded the first time a poll shows (components/share/LazyPollCard).
     expect(await screen.findByTestId("poll-compact")).toHaveTextContent("damus");
     expect(screen.getByTestId("poll-compact")).toHaveTextContent("nos.lol");
+  });
+});
+
+describe("a repost's note (NIP-18)", () => {
+  const repostOf = (content: string, tags: string[][]): MinimalEvent => ({
+    ...base,
+    id: "6".repeat(64),
+    kind: 6,
+    content,
+    tags,
+  });
+
+  it("survives JSON that only claims to be an event", () => {
+    // Any truthy id and pubkey reached the quote card, whose tag readers threw.
+    expect(() => renderWithProviders(card(repostOf('{"id":"x","pubkey":"y"}', [])))).not.toThrow();
+    expect(screen.getByTestId("note-repost-missing")).toBeInTheDocument();
+  });
+
+  it("is never unsigned JSON drawn as its claimed author's note", () => {
+    const forged = {
+      id: "8".repeat(64),
+      pubkey: "7".repeat(64),
+      kind: 1,
+      created_at: 1,
+      tags: [],
+      content: "words they never wrote",
+      sig: "0".repeat(128),
+    };
+    renderWithProviders(card(repostOf(JSON.stringify(forged), [["e", forged.id]])));
+    expect(screen.queryByText("words they never wrote")).toBeNull();
+  });
+
+  it("is the store's copy of the `e` it names, before the JSON", () => {
+    const original = signed({ kind: 1, content: "the held original" });
+    const tampered = { ...original, content: "rewritten" };
+    renderWithProviders(
+      <ShareNoteCard
+        event={repostOf(JSON.stringify(tampered), [["e", original.id]])}
+        profiles={new Map()}
+        eventsById={new Map([[original.id, original]])}
+      />,
+    );
+    expect(screen.getByText("the held original")).toBeInTheDocument();
+    expect(screen.queryByText("rewritten")).toBeNull();
+  });
+
+  it("is a signed note it carries, when the store has none", () => {
+    const original = signed({ kind: 1, content: "carried and signed" });
+    renderWithProviders(card(repostOf(JSON.stringify(original), [["e", original.id]])));
+    expect(screen.getByText("carried and signed")).toBeInTheDocument();
   });
 });

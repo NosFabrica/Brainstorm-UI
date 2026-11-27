@@ -35,6 +35,8 @@ import { signalLabel } from "@/lib/nip85Declaration";
 import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { sameOriginPath } from "@/lib/safeHref";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * /setup, in two moods (2026-11-09):
@@ -259,8 +261,8 @@ function AccountIdentity({
                 size="sm"
                 aria-label="Save bio"
                 disabled={!bio.trim() || saving === "about"}
-                onClick={async () => {
-                  if (await save("about", bio)) setWritingBio(false);
+                onClick={() => {
+                  void save("about", bio).then((saved) => saved && setWritingBio(false));
                 }}
               >
                 {saving === "about" ? "Saving…" : "Save"}
@@ -442,8 +444,11 @@ export default function FinishSetupPage() {
   // A value gate can thread its destination through login → here; honour it once everything's done.
   const nextPath = (() => {
     try {
-      const n = new URLSearchParams(window.location.search).get("next");
-      if (n && n.startsWith("/") && !n.startsWith("//") && n !== "/login" && n !== "/setup") return n;
+      const n = sameOriginPath(new URLSearchParams(window.location.search).get("next"), window.location.origin, [
+        "/login",
+        "/setup",
+      ]);
+      if (n) return n;
     } catch {
       /* ignore */
     }
@@ -510,7 +515,7 @@ export default function FinishSetupPage() {
             <AccountIdentity
               pubkey={user.pubkey}
               loaded={!ownProfile.loading}
-              name={own?.display_name || own?.name || user.displayName || "You"}
+              name={nameIn(own) || user.displayName || "You"}
               picture={own?.picture || user.picture}
               banner={own?.banner}
               about={own?.about}
@@ -560,7 +565,7 @@ export default function FinishSetupPage() {
                 </Avatar>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-semibold text-slate-900 dark:text-slate-100">
-                    {assistant?.display_name || assistant?.name || "Your Brainstorm Assistant"}
+                    {nameIn(assistant) ?? "Your Brainstorm Assistant"}
                   </span>
                   <span className="block truncate text-[13px] text-slate-500 dark:text-slate-400">
                     {assistant?.nip05 ? `${assistant.nip05} · ` : ""}Publishes your trust scores to other apps.

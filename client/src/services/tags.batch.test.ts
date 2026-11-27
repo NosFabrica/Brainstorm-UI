@@ -94,7 +94,12 @@ vi.mock("./trustSource", () => ({
   resolveHouseObserver: async () => "a".repeat(64),
   resolveTrustSource: async () => null,
 }));
-vi.mock("@/lib/eventStore", () => ({ eventStore: { getByFilters: () => [], getReplaceable: () => undefined } }));
+vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
+  eventStore: { getByFilters: () => [], getReplaceable: () => undefined },
+}));
 
 beforeEach(() => {
   relay.asked = [];

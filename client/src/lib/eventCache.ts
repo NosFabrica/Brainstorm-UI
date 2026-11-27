@@ -43,6 +43,7 @@ import { requestNewest } from "./relayRequest";
 import { PROFILE_RELAYS } from "./relays";
 import { verifySignature } from "./verifier";
 import { whenIdle } from "./idle";
+import { capMap } from "./boundedMap";
 
 const DB_NAME = "brainstorm-events";
 const STORE = "events";
@@ -344,6 +345,8 @@ export async function cachedEventsForFilters(
 
 /** When each coordinate was last sent to the relays for a refresh. */
 const refreshedAt = new Map<string, number>();
+/** Claims remembered at most: forgetting one costs, at worst, a refresh asked twice. */
+const MAX_REFRESH_CLAIMS = 5000;
 
 /** NIP-85 trust-provider declaration: the one cached kind refreshed on its author's relays. */
 const TRUST_PROVIDER_KIND = 10040;
@@ -359,7 +362,10 @@ const REFRESH_RELAYS_PER_AUTHOR = 4;
 export function claimRefresh(addr: string, kind: number): boolean {
   const now = Date.now();
   if ((refreshedAt.get(addr) ?? 0) >= now - freshLimit(kind)) return false;
+  // Re-inserted, so the oldest claims are the first forgotten past the cap.
+  refreshedAt.delete(addr);
   refreshedAt.set(addr, now);
+  capMap(refreshedAt, MAX_REFRESH_CLAIMS);
   return true;
 }
 
@@ -585,13 +591,15 @@ async function revalidate(events: NostrEvent[]): Promise<void> {
         // list's wipe guard reads its own evidence fresh (services/socialActions),
         // so sharing this ask can only spare it a REQ, never feed it a stale copy.
         const key = replaceableAskKey(event.kind, event.pubkey);
-        return askOnce(key, REPLACEABLE_ASK_WINDOW, async () =>
-          requestNewest(
-            await outboxRelays(event.pubkey, PROFILE_RELAYS),
-            { kinds: [event.kind], authors: [event.pubkey], limit: 5 },
-            10_000,
-          ),
-        )?.catch(() => undefined);
+        return (
+          askOnce(key, REPLACEABLE_ASK_WINDOW, async () =>
+            requestNewest(
+              await outboxRelays(event.pubkey, PROFILE_RELAYS),
+              { kinds: [event.kind], authors: [event.pubkey], limit: 5 },
+              10_000,
+            ),
+          )?.catch(() => undefined) ?? Promise.resolve()
+        );
       }
       const identifier = event.tags.find((tag) => tag[0] === "d")?.[1];
       return loadReplaceable(event.kind, event.pubkey, {
@@ -657,6 +665,20 @@ export async function clearEventCache(): Promise<void> {
   if (!s) return;
   try {
     await s.clear();
+  } catch {
+    /* nothing to do */
+  }
+}
+
+/**
+ * An account removed from this device: its own rows go (its mute list is kept
+ * for the signed-in account only, and is private). Everyone else's stay.
+ */
+export async function forgetEventCacheFor(pubkey: string): Promise<void> {
+  const s = device();
+  if (!s) return;
+  try {
+    await s.remove(CACHED_KINDS.map((kind) => `${kind}:${pubkey}:`));
   } catch {
     /* nothing to do */
   }

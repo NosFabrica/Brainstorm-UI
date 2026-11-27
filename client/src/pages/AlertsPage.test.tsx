@@ -19,6 +19,12 @@ vi.mock("@/services/nostr", () => ({
   fetchAlertPrefs: async () => null,
 }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
+// The rows' follow and mute buttons read the reader's lists from the relays.
+vi.mock("@/services/socialActions", async (orig) => ({
+  ...(await orig<typeof import("@/services/socialActions")>()),
+  fetchContactList: async () => null,
+  fetchMuteList: async () => null,
+}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: ME }) }));
 vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map() }));
 // The reader's history with each account is the details test's concern.

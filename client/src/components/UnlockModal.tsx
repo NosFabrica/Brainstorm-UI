@@ -177,7 +177,7 @@ export function UnlockModal() {
               variant="neutral"
               size="lg"
               className="w-full"
-              onClick={unlockWithPasskey}
+              onClick={() => void unlockWithPasskey()}
               disabled={unlocking}
               autoFocus
               data-testid="button-unlock-passkey"
@@ -252,7 +252,7 @@ export function UnlockModal() {
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={submit} className="space-y-3">
+            <form onSubmit={(e) => void submit(e)} className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="unlock-password">Recovery password</Label>
                 <Input

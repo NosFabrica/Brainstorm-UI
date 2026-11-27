@@ -3,6 +3,8 @@
  * open, 1631 applied (merged for a patch, resolved for an issue), 1632
  * closed, 1633 draft. The newest per item wins; none at all means open.
  */
+import { resultName } from "@/lib/displayName";
+
 export const GIT_STATUS_KINDS = [1630, 1631, 1632, 1633] as const;
 
 /** The things a status can describe: a patch (1617), a pull request (1618), an issue (1621). */
@@ -20,6 +22,7 @@ export function gitStateOf(statusKind: number | undefined, itemKind: number): Gi
       return "closed";
     case 1633:
       return "draft";
+    case undefined:
     default:
       return "open";
   }
@@ -77,7 +80,7 @@ export function gitAgentOf(event: { tags: string[][] }, author?: AgentAuthor): s
   const t = event.tags.find((t) => t[0] === "buzz-origin-agent");
   if (t) return t[1]?.trim() || "agent";
   if (!author) return null;
-  const label = author.displayName || author.name || "";
+  const label = resultName(author) ?? "";
   if (author.bot === true || AGENT_WORD.test(author.name ?? "") || AGENT_WORD.test(author.displayName ?? ""))
     return label || "agent";
   return null;

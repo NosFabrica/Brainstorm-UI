@@ -43,6 +43,7 @@ export function markerLabel(p: RelayProgress): string {
       return "not responding";
     case "auth":
       return "asks you to sign in";
+    case "idle":
     default:
       return `complete to ${shortDate(p.completeTo)}`;
   }

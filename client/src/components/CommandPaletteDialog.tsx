@@ -57,8 +57,12 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
 
   const copyNpub = async () => {
     if (!user) return;
-    await copyToClipboard(user.npub);
-    toast({ title: "Copied!", description: "npub copied to clipboard" });
+    const ok = await copyToClipboard(user.npub);
+    toast(
+      ok
+        ? { title: "Copied!", description: "npub copied to clipboard" }
+        : { title: "Couldn't copy", variant: "destructive" },
+    );
   };
 
   const inviteUrl = useShortLink({ ...profileShortLink(user?.npub ?? ""), enabled: inviteOpen });
@@ -133,7 +137,7 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
                 <CommandItem keywords={["share", "colleagues"]} onSelect={() => run(() => setInviteOpen(true))}>
                   <UserPlus /> Invite friends
                 </CommandItem>
-                <CommandItem keywords={["public key", "address", "id"]} onSelect={() => run(copyNpub)}>
+                <CommandItem keywords={["public key", "address", "id"]} onSelect={() => run(() => void copyNpub())}>
                   <Copy /> Copy npub
                 </CommandItem>
                 {isAdmin && (

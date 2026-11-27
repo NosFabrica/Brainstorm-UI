@@ -11,7 +11,8 @@ import { resolveOrMintTag } from "@/services/tags";
 
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
-const applyMock = vi.fn(async (_vars: unknown) => ({}) as { failedAt?: unknown; confirmed?: boolean });
+type ApplyResult = { failedAt?: unknown; confirmed?: boolean };
+const applyMock = vi.fn(async (_vars: unknown): Promise<ApplyResult> => ({}));
 let tags: unknown[] = [];
 let picker: unknown[] = [];
 vi.mock("@/hooks/useTags", () => ({
@@ -191,7 +192,7 @@ describe("TagPersonButton — adding a tag asks first", () => {
 
   it("after Add, the answer shows at once and the trigger never spins while the relays are slow", async () => {
     tags = [];
-    let settle: (v: unknown) => void = () => {};
+    let settle: (v: ApplyResult) => void = () => {};
     applyMock.mockImplementationOnce(
       () =>
         new Promise((r) => {

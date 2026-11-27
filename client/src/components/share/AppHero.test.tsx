@@ -38,6 +38,9 @@ vi.mock("@/services/nostr", async () => ({
 // so known-profile lookups are faked per test.
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
@@ -282,6 +285,27 @@ describe("AppHero endorsements", () => {
 });
 
 describe("AppHero", () => {
+  it("links a listing's url and repository only when they are web addresses", () => {
+    const hostile = (withD: boolean) =>
+      listing([
+        ...(withD ? [["d", "social.flotilla"]] : []),
+        ["name", "Flotilla"],
+        ["url", "javascript:alert(document.domain)"],
+        ["repository", "data:text/html,<script>alert(1)</script>"],
+      ]);
+    const { unmount } = render(<AppHero event={hostile(true)} />);
+    expect(screen.queryByTestId("app-hero-website")).toBeNull();
+    expect(screen.queryByTestId("app-hero-source")).toBeNull();
+    expect(screen.getByTestId("app-hero-get").getAttribute("href")).toMatch(/^https:\/\/zapstore\.dev\//);
+    unmount();
+
+    // No `d`, so no Zap Store page: "Get it" would have been the url itself.
+    render(<AppHero event={hostile(false)} />);
+    expect(screen.queryByTestId("app-hero-get")).toBeNull();
+    for (const a of document.querySelectorAll("a[href]"))
+      expect(a.getAttribute("href")).not.toMatch(/^\s*(javascript|data):/i);
+  });
+
   it("presents the listing app-store style: icon, name, actions, chips, shots, description", () => {
     render(<AppHero event={FLOTILLA} />);
 

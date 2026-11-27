@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AboutCard, ContactCard } from "@/components/settings/AboutCards";
 import { useLocation } from "wouter";
 import { HelpCircle, ChevronDown, ArrowRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence, Motion } from "@/lib/motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
@@ -176,105 +176,107 @@ export default function FaqPage() {
             </div>
 
             <div className="relative space-y-2 p-4 sm:p-5">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-2"
-                >
-                  {faqs.map((faq, i) => (
-                    <motion.div
-                      key={`${activeTab}-${i}`}
-                      className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
-                        expandedFaq === i
-                          ? "from-brand-accent/8 border border-brand-accent/30 bg-gradient-to-br via-brand-primary/10 to-brand-accent/5 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.1)]"
-                          : "border border-slate-200/80 bg-white/60 hover:border-brand-accent/25 hover:bg-white/80 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:bg-slate-900/80"
-                      }`}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.05 + i * 0.04 }}
-                    >
-                      {expandedFaq === i && (
-                        <motion.div
-                          className="absolute left-1/4 right-1/4 top-0 h-px bg-gradient-to-r from-transparent via-brand-accent to-transparent"
-                          initial={{ opacity: 0, scaleX: 0 }}
-                          animate={{ opacity: 1, scaleX: 1 }}
-                        />
-                      )}
-
-                      <button
-                        onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
-                        className="group flex w-full items-center justify-between px-4 py-3.5 text-left sm:px-5"
-                        data-testid={`faq-item-${i}`}
+              <Motion>
+                <AnimatePresence mode="wait">
+                  <m.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-2"
+                  >
+                    {faqs.map((faq, i) => (
+                      <m.div
+                        key={`${activeTab}-${i}`}
+                        className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
+                          expandedFaq === i
+                            ? "from-brand-accent/8 border border-brand-accent/30 bg-gradient-to-br via-brand-primary/10 to-brand-accent/5 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.1)]"
+                            : "border border-slate-200/80 bg-white/60 hover:border-brand-accent/25 hover:bg-white/80 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:bg-slate-900/80"
+                        }`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 + i * 0.04 }}
                       >
-                        <div className="flex items-center gap-3 pr-4">
-                          <div
-                            className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-all ${
-                              expandedFaq === i
-                                ? "border border-brand-accent/30 bg-brand-accent/15 shadow-sm"
-                                : "border-brand-accent/12 border bg-white shadow-sm group-hover:border-brand-accent/25 group-hover:bg-brand-accent/10 dark:bg-slate-900"
-                            }`}
-                          >
-                            {expandedFaq === i ? (
-                              <BrainLogo size={14} className="text-brand-deep" />
-                            ) : (
-                              <span className="font-mono text-[10px] font-bold text-brand-accent/70 group-hover:text-brand-deep">
-                                {String(i + 1).padStart(2, "0")}
-                              </span>
-                            )}
-                          </div>
-                          <span
-                            className={`text-sm font-semibold transition-colors ${
-                              expandedFaq === i
-                                ? "text-brand-deep"
-                                : "text-slate-700 group-hover:text-slate-900 dark:text-slate-200 dark:group-hover:text-slate-100"
-                            }`}
-                          >
-                            {faq.question}
-                          </span>
-                        </div>
-                        <motion.div
-                          animate={{ rotate: expandedFaq === i ? 180 : 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="flex-shrink-0"
-                        >
-                          <ChevronDown
-                            className={`h-4 w-4 transition-colors ${
-                              expandedFaq === i
-                                ? "text-brand-accent"
-                                : "text-slate-400 group-hover:text-brand-accent dark:text-slate-500"
-                            }`}
-                          />
-                        </motion.div>
-                      </button>
-
-                      <AnimatePresence>
                         {expandedFaq === i && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                            className="overflow-hidden"
-                          >
-                            <div className="px-4 pb-4 pl-[52px] sm:px-5 sm:pl-[56px]">
-                              <p
-                                className="max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300"
-                                data-testid={`faq-answer-${i}`}
-                              >
-                                {faq.answer}
-                              </p>
-                            </div>
-                          </motion.div>
+                          <m.div
+                            className="absolute left-1/4 right-1/4 top-0 h-px bg-gradient-to-r from-transparent via-brand-accent to-transparent"
+                            initial={{ opacity: 0, scaleX: 0 }}
+                            animate={{ opacity: 1, scaleX: 1 }}
+                          />
                         )}
-                      </AnimatePresence>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </AnimatePresence>
+
+                        <button
+                          onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
+                          className="group flex w-full items-center justify-between px-4 py-3.5 text-left sm:px-5"
+                          data-testid={`faq-item-${i}`}
+                        >
+                          <div className="flex items-center gap-3 pr-4">
+                            <div
+                              className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-all ${
+                                expandedFaq === i
+                                  ? "border border-brand-accent/30 bg-brand-accent/15 shadow-sm"
+                                  : "border-brand-accent/12 border bg-white shadow-sm group-hover:border-brand-accent/25 group-hover:bg-brand-accent/10 dark:bg-slate-900"
+                              }`}
+                            >
+                              {expandedFaq === i ? (
+                                <BrainLogo size={14} className="text-brand-deep" />
+                              ) : (
+                                <span className="font-mono text-[10px] font-bold text-brand-accent/70 group-hover:text-brand-deep">
+                                  {String(i + 1).padStart(2, "0")}
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              className={`text-sm font-semibold transition-colors ${
+                                expandedFaq === i
+                                  ? "text-brand-deep"
+                                  : "text-slate-700 group-hover:text-slate-900 dark:text-slate-200 dark:group-hover:text-slate-100"
+                              }`}
+                            >
+                              {faq.question}
+                            </span>
+                          </div>
+                          <m.div
+                            animate={{ rotate: expandedFaq === i ? 180 : 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="flex-shrink-0"
+                          >
+                            <ChevronDown
+                              className={`h-4 w-4 transition-colors ${
+                                expandedFaq === i
+                                  ? "text-brand-accent"
+                                  : "text-slate-400 group-hover:text-brand-accent dark:text-slate-500"
+                              }`}
+                            />
+                          </m.div>
+                        </button>
+
+                        <AnimatePresence>
+                          {expandedFaq === i && (
+                            <m.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3, ease: "easeInOut" }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-4 pb-4 pl-[52px] sm:px-5 sm:pl-[56px]">
+                                <p
+                                  className="max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                                  data-testid={`faq-answer-${i}`}
+                                >
+                                  {faq.answer}
+                                </p>
+                              </div>
+                            </m.div>
+                          )}
+                        </AnimatePresence>
+                      </m.div>
+                    ))}
+                  </m.div>
+                </AnimatePresence>
+              </Motion>
             </div>
           </Card>
 

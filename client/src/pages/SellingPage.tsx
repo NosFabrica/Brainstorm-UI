@@ -13,6 +13,7 @@ import { Chip } from "@/components/ui/chip";
 import { useGoBack } from "@/hooks/useGoBack";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * Everything a person has for sale. The share page keeps a short shelf and
@@ -26,7 +27,7 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
   const listingsQuery = useRecentByKinds(pubkey, [LISTING_KIND], 100, relayHints);
 
   const products = useMemo(() => productsFromEvents(listingsQuery.events ?? []), [listingsQuery.events]);
-  const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
+  const name = nameIn(profile) || `${npub.slice(0, 12)}…`;
   const first = name.split(" ")[0];
 
   return (

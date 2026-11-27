@@ -83,6 +83,39 @@ describe("parseHighlight — a NIP-84 highlight read for showing", () => {
     expect(h?.authors).toEqual([PK, "d".repeat(64)]);
   });
 
+  // NIP-84 "Attribution": a role MAY be the tag's last value; `mention` is the comment's.
+  it("reads every attribution with its role — author, editor — and never a mention", () => {
+    const ED = "e".repeat(64);
+    const h = parseHighlight(
+      hl("x", [
+        ["p", PK, "wss://relay.example", "author"],
+        ["p", ED, "wss://relay.example", "editor"],
+        ["p", "c".repeat(64), "", "mention"],
+        ["p", "d".repeat(64), "wss://relay.example"],
+      ]),
+    );
+    expect(h?.attributions).toEqual([
+      { pubkey: PK, role: "author" },
+      { pubkey: ED, role: "editor" },
+      { pubkey: "d".repeat(64), role: null },
+    ]);
+    expect(h?.authors).toEqual([PK, "d".repeat(64)]);
+  });
+
+  // NIP-84: `r` "may contain a URL or text"; `i` is a NIP-73 id.
+  it("reads a source given as text in `r`, or as a NIP-73 id in `i`", () => {
+    expect(parseHighlight(hl("x", [["r", "Meditations, Book II"]]))?.source).toMatchObject({
+      title: "Meditations, Book II",
+      url: null,
+      ref: null,
+    });
+    const book = parseHighlight(hl("x", [["i", "isbn:9780140449334"]]))?.source;
+    expect(book?.identifier).toMatchObject({ label: "Book", text: "9780140449334" });
+    expect(book?.title).toBe("Book 9780140449334");
+    // A text `r` marked `mention` is the comment's, not the source.
+    expect(parseHighlight(hl("x", [["r", "a note", "mention"]]))?.source.title).toBeNull();
+  });
+
   it("is nothing for another kind or an empty passage", () => {
     expect(parseHighlight({ kind: 1, tags: [], content: "x" })).toBeNull();
     expect(parseHighlight(hl("  "))).toBeNull();
@@ -93,5 +126,21 @@ describe("tailOf", () => {
   it("keeps the end of the text, cut at a word and said to be cut", () => {
     expect(tailOf("short", 10)).toBe("short");
     expect(tailOf("one two three four five", 10)).toBe("…four five");
+  });
+});
+
+describe("parseHighlight is read once per event", () => {
+  it("hands the same reading back for the same event", () => {
+    const h = {
+      id: "1".repeat(64),
+      pubkey: "2".repeat(64),
+      kind: 9802,
+      created_at: 1,
+      content: "a passage",
+      tags: [] as string[][],
+    };
+    const first = parseHighlight(h);
+    expect(first).not.toBeNull();
+    expect(parseHighlight(h)).toBe(first);
   });
 });

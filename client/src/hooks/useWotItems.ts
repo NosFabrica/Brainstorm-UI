@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { fetchAuthorRanks, inWebOfTrust, type AuthorRanks, type RankObserver } from "@/services/wotRanks";
+import { useAuthorRanks } from "@/hooks/useLensRanks";
+import { inWebOfTrust, type RankObserver } from "@/services/wotRanks";
 
 /**
  * Whose Perspective ranks authors: the reader's own under My perspective,
@@ -18,28 +18,24 @@ export function useRankObserver(): RankObserver {
 
 /**
  * Splits items by whether their author is in the reader's web of trust
- * (services/wotRanks). While ranks load, nothing is in it yet — `pending`
- * says so, so a list shows "checking" rather than an empty verdict.
+ * (services/wotRanks). The ranks come from the store (hooks/useLensRanks
+ * `useAuthorRanks`): the observer's 10040 first, then its scorer's ranks.
+ * While they load, nothing is in it yet — `pending` says so, so a list shows
+ * "checking" rather than an empty verdict.
  */
 export function useWotItems<T extends { pubkey: string }>(items: T[]) {
   const observer = useRankObserver();
   const authors = useMemo(() => [...new Set(items.map((i) => i.pubkey))].sort(), [items]);
-  const ranks = useQuery({
-    queryKey: ["author-ranks", observer, authors.join(",")],
-    queryFn: (): Promise<AuthorRanks> => fetchAuthorRanks(authors, observer),
-    enabled: authors.length > 0,
-    staleTime: 10 * 60_000,
-  });
+  const ranks = useAuthorRanks(authors, observer);
   return useMemo(() => {
-    const map = ranks.data?.ranks ?? new Map<string, number>();
-    const trusted = items.filter((i) => inWebOfTrust(map, i.pubkey));
+    const trusted = items.filter((i) => inWebOfTrust(ranks.ranks, i.pubkey));
     return {
       trusted,
-      outside: items.filter((i) => !inWebOfTrust(map, i.pubkey)),
-      pending: authors.length > 0 && ranks.isPending,
+      outside: items.filter((i) => !inWebOfTrust(ranks.ranks, i.pubkey)),
+      pending: ranks.pending,
       /** Whose scorer answered; "house" under My perspective means the reader has none yet. */
-      source: ranks.data?.source ?? null,
+      source: ranks.source,
       observer,
     };
-  }, [items, ranks.data, ranks.isPending, authors.length, observer]);
+  }, [items, ranks.ranks, ranks.pending, ranks.source, observer]);
 }

@@ -8,7 +8,7 @@ import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRa
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, memo, useContext, useMemo, useRef, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -50,13 +50,14 @@ import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
-import { kindTypeLabel } from "@/lib/kindLabel";
+import { kindLabel, kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
-import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
+import { zapStoreUrl, type RepoCounts } from "@/services/search";
+import { useRepoCounts } from "@/hooks/useRepoAsks";
 import { eventPath } from "@/lib/shareId";
-import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
+import { TRUSTED_LIST_KINDS, TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
 import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -69,9 +70,19 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { EVENT_ITEM_KIND, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
-import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
+import {
+  liveCategoryOf,
+  liveHostOf,
+  liveStateLabel,
+  liveStateOf,
+  liveTitleOf,
+  onAirLabel,
+  parseLiveStream,
+  type LiveState,
+} from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
+import { platformWords } from "@/lib/appPlatforms";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -326,6 +337,10 @@ function naddrOf(event: NostrEvent): string | null {
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
 import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf, mediaItemsOf } from "@/lib/mediaKind";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { nameIn, displayNameOf, resultName } from "@/lib/displayName";
+
+/** A repo card before its counts have answered. */
+const NO_REPO_COUNTS: RepoCounts = { issues: 0, patches: 0, contributors: [], lastAt: null };
 
 export const MediaCard = memo(function MediaCard({
   event,
@@ -447,7 +462,8 @@ export const MediaCard = memo(function MediaCard({
         <div className="mt-2" data-noopen>
           <EmbeddedTrackCard
             id={`search:${event.id}`}
-            title={caption || "Audio"}
+            // A voice message is said as one (NIP-A0), as its row and page say it.
+            title={caption || kindLabel(event)}
             artist={author ? getDisplayLabel(author) : undefined}
             cover={poster ?? undefined}
             audio={url}
@@ -500,21 +516,8 @@ export const MediaCard = memo(function MediaCard({
   );
 });
 
-/** "android-arm64-v8a" and friends → one human word each, deduped. */
-export function platformWords(event: NostrEvent): string[] {
-  const words = new Set<string>();
-  for (const tag of event.tags) {
-    if (tag[0] !== "f" || !tag[1]) continue;
-    const f = tag[1].toLowerCase();
-    if (f.startsWith("android")) words.add("Android");
-    else if (f.startsWith("ios")) words.add("iOS");
-    else if (f.includes("darwin") || f.includes("mac")) words.add("macOS");
-    else if (f.includes("windows")) words.add("Windows");
-    else if (f.includes("linux")) words.add("Linux");
-    else if (f.includes("web")) words.add("Web");
-  }
-  return [...words];
-}
+// One reading of an app's platforms for its card, its page and its row (lib/appPlatforms).
+export { platformWords };
 
 /**
  * A Zap Store listing (kind 32267) as a real app-store card: the app's own
@@ -726,28 +729,9 @@ export const RepoCard = memo(function RepoCard({
   // questions each on mount, most of them for cards nobody scrolled to.
   const nearRef = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(nearRef, REPO_COUNTS_NEAR);
-  const [counts, setCounts] = useState<{
-    issues: number;
-    patches: number;
-    contributors: string[];
-    lastAt: number | null;
-  }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
-  useEffect(() => {
-    if (!askCounts || !isRepo || !d || !near) return;
-    let alive = true;
-    void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
-      if (alive)
-        setCounts({
-          issues: c.issues,
-          patches: c.patches,
-          contributors: c.contributors ?? [],
-          lastAt: c.lastAt ?? null,
-        });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [askCounts, isRepo, d, event.pubkey, near]);
+  // Shared with the repo's page: one ask per repo per window (hooks/useRepoAsks).
+  const answered = useRepoCounts(isRepo && d ? `30617:${event.pubkey}:${d}` : null, askCounts && near);
+  const counts = answered ?? NO_REPO_COUNTS;
   // Who stands behind it: up to three contributors, ringed by trust, and
   // their names when a profile is at hand.
   const faces = counts.contributors.slice(0, 3);
@@ -864,7 +848,7 @@ export const RepoCard = memo(function RepoCard({
                       return (
                         <Avatar
                           key={pk}
-                          title={profile?.display_name || profile?.name || undefined}
+                          title={nameIn(profile)}
                           className={`h-5 w-5 border border-white dark:border-slate-900 ${faceRing(faceScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
                           data-testid={`repo-contributor-face-${pk}`}
                         >
@@ -910,10 +894,10 @@ export const RepoCard = memo(function RepoCard({
   );
 });
 
-const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
+const LIVE_TONES: Record<LiveState, "success" | "neutral" | "info"> = {
   live: "success",
-  ended: "neutral",
-  planned: "info",
+  replay: "neutral",
+  upcoming: "info",
 };
 
 export const LiveCard = memo(function LiveCard({
@@ -925,14 +909,32 @@ export const LiveCard = memo(function LiveCard({
   author: SearchResult | null;
   score?: number | null;
 }) {
-  const title = tagVal(event, "title") ?? tagVal(event, "name") ?? "Live event";
-  const status = (tagVal(event, "status") ?? "").toLowerCase();
+  // A space by its `room`, a meeting by its `title` (NIP-53); a stream as the Live tab reads it.
+  const title = liveTitleOf(event) ?? "Live event";
+  // The Live tab's reading of it, not the raw tag: a "live" nobody updated in a week is over.
+  const state = liveStateOf(event);
+  // A space (30312/30313) keeps its own word.
+  const rawStatus = (tagVal(event, "status") ?? "").toLowerCase();
   const summary = tagVal(event, "summary") ?? "";
   const image = tagVal(event, "image");
   const naddr = naddrOf(event);
-  const openIn = event.kind === 30311 && naddr ? `https://zap.stream/${naddr}` : undefined;
+  // A space's way in is its `service` URL ("URL to access the room"), while it is open.
+  const service = event.kind === 30312 && rawStatus !== "closed" ? tagVal(event, "service") : undefined;
+  const openIn =
+    event.kind === 30311 && naddr
+      ? `https://zap.stream/${naddr}`
+      : service && /^https?:\/\//i.test(service)
+        ? service
+        : undefined;
+  // A meeting (30313) says when.
+  const starts = event.kind === 30313 ? Number(tagVal(event, "starts")) || 0 : 0;
   return (
-    <CardShell event={event} openInUrl={openIn} openInLabel="Watch" testId={`live-card-${event.id}`}>
+    <CardShell
+      event={event}
+      openInUrl={openIn}
+      openInLabel={event.kind === 30311 ? "Watch" : "Join"}
+      testId={`live-card-${event.id}`}
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
           {image ? (
@@ -949,17 +951,40 @@ export const LiveCard = memo(function LiveCard({
               <EmojiText text={title} tags={event} />
             </p>
             <KindPill event={event} mixed={false} />
-            {status && (
+            {event.kind === 30311 ? (
               <Chip
                 size="sm"
-                tone={LIVE_TONES[status] ?? "neutral"}
-                dot={status === "live"}
+                tone={state ? LIVE_TONES[state] : "neutral"}
+                dot={state === "live"}
                 data-testid={`live-status-${event.id}`}
               >
-                {status}
+                {liveStateLabel(state)}
               </Chip>
+            ) : (
+              rawStatus && (
+                <Chip
+                  size="sm"
+                  // A space (30312) is open, private (in operation, behind its door) or closed.
+                  tone={
+                    rawStatus === "live" || rawStatus === "open"
+                      ? "success"
+                      : rawStatus === "planned" || rawStatus === "private"
+                        ? "info"
+                        : "neutral"
+                  }
+                  dot={rawStatus === "live" || rawStatus === "open"}
+                  data-testid={`live-status-${event.id}`}
+                >
+                  {rawStatus}
+                </Chip>
+              )
             )}
           </div>
+          {starts > 0 && (
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid={`live-when-${event.id}`}>
+              {formatEventTime(starts, false)}
+            </p>
+          )}
           {summary && (
             <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
               <EmojiText text={summary} tags={event} />
@@ -998,7 +1023,7 @@ export const LiveTile = memo(function LiveTile({
   hostScore?: number | null;
 }) {
   const stream = parseLiveStream(event);
-  const title = tagVal(event, "title") ?? tagVal(event, "name") ?? stream?.title ?? "Live";
+  const title = liveTitleOf(event) ?? stream?.title ?? "Live";
   const image = tagVal(event, "image") ?? undefined;
   // Barnoldswick's "image" was the venue's web page: when a poster fails to
   // load it gives way, and the channel's own art stands in.
@@ -1009,11 +1034,7 @@ export const LiveTile = memo(function LiveTile({
   const hostIsAuthor = !hostPk || hostPk === event.pubkey;
   const faces = useFaceProfiles(hostIsAuthor ? [] : [hostPk as string]);
   const hostProfile = hostIsAuthor ? undefined : faces.get(hostPk as string);
-  const channelName = hostProfile
-    ? hostProfile.display_name || hostProfile.name || ""
-    : author
-      ? getDisplayLabel(author)
-      : "";
+  const channelName = hostProfile ? (nameIn(hostProfile) ?? "") : author ? getDisplayLabel(author) : "";
   const speed = useConnectionSpeed();
   const channelPicture = hostProfile ? hostProfile.picture : author?.picture;
   // One thumbnail URL for both draws below, so the blurred backdrop and the
@@ -1202,7 +1223,7 @@ export const EventCard = memo(function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    rsvp && !item && !past && cal.startSec > 0 ? (
+    rsvp && !item && !past && !cal.cancelled && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1237,6 +1258,12 @@ export const EventCard = memo(function EventCard({
                   </span>
                 )}
               </p>
+            )}
+            {/* Called off, in the host's words (lib/calendarEvent): the title alone would hide it. */}
+            {cal.cancelled && (
+              <Chip size="sm" tone="danger" data-testid={`event-cancelled-${event.id}`}>
+                Cancelled
+              </Chip>
             )}
             <KindPill event={event} mixed={false} />
           </div>
@@ -1389,7 +1416,8 @@ export const ListCard = memo(function ListCard({
   // A Trusted List (kind 30392) is a people list that says more: each member's
   // score on the tag, best first, the tag it was built from and whose web of
   // trust ranked it — all in its tags.
-  const trusted = useMemo(() => (event.kind === TRUSTED_PEOPLE_KIND ? readTrustedList(event) : null), [event]);
+  // The family's lists of things (30393–30395) say the same provenance; their members are things.
+  const trusted = useMemo(() => (TRUSTED_LIST_KINDS.has(event.kind) ? readTrustedList(event) : null), [event]);
   const ownMembers = useMemo(
     () =>
       trusted ? trusted.members.map((m) => m.pubkey) : event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]),
@@ -1399,7 +1427,11 @@ export const ListCard = memo(function ListCard({
   const folded = !!group && group.lists > 1;
   // A folded row shows the faces most lists agree on, and counts everyone once.
   const members = folded ? group.consensus : ownMembers;
-  const otherItems = event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
+  // A Trusted List counts its member tag alone: a 30393's discovery `a` and `p` are not items.
+  const otherItems =
+    trusted && trusted.kind !== TRUSTED_PEOPLE_KIND
+      ? trusted.entries.length
+      : event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
   // A people-list (Brainstorm's pinned-tag follow sets are kind 30000) counts
   // MEMBERS and shows their faces; mixed lists keep the generic item count.
   const isPeopleList = members.length > 0 && otherItems === 0;
@@ -1415,7 +1447,7 @@ export const ListCard = memo(function ListCard({
   const profiles = useFaceProfiles(isPeopleList ? [...members.slice(0, 5), ...provenance] : provenance);
   const nameOf = (pk: string) => {
     const p = profiles.get(pk);
-    return p?.display_name || p?.name || `${nip19.npubEncode(pk).slice(0, 12)}…`;
+    return displayNameOf(p, pk, "npub12");
   };
   const header = (
     <div className="flex min-w-0 items-center gap-2">
@@ -1432,7 +1464,7 @@ export const ListCard = memo(function ListCard({
     <div className="flex flex-wrap items-start gap-2.5" data-testid={`list-members-${event.id}`}>
       {members.slice(0, 5).map((pk, i) => {
         const profile = profiles.get(pk);
-        const memberName = profile?.display_name || profile?.name;
+        const memberName = nameIn(profile);
         return (
           // Phones fit 3 faces + the counter on ONE row; sm+ shows 5.
           <span key={pk} className={`w-12 flex-col items-center gap-1 ${i >= 3 ? "hidden sm:flex" : "flex"}`}>
@@ -1619,7 +1651,7 @@ export const TrackCard = memo(function TrackCard({
       <EmbeddedTrackCard
         id={track.id}
         title={track.title}
-        artist={track.artist ?? author?.displayName ?? author?.name}
+        artist={track.artist ?? resultName(author)}
         // Art its creator marked sensitive (NIP-36) is not drawn, nor handed to the now-playing bar.
         cover={contentWarningOf(event) ? undefined : track.cover}
         audio={track.audio}

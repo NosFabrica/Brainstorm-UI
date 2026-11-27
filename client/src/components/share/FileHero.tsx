@@ -57,7 +57,12 @@ export function FileHero({ event }: { event: MinimalEvent }) {
       return "";
     }
   })();
-  const name = packaged?.[1] || tag("alt") || event.content.trim() || fileName || "File";
+  // NIP-94: the content is the file's caption and `summary` an excerpt; `alt` describes it for a
+  // reader who cannot see it (EventMedia says it under the picture), and names it only when nothing else does.
+  const caption = event.content.trim();
+  const summary = tag("summary").trim();
+  const name = packaged?.[1] || caption || summary || tag("alt").trim() || fileName || "File";
+  const excerpt = summary && summary !== name ? summary : "";
   const size = formatBytes(Number(tag("size")));
   // A SHA-256 is 64 hex characters; anything else in `x` is not one to quote.
   const hash = /^[0-9a-f]{64}$/i.test(tag("x").trim()) ? tag("x").trim() : "";
@@ -86,6 +91,11 @@ export function FileHero({ event }: { event: MinimalEvent }) {
           >
             <EmojiText text={name} tags={event} />
           </p>
+          {excerpt && (
+            <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300" data-testid="file-hero-summary">
+              <EmojiText text={excerpt} tags={event} />
+            </p>
+          )}
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="file-hero-facts">
             {facts.join(" · ")}
           </p>

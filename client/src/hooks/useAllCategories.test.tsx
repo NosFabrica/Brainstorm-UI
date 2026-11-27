@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
+import type { RibbonList } from "./useListRibbon";
 
 const asks: { categories: { key: string; tab?: string }[]; onCounts: (counts: Map<string, number | null>) => void }[] =
   [];
@@ -41,7 +42,7 @@ const row = (kind: number, tags: string[][] = []) => ({
 });
 const BOOKS = `39998:${"b".repeat(64)}:books`;
 const PLACES = `39998:${"b".repeat(64)}:places`;
-const list = (coordinate: string, name: string) => ({
+const list = (coordinate: string, name: string): RibbonList => ({
   coordinate,
   name,
   image: null,
@@ -49,6 +50,7 @@ const list = (coordinate: string, name: string) => ({
   more: false,
   href: "/e/x",
   headers: [coordinate],
+  whole: false,
 });
 const books = list(BOOKS, "Books");
 const keysAsked = () => asks.flatMap((a) => a.categories.map((c) => c.key));

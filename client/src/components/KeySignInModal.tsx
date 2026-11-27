@@ -355,7 +355,7 @@ export function KeySignInModal({
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!submitting && canSubmitKey) handleSecretKeyLogin();
+              if (!submitting && canSubmitKey) void handleSecretKeyLogin();
             }}
           >
             {/* Hidden username so the password manager can match/offer the saved

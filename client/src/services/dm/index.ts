@@ -8,9 +8,10 @@ import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
 import { RemoteAccount } from "@/accounts/remote-signer";
 import { BrainstormExtensionAccount, EXTENSION_WRAP_DEADLINE_MS } from "@/accounts/extension";
+import { AmberAccount, AMBER_WRAP_DEADLINE_MS } from "@/accounts/amber";
 import { isUnlockCancelled } from "@/accounts/local-signer";
-import { classifySignerError, messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
-import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
+import { messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
+import { canSignSilently, signAs, signerFailure, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
 import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
@@ -26,25 +27,13 @@ import { ENCRYPTED_BLOSSOM_SERVERS, encryptedUploadServers, loadBlossomServers }
 import { poolTransport } from "./transport";
 import { dmEngine, setDmEngine } from "./current";
 
+/** The engine's reading of a signer failure (accounts/signing signerFailure), for this account. */
 function classifyFor(account: BrainstormAccount) {
+  const heldHere = account instanceof LocalAccount;
   return (error: unknown): SignerFailure => {
-    const kind = classifySignerError(error);
-    if (kind === "cancelled") return "cancelled";
-    // Ran out of time, or the extension isn't here yet: not a "no", and not the message's fault.
-    if (kind === "timeout" || kind === "missing") return "unreachable";
-    // Asked too fast: a pace to keep, never a fault — not even for a key held here.
-    if (kind === "rate-limited") return "rate-limited";
-    // The extension is on another profile: its key can't open these, but this account's can.
-    if (kind === "wrong-account") return "wrong-account";
-    // A key held here can't say no: once unlocked, any failure is the payload's.
-    if (account instanceof LocalAccount) return "broken";
-    // A payload that won't decrypt is broken for good.
-    if (kind === "bad-payload") return "broken";
-    // Only a "no" is a no. Anything else — Alby locked since this page enabled it
-    // ("Password is not set") — failed without asking anyone: calling it a decline
-    // told the reader they had refused a prompt they never saw. Neither is ever
-    // remembered as "unreadable".
-    return kind === "declined" ? "refused" : "failed";
+    const failure = signerFailure(error, { heldHere });
+    // The extension isn't here yet: not a "no", and not the message's fault.
+    return failure === "missing" ? "unreachable" : failure;
   };
 }
 
@@ -92,11 +81,17 @@ function openerFor(account: BrainstormAccount) {
  *   asked, showing "unreachable" and losing the extension's verdict on the first.
  *   Its deadline covers the signer's own worst case, so the signer always decides
  *   first; never given up early.
+ * - Amber: one at a time too — each request is an app switch, and Amber answers one
+ *   at a time. No deadline of the engine's: Amber's own, per request, starts when the
+ *   request is made (accounts/amber), so nothing is given up while it waits its turn
+ *   and then asked for anyway.
  */
 export function engineOptionsFor(account: BrainstormAccount) {
   if (account instanceof RemoteAccount) return { concurrency: REMOTE_DECRYPT_CONCURRENCY, dropDetection: true };
   if (account instanceof BrainstormExtensionAccount)
     return { concurrency: 1, dropDetection: false, decryptTimeoutMs: EXTENSION_WRAP_DEADLINE_MS };
+  if (account instanceof AmberAccount)
+    return { concurrency: 1, dropDetection: false, decryptTimeoutMs: AMBER_WRAP_DEADLINE_MS };
   return { dropDetection: false };
 }
 
@@ -122,9 +117,19 @@ export function dmAccountFor(account: BrainstormAccount): DmAccount {
   };
 }
 
+/**
+ * The Account row the running engine was started for. By row, not by pubkey: two
+ * rows can hold one identity (an extension row and a local row), and the engine
+ * opens and seals with the row's own signer — kept past a switch, it went on
+ * decrypting with the row the reader left, or one removed from the device.
+ */
+let startedFor: string | undefined;
+
 function startFor(account: BrainstormAccount | undefined) {
   const running = dmEngine();
-  if (running?.pubkey === account?.pubkey) return;
+  if (running && startedFor === account?.id) return;
+  if (!running && !account) return;
+  startedFor = account?.id;
   running?.stop();
   let next: DmEngine | null = null;
   if (account) {
@@ -203,12 +208,21 @@ async function turnOnInbox(account: { pubkey: string }, relays: string[]): Promi
  * them private messages. Also sent to the relays themselves, so a client that
  * looks there finds it.
  */
-export async function publishInboxRelays(relays: string[]): Promise<PublishOutcome> {
+export async function publishInboxRelays(
+  relays: string[],
+  /** Seconds: past the version this edit replaces (hooks/useReplaceableListDraft). */
+  { createdAt }: { createdAt?: number } = {},
+): Promise<PublishOutcome> {
   const account = accountManager.active;
   if (!account) return { success: false, error: "Sign in first." };
   let signed: NostrEvent;
   try {
-    signed = await signAs(account, { kind: DM_RELAY_LIST_KIND, tags: dmRelayTags(relays), content: "" });
+    signed = await signAs(account, {
+      kind: DM_RELAY_LIST_KIND,
+      tags: dmRelayTags(relays),
+      content: "",
+      ...(createdAt ? { created_at: createdAt } : {}),
+    });
   } catch (error) {
     return signingFailure(error);
   }

@@ -26,14 +26,15 @@ export function TechnicalStrip({
   ids: TechnicalId[];
   className?: string;
 }) {
-  const [copied, setCopied] = useState<string | null>(null);
+  // Which id was just copied, and whether the copy landed.
+  const [copied, setCopied] = useState<{ label: string; ok: boolean } | null>(null);
   if (!technicalView()) return null;
   const nip = nipForKind(event.kind);
   const copy = async (id: TechnicalId) => {
-    if (await copyToClipboard(id.value)) {
-      setCopied(id.label);
-      setTimeout(() => setCopied((c) => (c === id.label ? null : c)), 1200);
-    }
+    const ok = await copyToClipboard(id.value);
+    const shown = { label: id.label, ok };
+    setCopied(shown);
+    setTimeout(() => setCopied((c) => (c === shown ? null : c)), ok ? 1200 : 2400);
   };
   const all = [{ label: "id", value: event.id }, ...ids];
   return (
@@ -55,7 +56,12 @@ export function TechnicalStrip({
           className="inline-flex items-center gap-1 rounded hover:text-brand-link focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
         >
           {id.label} {short(id.value)}
-          {copied === id.label && <Check className="h-3 w-3 text-emerald-500" aria-label="copied" />}
+          {copied?.label === id.label &&
+            (copied.ok ? (
+              <Check className="h-3 w-3 text-emerald-500" aria-label="copied" />
+            ) : (
+              <span className="text-red-600 dark:text-red-400">couldn't copy</span>
+            ))}
         </button>
       ))}
     </p>

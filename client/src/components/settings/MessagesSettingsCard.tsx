@@ -27,14 +27,15 @@ import {
 import { Chip } from "@/components/ui/chip";
 import { publishInboxRelays } from "@/services/dm";
 import { FileServersSection } from "@/components/settings/FileServersSection";
-import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
+import { DM_RELAY_LIST_KIND, MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS, parseDmRelays } from "@/lib/dm/inboxRelays";
 import { TIMER_CHOICES, setNotifyPrefs, updateDmPrefs, type DmNotifyPrefs, type DmReach } from "@/lib/dm/prefs";
 import { Switch } from "@/components/ui/switch";
 import { playChime } from "@/lib/chime";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { cn } from "@/lib/utils";
 import { isInstalledApp, isInstalledPhoneApp } from "@/lib/installedApp";
-import { useDmRelays } from "@/hooks/useDmRelays";
+import { useReplaceableListDraft } from "@/hooks/useReplaceableListDraft";
+import { ListDraftNotice } from "@/components/settings/ListDraftNotice";
 
 const REACH: { value: DmReach; label: string; hint: string }[] = [
   { value: "follows", label: "People I follow", hint: "Everyone else waits in Requests." },
@@ -161,11 +162,13 @@ export function MessagesSettingsCard() {
   const pubkey = useActiveAccountDisplay()?.pubkey ?? "";
   const prefs = useDmPrefs(pubkey || undefined);
   const { toast } = useToast();
-  const current = useDmRelays(pubkey || null);
-  const [draft, setDraft] = useState<string[] | null>(null);
+  // The kind 10050 as a draft (hooks/useReplaceableListDraft): nothing is added or
+  // removed before the list is read, and a publish never replaces a newer one.
+  const list = useReplaceableListDraft(DM_RELAY_LIST_KIND, pubkey || null, undefined, { read: parseDmRelays });
+  const current = { relays: list.dirty ? parseDmRelays(list.base) : list.value };
   const [adding, setAdding] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const busy = list.publishing;
 
   // Each server's status, from the inbox's own live state (lib/dm/serverStatus).
   const dmState = useDmState(useDmEngine());
@@ -187,11 +190,11 @@ export function MessagesSettingsCard() {
         ? "some"
         : "all";
   const [switchOpen, setSwitchOpen] = useState(false);
-  const relays = draft ?? current.relays;
-  const dirty = draft !== null;
-  useEffect(() => setDraft(null), [pubkey]);
+  const relays = list.value;
+  const dirty = list.dirty;
 
   const add = () => {
+    if (!list.canEdit) return;
     const raw = adding.trim();
     const url = /^wss?:\/\//i.test(raw) ? raw : `wss://${raw}`;
     const [normal] = dedupeRelays([url]);
@@ -200,17 +203,17 @@ export function MessagesSettingsCard() {
       return;
     }
     setAddError(null);
-    setDraft(dedupeRelays([...relays, normal]));
+    list.edit((cur) => dedupeRelays([...cur, normal]));
     setAdding("");
   };
 
-  const publish = async (list: string[] = relays) => {
-    setBusy(true);
-    const outcome = await publishInboxRelays(list);
-    setBusy(false);
+  const publish = async (replaceWith?: string[]) => {
+    const outcome = await list.publish(
+      (relays, { createdAt }) => publishInboxRelays(relays, { createdAt }),
+      replaceWith,
+    );
     if (outcome.cancelled) return;
     if (outcome.success) {
-      setDraft(null);
       toast({ title: "Inbox relays published" });
     } else {
       toast({ title: "Couldn't publish your inbox relays", description: outcome.error, variant: "destructive" });
@@ -245,10 +248,8 @@ export function MessagesSettingsCard() {
               log in before handing out messages. Published as your kind 10050 list.
             </p>
           </div>
-          {current.loading ? (
-            <span className="flex items-center gap-2 text-xs text-slate-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking up your list…
-            </span>
+          {list.status !== "ready" ? (
+            <ListDraftNotice draft={list} />
           ) : (
             <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
               {relays.length === 0 && (
@@ -266,7 +267,8 @@ export function MessagesSettingsCard() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setDraft(relays.filter((r) => r !== url))}
+                    onClick={() => list.edit((cur) => cur.filter((r) => r !== url))}
+                    disabled={!list.canEdit}
                     aria-label={`Remove ${host(url)}`}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
@@ -285,7 +287,8 @@ export function MessagesSettingsCard() {
               Messages still reach you through your other servers.
             </p>
           )}
-          {!dirty && serversAnswering === "none" && (
+          {list.stale && <ListDraftNotice draft={list} />}
+          {!dirty && serversAnswering === "none" && list.status === "ready" && (
             <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3">
               <p className="text-xs text-amber-800 dark:text-amber-200">
                 None of your message servers are answering, so new messages can't reach you right now.
@@ -309,7 +312,7 @@ export function MessagesSettingsCard() {
               aria-label="Relay address"
               className="font-mono text-xs"
             />
-            <Button type="submit" variant="outline" disabled={!adding.trim()}>
+            <Button type="submit" variant="outline" disabled={!adding.trim() || !list.canEdit}>
               <Plus className="mr-1 h-4 w-4" /> Add
             </Button>
           </form>
@@ -329,12 +332,7 @@ export function MessagesSettingsCard() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    setDraft(SUGGESTED_INBOX_RELAYS);
-                    void publish(SUGGESTED_INBOX_RELAYS);
-                  }}
-                >
+                <AlertDialogAction onClick={() => void publish(SUGGESTED_INBOX_RELAYS)}>
                   Switch and publish
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -347,10 +345,10 @@ export function MessagesSettingsCard() {
               Senders use the first {MAX_INBOX_RELAYS}. Fewer relays also means fewer places your metadata sits.
             </p>
           )}
-          {!relays.length && !dirty && (
+          {!relays.length && !dirty && list.canEdit && (
             <button
               type="button"
-              onClick={() => setDraft(SUGGESTED_INBOX_RELAYS)}
+              onClick={() => list.edit(SUGGESTED_INBOX_RELAYS)}
               className="self-start text-xs font-semibold text-brand-link hover:underline"
             >
               Use suggested relays
@@ -361,7 +359,7 @@ export function MessagesSettingsCard() {
             <Button
               className="ml-auto"
               onClick={() => void publish()}
-              disabled={!dirty || !relays.length || busy}
+              disabled={!dirty || !relays.length || busy || list.stale}
               data-testid="button-publish-inbox-relays"
             >
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

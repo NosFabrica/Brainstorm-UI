@@ -453,3 +453,59 @@ describe("an account this build could not read, on a build that can", () => {
     expect(read(storage.device, BACKUP_KEY)).toEqual([]);
   });
 });
+
+describe("scrubbing a removed account", () => {
+  const badEntry = { id: "bad", type: "some-future-signer", pubkey: "f".repeat(64), signer: { secret: "x" } };
+  // The backup is the blob as first found, written once and never pruned; the
+  // quarantine is append-only. After "Remove from device" both still held the
+  // account's envelope, ncryptsec and session token.
+  async function withBackup() {
+    const unlockCache = createFakeUnlockCache();
+    const gone = await LocalAccount.fromKey(generateSecretKey(), { unlockCache, logn: LOW_LOGN, password: PASSWORD });
+    gone.metadata = { remembered: true, session: { token: "jwt", isAdmin: false } };
+    const kept = await LocalAccount.fromKey(generateSecretKey(), { unlockCache, logn: LOW_LOGN });
+    kept.metadata = { remembered: true };
+    const storage = createTestStorage();
+    storage.device.setItem(ACCOUNTS_KEY, JSON.stringify([gone.toJSON(), kept.toJSON()]));
+    const parkedTwin = { ...gone.toJSON(), id: "an-older-row", type: "from-a-future-build" };
+    storage.device.setItem(QUARANTINE_KEY, JSON.stringify([parkedTwin, badEntry]));
+    const managed = createManager({ storage, unlockCache });
+    return { storage, managed, gone, kept, parkedTwin };
+  }
+
+  it("takes its row out of the backup and the quarantine, and leaves the rest", async () => {
+    const { storage, managed, gone, kept } = await withBackup();
+    const held = managed.manager.getAccount(gone.id)!;
+    managed.manager.removeAccount(held);
+
+    managed.persistence.scrub(held as never, { identityGone: true });
+
+    expect(read(storage.device, BACKUP_KEY).map((e) => e.id)).toEqual([kept.id]);
+    // The parked row for the same identity goes too: the identity has left this device.
+    expect(read(storage.device, QUARANTINE_KEY)).toEqual([badEntry]);
+    expect(storage.device.getItem(BACKUP_KEY)).not.toContain(gone.pubkey);
+  });
+
+  it("keeps the identity's other rows while another account still signs as it", async () => {
+    const { storage, managed, gone, parkedTwin } = await withBackup();
+    const held = managed.manager.getAccount(gone.id)!;
+    managed.manager.removeAccount(held);
+
+    managed.persistence.scrub(held as never, { identityGone: false });
+
+    expect(read(storage.device, QUARANTINE_KEY)).toEqual([parkedTwin, badEntry]);
+    expect(read(storage.device, BACKUP_KEY).map((e) => e.id)).not.toContain(gone.id);
+  });
+
+  it("says whether anything at rest still holds an account", async () => {
+    const { managed, gone, kept } = await withBackup();
+    expect(managed.persistence.holdsAccounts()).toBe(true);
+    for (const id of [gone.id, kept.id]) {
+      const held = managed.manager.getAccount(id)!;
+      managed.manager.removeAccount(held);
+      managed.persistence.scrub(held as never, { identityGone: true });
+    }
+    // The unreadable parked entry may be anyone's key: it still counts.
+    expect(managed.persistence.holdsAccounts()).toBe(true);
+  });
+});

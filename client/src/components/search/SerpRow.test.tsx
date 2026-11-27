@@ -6,6 +6,7 @@
  * itself still opens the in-app event page.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { fetchUnfurl, Unfurled } from "@/services/unfurl";
 import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
@@ -29,6 +30,9 @@ vi.mock("@/services/nostr", async () => ({
 // so known-profile lookups are faked per test.
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
@@ -37,14 +41,7 @@ vi.mock("@/lib/eventStore", async () => ({
 import { nip19 } from "nostr-tools";
 // Link metadata comes from the link-preview service — faked so the row can
 // prove it turns a plain link into a card when the answer exists.
-const unfurlMock = vi.fn<
-  (url: string) => Promise<{
-    title: string | null;
-    description: string | null;
-    image: string | null;
-    siteName: string | null;
-  } | null>
->(() => Promise.resolve(null));
+const unfurlMock = vi.fn<typeof fetchUnfurl>(() => Promise.resolve(null));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
 // A Primal link's resolution, controlled per test — the same seam the note card uses.
 const clientLink = vi.hoisted(() => ({
@@ -74,6 +71,19 @@ vi.mock("@/lib/wavlake", async (importOriginal) => {
             },
           }
         : { loading: false, error: false, track: null },
+  };
+});
+
+// The note's text is read for its card link once per event, not once per render.
+const parsedTexts = vi.hoisted(() => [] as string[]);
+vi.mock("@/lib/noteContent", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/noteContent")>();
+  return {
+    ...real,
+    parseNoteContent: (text: string, ...rest: unknown[]) => {
+      parsedTexts.push(text);
+      return (real.parseNoteContent as (...a: unknown[]) => ReturnType<typeof real.parseNoteContent>)(text, ...rest);
+    },
   };
 });
 
@@ -375,6 +385,7 @@ describe("SerpRow — link metadata", () => {
 
   it("a short share is a link result: source line, the page's title, the sharer's words, the page's picture", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "Liverpool F.C.",
       description: "Professional football club based in Liverpool.",
       image: "https://img/lfc.jpg",
@@ -397,6 +408,8 @@ describe("SerpRow — link metadata", () => {
     expect(source).toHaveTextContent("Wikipedia");
     expect(source).toHaveTextContent("en.wikipedia.org");
     expect(source.closest("a")?.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    // Its classes are words apart: "mt-1.5flex" was neither the spacing nor the flex row.
+    expect(source.className.split(/\s+/)).toEqual(expect.arrayContaining(["mt-1.5", "flex"]));
     // The sharer's own words describe it — they add something the title doesn't.
     expect(screen.getByText(/Worth a read/)).toBeInTheDocument();
     expect(screen.queryByText(/Professional football club/)).toBeNull();
@@ -411,7 +424,13 @@ describe("SerpRow — link metadata", () => {
   // person who shared it; a plain note's source is the person, said in a small
   // muted line. The post page and the Notes tab keep the full author line.
   it("content first: a link row has no author line, only the site; a note keeps a small one", async () => {
-    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Club.", image: null, siteName: "Wikipedia" });
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "Liverpool F.C.",
+      description: "Club.",
+      image: null,
+      siteName: "Wikipedia",
+    });
     const { unmount } = render(
       <SerpRow
         event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")}
@@ -441,13 +460,15 @@ describe("SerpRow — link metadata", () => {
   });
 
   it("a bare link with nothing known yet shows the source line alone, and the page's description once it answers", async () => {
-    let answer!: (m: { title: string; description: string; image: null; siteName: null }) => void;
+    let answer!: (m: Unfurled) => void;
     unfurlMock.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
     render(<SerpRow event={note("https://example.com/post")} author={author} score={0.7} query="x" />);
     expect(await screen.findByTestId("news-source")).toHaveTextContent("example.com");
     expect(screen.queryByTestId("news-headline")).toBeNull();
     expect(screen.queryByTestId("link-chip")).toBeNull();
-    await act(async () => answer({ title: "A post", description: "What it says.", image: null, siteName: null }));
+    await act(async () =>
+      answer({ kind: "page", title: "A post", description: "What it says.", image: null, siteName: null }),
+    );
     expect(screen.getByTestId("news-headline")).toHaveTextContent("A post");
     expect(screen.getByText("What it says.")).toBeInTheDocument();
   });
@@ -467,7 +488,7 @@ describe("SerpRow — link metadata", () => {
   });
 
   it("asks about the same link a feed would — the last one", async () => {
-    unfurlMock.mockResolvedValue({ title: "Second", description: null, image: null, siteName: null });
+    unfurlMock.mockResolvedValue({ kind: "page", title: "Second", description: null, image: null, siteName: null });
     render(
       <SerpRow
         event={note("One https://a.example/first two https://b.example/second")}
@@ -647,6 +668,7 @@ describe("SerpRow — a picture marked sensitive", () => {
   // Audit: a flagged note's link card still drew the page's own picture.
   it("a flagged note's link card says the page's words without its picture", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "The story",
       description: "What happened.",
       image: "https://img.test/og-nsfw.jpg",
@@ -663,6 +685,7 @@ describe("SerpRow — a picture marked sensitive", () => {
 
   it("a flagged share's page picture is the placeholder", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "Liverpool F.C.",
       description: "Club",
       image: "https://img.test/og-nsfw.jpg",
@@ -698,6 +721,7 @@ describe("SerpRow", () => {
 
   it("a news-shaped note asks the page too: its title leads, the note's own picture stays the thumbnail", async () => {
     unfurlMock.mockResolvedValue({
+      kind: "page",
       title: "Everton fan group 'standing down' – Liverpool Echo",
       description: "Full story.",
       image: "https://img/echo-og.jpg",
@@ -997,6 +1021,7 @@ describe("SerpRow — a NIP-84 highlight", () => {
 
   it("draws the passage marked, the highlighter's comment above it, and the page it is from", async () => {
     unfurlMock.mockResolvedValueOnce({
+      kind: "page",
       title: "The Amino Age",
       description: null,
       image: "https://cdn.example/amino.jpg",
@@ -1098,6 +1123,7 @@ describe("SerpRow — a web bookmark marked sensitive", () => {
   it("shows the placeholder in place of the page's picture", async () => {
     stubVisibleIntersectionObserver();
     unfurlMock.mockResolvedValueOnce({
+      kind: "page",
       title: "Page",
       description: "Words",
       image: "https://img.example/nsfw.jpg",
@@ -1133,5 +1159,70 @@ describe("SerpRow — a sensitive clip's placeholder", () => {
     const tile = screen.getByTestId("sensitive-tile");
     expect(tile.tagName).toBe("BUTTON");
     expect(tile).toHaveAccessibleName(/^Sensitive video/);
+  });
+});
+
+// A reaction's row read its content: "+". It says what happened, as the All tab's row
+// does (lib/resultReaders), and quotes what it was about once that is in hand.
+describe("SerpRow — what someone did", () => {
+  const TARGET = "f".repeat(64);
+  const act7 = (kind: number, tags: string[][], content = "") =>
+    ({ ...note(content, tags), id: "7".repeat(64), kind }) as NostrEvent;
+
+  it("a reaction says the reaction, never its '+', and quotes the note it reacted to", async () => {
+    quotedEvents.set(TARGET, { ...note("the note it is about"), id: TARGET, pubkey: "b".repeat(64) });
+    render(
+      <SerpRow
+        event={act7(
+          7,
+          [
+            ["e", TARGET],
+            ["p", "b".repeat(64)],
+          ],
+          "+",
+        )}
+        author={author}
+        query=""
+      />,
+    );
+    expect(screen.getByTestId("serp-activity-title")).toHaveTextContent("Reacted ❤");
+    expect(await screen.findByTestId("serp-activity-ref")).toHaveTextContent("the note it is about");
+  });
+
+  // NIP-09: clients SHOULD hide what a deletion names.
+  it("a deletion links what it deleted and never quotes it", async () => {
+    quotedEvents.set(TARGET, { ...note("deleted words"), id: TARGET });
+    render(
+      <SerpRow
+        event={act7(
+          5,
+          [
+            ["e", TARGET],
+            ["k", "1"],
+          ],
+          "oops",
+        )}
+        author={author}
+        query=""
+      />,
+    );
+    expect(screen.getByTestId("serp-activity-title")).toHaveTextContent("Deleted 1 event");
+    expect(screen.getByTestId("serp-activity-ref-link")).toHaveTextContent("what it deleted");
+    expect(screen.queryByTestId("serp-activity-ref")).toBeNull();
+    expect(screen.getByTestId(`serp-row-${"7".repeat(64)}`)).not.toHaveTextContent("deleted words");
+  });
+});
+
+describe("SerpRow — reads a note once", () => {
+  it("a re-render of the same note does not read its text again", () => {
+    const text = `${"words ".repeat(80)}https://example.com/page`;
+    const event = note(text);
+    const view = render(<SerpRow event={event} author={author} score={0.7} query="words" />);
+    const reads = () => parsedTexts.filter((t) => t === text).length;
+    const first = reads();
+    expect(first).toBeGreaterThan(0);
+    view.rerender(<SerpRow event={event} author={{ ...author }} score={0.7} query="words" />);
+    view.rerender(<SerpRow event={event} author={{ ...author }} score={0.8} query="words" />);
+    expect(reads()).toBe(first);
   });
 });

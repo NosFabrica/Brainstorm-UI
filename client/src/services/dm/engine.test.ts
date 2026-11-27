@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey, nip44, type NostrEvent } from "nostr-tools";
 import {
   DmEngine,
@@ -94,6 +94,14 @@ function memoryCache(): DmCacheBackend & { rows: Map<string, StoredWrap>; st: Ma
     st,
     wraps: async (owner) => [...rows.values()].filter((r) => r.owner === owner),
     wrapKeys: async (owner) => [...rows.values()].filter((r) => r.owner === owner).map((r) => r.key),
+    wrapsPage: async (owner, { before, limit, oldestFirst }) => {
+      const mine = [...rows.values()]
+        .filter((r) => r.owner === owner)
+        .sort((a, b) => b.at - a.at || (b.key < a.key ? -1 : b.key > a.key ? 1 : 0));
+      if (oldestFirst) mine.reverse();
+      const from = before ? mine.filter((r) => r.at < before.at || (r.at === before.at && r.key < before.key)) : mine;
+      return from.slice(0, limit);
+    },
     putWraps: async (list) => list.forEach((r) => rows.set(r.key, r)),
     deleteWraps: async (keys) => keys.forEach((k) => rows.delete(k)),
     state: async (owner) => st.get(owner),
@@ -120,6 +128,12 @@ function clock() {
 }
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
+/**
+ * Until `check` passes: for what the engine reaches through a chain of awaits (signer, cache,
+ * relay) whose length is its own business. A count of ticks broke whenever that chain grew, and
+ * on a loaded machine.
+ */
+const eventually = (check: () => void) => vi.waitFor(check, { timeout: 5000, interval: 5 });
 
 async function wrapFrom(from: ReturnType<typeof person>, to: string, content: string, at: number, wrapAt?: number) {
   const rumor = makeRumor({ pubkey: from.pubkey, kind: CHAT_KIND, tags: [["p", to]], content, created_at: at });
@@ -912,7 +926,7 @@ describe("DmEngine", () => {
     expect(net.pages.length).toBe(asked);
 
     engine.allowDecrypt();
-    for (let i = 0; i < 40 && engine.state().queued; i++) await settle();
+    await eventually(() => expect(engine.state().queued).toBe(0));
     expect(engine.state().history.relays[0].opening ?? 0).toBe(0);
     expect(engine.store.rooms()[0].messages).toHaveLength(60);
     expect(engine.advanceAll()).toBe(true);
@@ -932,8 +946,7 @@ describe("DmEngine", () => {
 
     engine.downloadAll();
     expect(engine.state().downloading).toBe(true);
-    for (let i = 0; i < 100 && engine.state().downloading; i++) await new Promise((r) => setTimeout(r, 20));
-    expect(engine.state().downloading).toBe(false);
+    await eventually(() => expect(engine.state().downloading).toBe(false));
     expect(engine.state().history.relays.map((r) => r.state)).toEqual(["done", "done"]);
     expect(engine.store.rooms()[0].messages).toHaveLength(4);
     engine.stop();
@@ -976,13 +989,13 @@ describe("DmEngine", () => {
     };
     const engine = new DmEngine(me.account(), { ...net, transport: capped, ...clock(), now: () => NOW });
     await engine.start();
-    for (let i = 0; i < 30 && engine.state().queued; i++) await settle();
+    await eventually(() => expect(engine.state().queued).toBe(0));
     expect(engine.store.size).toBe(50);
     expect(engine.advanceAll()).toBe(true);
     // The first page asks from just below the live window's oldest wrap, not from the floor.
     const oldestLive = times[49];
     expect(net.pages.at(-1)!.filter.until).toBe(oldestLive);
-    for (let i = 0; i < 30 && (engine.state().queued || engine.state().history.loading); i++) await settle();
+    await eventually(() => expect(engine.state()).toMatchObject({ queued: 0, history: { loading: false } }));
     expect(engine.store.size).toBe(60);
   });
 
@@ -1061,8 +1074,9 @@ describe("DmEngine", () => {
     await settle();
     expect(engine.state()).toMatchObject({ paused: undefined, queued: 3 });
     time.flush();
-    for (let i = 0; i < 10; i++) await settle();
-    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 0 });
+    await eventually(() =>
+      expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 0 }),
+    );
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0");
   });
 
@@ -1070,7 +1084,7 @@ describe("DmEngine", () => {
     const me = person();
     const ana = person();
     const net = network({ [me.pubkey]: ["wss://in.example/"] });
-    const wraps = [];
+    const wraps: NostrEvent[] = [];
     for (let i = 0; i < 3; i++) wraps.push(await wrapFrom(ana, me.pubkey, `m${i}`, NOW - 60 - i));
     wraps.forEach((w) => net.hold("wss://in.example/", w));
     const base = me.account();
@@ -1091,14 +1105,12 @@ describe("DmEngine", () => {
       { ...net, ...time, concurrency: 2, dropDetection: true, now: () => NOW },
     );
     await engine.start();
-    for (let i = 0; i < 8; i++) await settle();
-    expect(engine.state().queued).toBe(1);
+    await eventually(() => expect(engine.state().queued).toBe(1));
     time.flush(); // one check later: m2 was answered after m1 was asked, so m1 was dropped
     await settle();
     expect(engine.state().paused).toBeUndefined();
     time.flush(); // the back-off passes; m1 is asked again
-    for (let i = 0; i < 8; i++) await settle();
-    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0 });
+    await eventually(() => expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0 }));
   });
 
   it("keeps waiting on a person who approves each request in order, without asking twice", async () => {
@@ -1134,8 +1146,7 @@ describe("DmEngine", () => {
     for (let i = 0; i < 4; i++) await settle();
     now += 6_000;
     approve.shift()!(); // its seal
-    for (let i = 0; i < 6; i++) await settle();
-    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0");
+    await eventually(() => expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0"));
     // Opened at a person's pace: the next one, waiting on its tap, is still not asked twice.
     time.flush();
     for (let i = 0; i < 4; i++) await settle();
@@ -1178,8 +1189,7 @@ describe("DmEngine", () => {
     time.flush(); // the back-off passes: half as many at once
     await settle();
     expect(peak).toBe(4);
-    for (let i = 0; i < 80; i++) await settle();
-    expect(engine.state()).toMatchObject({ queued: 0, failed: 0 });
+    await eventually(() => expect(engine.state()).toMatchObject({ queued: 0, failed: 0 }));
   });
 
   it("backs off once, at half the pace, for a whole burst a fast signer stopped answering", async () => {
@@ -1521,34 +1531,50 @@ describe("coming back from the device", () => {
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("reopened");
   });
 
-  it("opens the newest few hundred at start, the rest when idle", async () => {
+  // Every load read all the rows whole (up to 30,000) and opened every one at idle,
+  // Messages opened or not: seconds of AES-GCM and JSON parsing per visit.
+  it("reads and opens the newest few hundred at start, and no more until Messages opens", async () => {
     const me = person();
     const ana = person();
     const cache = memoryCache();
     await cache.putWraps(
-      Array.from({ length: 420 }, (_, i) => keptRow(me.pubkey, ana.pubkey, `m${i}`, NOW - 10_000 + i, `w${i}`)),
+      Array.from({ length: 1420 }, (_, i) => keptRow(me.pubkey, ana.pubkey, `m${i}`, NOW - 10_000 + i, `w${i}`)),
     );
-    const idle: (() => void)[] = [];
+    const read = { whole: 0, rows: 0 };
+    const wraps = cache.wraps;
+    const wrapsPage = cache.wrapsPage!;
+    const opens: string[] = [];
+    const counting: DmCacheBackend = {
+      ...cache,
+      wraps: async (owner) => {
+        read.whole++;
+        return wraps(owner);
+      },
+      wrapsPage: async (owner, page) => {
+        const rows = await wrapsPage(owner, page);
+        read.rows += rows.length;
+        return rows;
+      },
+    };
+    const sealer: Sealer = { ...plainSealer, open: async (e, o) => (opens.push(e), plainSealer.open(e, o)) };
     const engine = new DmEngine(me.account(), {
       ...network({ [me.pubkey]: ["wss://in.example/"] }),
       ...clock(),
-      cache,
-      sealer: plainSealer,
+      cache: counting,
+      sealer,
       now: () => NOW,
-      whenIdle: (fn) => {
-        idle.push(fn);
-        return () => idle.splice(idle.indexOf(fn), 1);
-      },
     });
     await engine.start();
     await engine.hydrated();
+    for (let i = 0; i < 5; i++) await settle();
+    expect(read).toEqual({ whole: 0, rows: 300 });
+    expect(opens).toHaveLength(300);
     expect(engine.store.size).toBe(300);
-    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m419"); // the newest are the ones back
-    while (idle.length) {
-      idle.shift()!();
-      for (let i = 0; i < 5; i++) await settle();
-    }
-    expect(engine.store.size).toBe(420);
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m1419"); // the newest are the ones back
+
+    engine.allowDecrypt();
+    await eventually(() => expect(engine.store.size).toBe(1420));
+    expect(read.rows).toBe(1420);
     engine.stop();
   });
 
@@ -1565,13 +1591,11 @@ describe("coming back from the device", () => {
       cache,
       sealer: plainSealer,
       now: () => NOW,
-      whenIdle: () => () => {}, // never idle
     });
     await engine.start();
     expect(engine.store.size).toBe(300);
     engine.allowDecrypt();
-    for (let i = 0; i < 10 && engine.store.size < 700; i++) await settle();
-    expect(engine.store.size).toBe(700);
+    await eventually(() => expect(engine.store.size).toBe(700));
     engine.stop();
   });
 
@@ -1589,5 +1613,83 @@ describe("coming back from the device", () => {
     });
     await engine.start();
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("whole");
+  });
+});
+
+describe("DmEngine after sign-out", () => {
+  /** A cache with the real backend's guard: a clear invalidates every guard taken before it. */
+  function clearableCache() {
+    const cache = memoryCache();
+    let epoch = 0;
+    const clear = cache.clear;
+    return Object.assign(cache, {
+      guard: () => {
+        const asked = epoch;
+        return () => asked === epoch;
+      },
+      clear: async () => {
+        epoch++;
+        await clear();
+      },
+    });
+  }
+
+  // Sign-out stops the engine, then clears the cache. A send still publishing then
+  // settled afterwards, scheduled a state write and took a fresh guard when its timer
+  // fired: the sealed outbox (the message's plaintext rumor) came back after the clear,
+  // and was resent at the next sign-in.
+  it("writes nothing back once stopped and cleared, not even a send that settles late", async () => {
+    const me = person();
+    const ana = person();
+    const cache = clearableCache();
+    const c = clock();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    let answer: (r: { ok: boolean; message?: string }) => void = () => {};
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: (relay) =>
+        relay === "wss://ana.example/" ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true }),
+    };
+    const engine = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      ...c,
+      cache,
+      sealer: plainSealer,
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    const sending = engine.send(roomKey([me.pubkey, ana.pubkey]), "a secret");
+    await settle();
+
+    engine.stop();
+    await settle();
+    await cache.clear();
+    answer({ ok: false, message: "error: down" });
+    await sending;
+    await settle();
+    c.flush();
+    await settle();
+
+    expect(cache.st.size).toBe(0);
+    expect(cache.rows.size).toBe(0);
+  });
+
+  it("drops its own stop-time flush when the clear came first", async () => {
+    const me = person();
+    const ana = person();
+    const cache = clearableCache();
+    const c = clock();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hello", NOW - 60));
+    const engine = new DmEngine(me.account(), { ...net, ...c, cache, sealer: plainSealer, now: () => NOW });
+    await engine.start();
+    await settle();
+    await cache.clear();
+    engine.stop();
+    await settle();
+    expect(cache.st.size).toBe(0);
+    expect(cache.rows.size).toBe(0);
   });
 });

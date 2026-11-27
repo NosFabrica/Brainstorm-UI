@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ShareButton } from "./ShareButton";
 
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: async () => true }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: async () => true }));
 
 const URL = "https://brainstorm.world/a/naddr1abc";
 

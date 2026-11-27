@@ -15,7 +15,15 @@ vi.mock("applesauce-relay", () => ({
     }
   },
 }));
-vi.mock("./relayPool", () => ({ pool: { relays: new Map(), relay: vi.fn() }, warmRelay: vi.fn() }));
+// The side socket is the pool's standalone relay (it drops events its REQs didn't ask for); here, the fake above.
+vi.mock("./relayPool", async () => {
+  const { Relay } = await import("applesauce-relay");
+  return {
+    pool: { relays: new Map(), relay: vi.fn() },
+    warmRelay: vi.fn(),
+    standaloneRelay: (url: string) => new Relay(url),
+  };
+});
 vi.mock("./runtimeEnv", () => ({ env: { VITE_SEARCH_RELAY_URL: "wss://search.example" } }));
 vi.mock("@/lib/serverStatus", () => ({ watchRelay: () => () => {} }));
 

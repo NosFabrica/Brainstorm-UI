@@ -51,8 +51,8 @@ describe("apiClient.getTrustSignals", () => {
 
     const signals = await apiClient.getTrustSignals([A, B]);
 
-    expect(signals.get(A)).toEqual({ influence: 0.42, flagged: false });
-    expect(signals.get(B)).toEqual({ influence: null, flagged: true });
+    expect(signals?.get(A)).toEqual({ influence: 0.42, flagged: false });
+    expect(signals?.get(B)).toEqual({ influence: null, flagged: true });
   });
 
   it("answers null when the server errors or the network fails — not an empty map, which means unrated", async () => {

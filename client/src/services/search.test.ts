@@ -82,9 +82,13 @@ vi.mock("@/lib/eventCache", async (importOriginal) => ({
     new Map(pubkeys.flatMap((pk) => (deviceProfiles.has(pk) ? [[pk, deviceProfiles.get(pk)!]] : []))),
 }));
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => getReplaceableMock(kind, pubkey),
     add: (event: unknown) => storeAddMock(event),
+    getEvent: () => undefined,
   },
 }));
 
@@ -350,6 +354,28 @@ describe("searchStream", () => {
     await tick();
     expect(snaps.at(-1)!.eose).toBe(true);
     expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["a1"]);
+  });
+
+  // NIP-40: "Relays SHOULD NOT send expired events" — and "clients SHOULD ignore" the ones they do.
+  it("never turns an event past its NIP-40 expiration into a hit", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("sale", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const now = Math.floor(Date.now() / 1000);
+    const at = (id: string, expiration: string) =>
+      ({ ...ev(id, 1, "b".repeat(64), "Flash sale"), tags: [["expiration", expiration]] }) as NostrEvent;
+    subject.next(frame(at("gone", String(now - 60))));
+    subject.next(frame(at("soon", String(now + 3600))));
+    subject.next(frame(at("odd", "tomorrow")));
+    subject.next(EOSE);
+    await tick();
+    expect(
+      snaps
+        .at(-1)!
+        .hits.map((h) => h.event.id)
+        .sort(),
+    ).toEqual(["odd", "soon"]);
   });
 
   it("streams people hits incrementally, with the house observer on the wire", async () => {
@@ -1304,8 +1330,9 @@ describe("paging a union", () => {
     const handle = searchStream("sort:recent", { tab: "reviews", pov: "nosfabrica", limit: 2 }, (s) => snaps.push(s));
     await tick();
     expect(askedFilters()).toHaveLength(2);
-    const rating = (id: string, at: number) => ({ ...note(id, at), kind: 34259 }) as NostrEvent;
-    const mint = (id: string, at: number) => ({ ...note(id, at), kind: 38000 }) as NostrEvent;
+    // Addressable: each its own `d`, or two by one author would be versions of one review.
+    const rating = (id: string, at: number) => ({ ...note(id, at), kind: 34259, tags: [["d", id]] }) as NostrEvent;
+    const mint = (id: string, at: number) => ({ ...note(id, at), kind: 38000, tags: [["d", id]] }) as NostrEvent;
     // The relay answers filter by filter; the mint reviews are newer than the second rating.
     first.next(frame(rating("r1", 5000)));
     first.next(frame(rating("r2", 1000)));
@@ -1360,6 +1387,84 @@ describe("hits reach the event store", () => {
     subject.next(frame(note));
     await tick();
     expect(storeAddMock).toHaveBeenCalledWith(note);
+  });
+
+  // The store verifies: an event it refuses (a bad signature) is not a result either.
+  it("shows nothing the store refused", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    storeAddMock.mockImplementationOnce(() => null);
+    subject.next(frame(ev("forged", 1)));
+    subject.next(frame(ev("good", 1)));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["good"]);
+  });
+
+  // ADR 0005: a lagging relay cannot revert a replaceable. The store answers an older copy
+  // with the newer winner it holds, and the row shows that.
+  it("shows the store's newer version of an addressable, not the relay's older copy", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("coffee", { tab: "articles", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const old = { ...ev("old", 30023), tags: [["d", "cafe"]], created_at: 100 };
+    const newer = { ...ev("new", 30023), tags: [["d", "cafe"]], created_at: 200 };
+    storeAddMock.mockImplementationOnce(() => newer);
+    subject.next(frame(old));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["new"]);
+  });
+
+  it("two versions of one address are one row, the newer replacing the older in place", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("coffee", { tab: "articles", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const a = (id: string, d: string, created_at: number) => ({ ...ev(id, 30023), tags: [["d", d]], created_at });
+    subject.next(frame(a("v1", "cafe", 100)));
+    subject.next(frame(a("other", "tea", 150)));
+    subject.next(frame(a("v2", "cafe", 200)));
+    subject.next(frame(a("v0", "cafe", 50)));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["v2", "other"]);
+  });
+
+  // The first REQ of a recent-sorted stream stays open past EOSE, and what it streams then is
+  // the newest of all: it goes on top, not under the page.
+  it("on a recent-sorted stream, a live event after EOSE goes in by time, newest first", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    subject.next(frame({ ...ev("n2", 1), created_at: 2000 }));
+    subject.next(frame({ ...ev("n1", 1), created_at: 1000 }));
+    subject.next(EOSE);
+    await tick();
+    subject.next(frame({ ...ev("live", 1), created_at: 3000 }));
+    await new Promise((r) => setTimeout(r, FRAME_FALLBACK_MS + 10));
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["live", "n2", "n1"]);
+  });
+
+  // An error stays on the snapshot: a profile arriving after it is no reason to drop it.
+  it("an error survives the snapshots that follow it", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    subject.next(frame(ev("n1", 1, "b".repeat(64))));
+    subject.next({ type: "CLOSED", from: "wss://x", id: "s", reason: "auth-required: no lens" });
+    await tick();
+    expect(snaps.at(-1)!.error).toContain("auth-required");
+    // The author's profile lands from the device copy a moment later.
+    deviceProfiles.set("b".repeat(64), { event: { ...ev("p", 0, "b".repeat(64)), content: '{"name":"b"}' }, at: 1 });
+    await new Promise((r) => setTimeout(r, 1500));
+    deviceProfiles.clear();
+    expect(snaps.at(-1)!.error).toContain("auth-required");
   });
 });
 
@@ -2440,8 +2545,9 @@ describe("fetchFromSearch", () => {
     const started = Date.now();
     const pending = fetchFromSearch([{ kinds: [1] }, { kinds: [7] }], { timeoutMs: 60_000 });
     await tick();
-    subject.next(frame({ ...ev("old"), created_at: 1 }));
-    subject.next(frame({ ...ev("new"), created_at: 2 }));
+    // Kind 7, which the second filter asks for: an event that answers neither is no answer.
+    subject.next(frame({ ...ev("old", 7), created_at: 1 }));
+    subject.next(frame({ ...ev("new", 7), created_at: 2 }));
     subject.next(EOSE);
     expect((await pending).map((e) => e.id)).toEqual(["new", "old"]);
     expect(Date.now() - started).toBeLessThan(5_000);
@@ -2642,6 +2748,24 @@ describe("fetchAppsByAddress", () => {
       search: "include:spam",
     });
   });
+
+  // Every answer is one the filter asked for: a listing by someone else under the same d,
+  // sent back by a lax relay, is not that author's app.
+  it("keeps only listings that answer what was asked", async () => {
+    const pk = "b".repeat(64);
+    const stranger = "c".repeat(64);
+    const listing = (id: string, pubkey: string, kind = 32267) =>
+      ({ id, kind, pubkey, created_at: 5, content: "", sig: "s", tags: [["d", "net.primal.android"]] }) as NostrEvent;
+    reqMock.mockImplementation(() =>
+      of(frame(listing("S1", stranger)), frame(listing("N1", pk, 1)), frame(listing("L1", pk)), {
+        type: "EOSE",
+        from: "wss://x",
+        id: "s",
+      } as ReqFrame),
+    );
+    const map = await fetchAppsByAddress([`32267:${pk}:net.primal.android`]);
+    expect([...map.values()].map((e) => e.id)).toEqual(["L1"]);
+  });
 });
 
 describe("zapStoreUrl", () => {
@@ -2659,7 +2783,7 @@ describe("zapStoreUrl", () => {
   });
 
   it("is null for a listing without a d identifier", () => {
-    expect(zapStoreUrl({ kind: 32267, pubkey: "b".repeat(64), tags: [] } as NostrEvent)).toBeNull();
+    expect(zapStoreUrl({ kind: 32267, pubkey: "b".repeat(64), tags: [] })).toBeNull();
   });
 });
 
@@ -2886,7 +3010,8 @@ describe("fetchGitStatuses", () => {
     const issue = "1".repeat(64),
       patch = "2".repeat(64),
       quiet = "3".repeat(64);
-    const pending = fetchGitStatuses([issue, patch, quiet]);
+    // Held items, by the status author: whose status counts is the next block's question.
+    const pending = fetchGitStatuses([issue, patch, quiet].map((id) => ev(id, 1621, "m".repeat(64))));
     await tick();
     const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
     expect(filter.kinds).toEqual([1630, 1631, 1632, 1633]);
@@ -2902,6 +3027,96 @@ describe("fetchGitStatuses", () => {
     expect(statuses.get(issue)).toEqual({ kind: 1632, at: 200 });
     expect(statuses.get(patch)).toEqual({ kind: 1631, at: 150 });
     expect(statuses.has(quiet)).toBe(false);
+  });
+
+  it("reads the item from the e marked root, and a 1631's reply-marked revision, never another e (NIP-34)", async () => {
+    const { subject } = controllable();
+    const issue = "1".repeat(64),
+      revision = "2".repeat(64),
+      mentioned = "3".repeat(64);
+    const pending = fetchGitStatuses([issue, revision, mentioned].map((id) => ev(id, 1621, "m".repeat(64))));
+    await tick();
+    const merged = status("s1", 1631, issue, 100);
+    merged.tags.push(["e", revision, "", "reply"], ["e", mentioned]);
+    const closed = status("s2", 1632, issue, 90);
+    closed.tags.push(["e", mentioned, "", "reply"]);
+    subject.next(frame(merged));
+    subject.next(frame(closed));
+    subject.next(EOSE);
+    const statuses = await pending;
+    expect(statuses.get(issue)).toEqual({ kind: 1631, at: 100 });
+    expect(statuses.get(revision)).toEqual({ kind: 1631, at: 100 });
+    // Unmarked, or a revision of a status that is not 1631: names nothing.
+    expect(statuses.has(mentioned)).toBe(false);
+  });
+
+  // NIP-34: "the most recent Status event from either the issue/patch author or a maintainer is
+  // considered valid". The maintainers are the repo announcement's author and its `maintainers`.
+  describe("whose status counts", () => {
+    const AUTHOR = "1".repeat(64);
+    const OWNER = "a".repeat(64);
+    const MAINTAINER = "b".repeat(64);
+    const STRANGER = "c".repeat(64);
+    const REPO = `30617:${OWNER}:repo`;
+    const issue = { ...ev("9".repeat(64), 1621, AUTHOR), tags: [["a", REPO]] } as NostrEvent;
+    const by = (id: string, kind: number, pubkey: string, at: number) =>
+      ({ ...status(id, kind, issue.id, at), pubkey }) as NostrEvent;
+
+    it("a stranger's newer status does not count; the author's and the repo owner's do", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue]);
+      await tick();
+      subject.next(frame(by("s1", 1632, AUTHOR, 100)));
+      subject.next(frame(by("s2", 1631, OWNER, 200)));
+      subject.next(frame(by("s3", 1630, STRANGER, 300)));
+      subject.next(EOSE);
+      expect((await pending).get(issue.id)).toEqual({ kind: 1631, at: 200 });
+    });
+
+    it("a maintainer the announcement names counts, read from the relay when the store has no announcement", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue]);
+      await tick();
+      expect(askedFilters(1)[0]).toMatchObject({ kinds: [30617], authors: [OWNER], "#d": ["repo"] });
+      subject.next(frame(by("s1", 1630, AUTHOR, 100)));
+      subject.next(frame(by("s2", 1632, MAINTAINER, 200)));
+      subject.next(
+        frame({
+          ...ev("r".repeat(64), 30617, OWNER),
+          tags: [
+            ["d", "repo"],
+            ["maintainers", MAINTAINER],
+          ],
+        } as NostrEvent),
+      );
+      subject.next(EOSE);
+      expect((await pending).get(issue.id)).toEqual({ kind: 1632, at: 200 });
+    });
+
+    it("an item given by id that the store doesn't hold is asked for, and a stranger's status still doesn't count", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue.id]);
+      await tick();
+      expect(reqMock.mock.calls.map((c) => (Array.isArray(c[0]) ? c[0][0] : c[0]))).toContainEqual(
+        expect.objectContaining({ ids: [issue.id], search: "include:spam" }),
+      );
+      subject.next(frame(issue));
+      subject.next(frame(by("s1", 1632, AUTHOR, 100)));
+      subject.next(frame(by("s2", 1630, STRANGER, 300)));
+      subject.next(EOSE);
+      await tick();
+      subject.next(EOSE); // the repo's announcement, asked once the item named it
+      expect((await pending).get(issue.id)).toEqual({ kind: 1632, at: 100 });
+    });
+
+    it("an item nobody has: no status counts, since whose it is can't be told", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue.id]);
+      await tick();
+      subject.next(frame(by("s1", 1632, STRANGER, 300)));
+      subject.next(EOSE);
+      expect((await pending).has(issue.id)).toBe(false);
+    });
   });
 
   it("asks nothing for an empty page", async () => {
@@ -3068,8 +3283,20 @@ describe("fetchEventRsvps", () => {
     subject.next(frame(rsvp("r5", B, "4".repeat(64), "accepted", 140)));
     subject.next(EOSE);
     const byEvent = await pending;
-    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)] });
-    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)] });
+    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)], people: ["1".repeat(64)] });
+    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)], people: ["4".repeat(64)] });
+  });
+
+  it("ignores an RSVP dated more than a day ahead: a future date would pin its answer", async () => {
+    const { subject } = controllable();
+    const A = "31923:" + "a".repeat(64) + ":later";
+    const pending = fetchEventRsvps([A]);
+    await tick();
+    const now = Math.floor(Date.now() / 1000);
+    subject.next(frame(rsvp("f1", A, "1".repeat(64), "accepted", now + 3 * 86_400)));
+    subject.next(frame(rsvp("f2", A, "2".repeat(64), "accepted", now)));
+    subject.next(EOSE);
+    expect((await pending).get(A)).toEqual({ going: 1, faces: ["2".repeat(64)], people: ["2".repeat(64)] });
   });
 
   it("asks nothing for an empty page", async () => {
@@ -3087,6 +3314,9 @@ describe("fetchReleases", () => {
   it("returns the app's releases newest-first, ignoring other apps", async () => {
     const { subject } = controllable();
     const publisher = "b".repeat(64);
+    // An `e` names an event: a hex id (the asset's), one per release here.
+    const assetOf = (d: string) =>
+      d.endsWith("2133") ? "3".repeat(64) : d.endsWith("2132") ? "2".repeat(64) : "9".repeat(64);
     const release = (d: string, at: number): NostrEvent =>
       ({
         id: d,
@@ -3094,7 +3324,7 @@ describe("fetchReleases", () => {
         pubkey: publisher,
         tags: [
           ["d", d],
-          ["e", `asset-${d}`],
+          ["e", assetOf(d)],
         ],
         content: `notes for ${d}`,
         created_at: at,
@@ -3121,15 +3351,51 @@ describe("fetchReleases", () => {
         version: "1.0.2133",
         at: 200,
         notes: "notes for place.poster.app@1.0.2133",
-        assetIds: ["asset-place.poster.app@1.0.2133"],
+        assetIds: ["3".repeat(64)],
       },
       {
         version: "1.0.2132",
         at: 100,
         notes: "notes for place.poster.app@1.0.2132",
-        assetIds: ["asset-place.poster.app@1.0.2132"],
+        assetIds: ["2".repeat(64)],
       },
     ]);
+  });
+
+  it("reads a NIP-82 release's version from its version tag, and a NIP-51 one by its app's a", async () => {
+    const { subject } = controllable();
+    const publisher = "b".repeat(64);
+    const pending = fetchReleases("com.example.app", publisher);
+    await tick();
+    const ev = (id: string, tags: string[][], at: number) =>
+      ({ id, kind: 30063, pubkey: publisher, tags, content: "", created_at: at, sig: "s" }) as NostrEvent;
+    subject.next(
+      frame(
+        ev(
+          "n82",
+          [
+            ["i", "com.example.app"],
+            ["version", "2.0.0-rc1"],
+            ["d", "com.example.app@2.0.0-rc1"],
+          ],
+          300,
+        ),
+      ),
+    );
+    subject.next(
+      frame(
+        ev(
+          "n51",
+          [
+            ["d", "set-1"],
+            ["a", `32267:${publisher}:com.example.app`],
+          ],
+          200,
+        ),
+      ),
+    );
+    subject.next(EOSE);
+    expect((await pending).map((r) => r.version)).toEqual(["2.0.0-rc1", "set-1"]);
   });
 
   it("resolves empty when the app has no releases", async () => {
@@ -3577,5 +3843,129 @@ describe("countCategories", () => {
         ["kind:Repo", 1],
       ]),
     );
+  });
+});
+
+// Every side ask's answer goes through the store (ADR 0005): what it refuses — a forged
+// signature — counts for nothing, and a replaceable reads as the newest version it holds.
+describe("side asks keep what the store keeps", () => {
+  const PK = "a".repeat(64);
+  const forged = (over: Partial<NostrEvent>): NostrEvent =>
+    ({
+      id: "f".repeat(64),
+      kind: 1,
+      pubkey: PK,
+      created_at: 100,
+      sig: "s",
+      content: "forged",
+      tags: [],
+      ...over,
+    }) as NostrEvent;
+  const ADDR = `31923:${PK}:meetup`;
+  const GOAL = "9".repeat(64);
+  const ITEM = "1".repeat(64);
+  const cases: [string, () => Promise<unknown>, Partial<NostrEvent>, (out: unknown) => void][] = [
+    ["fetchFromSearch", () => fetchFromSearch([{ kinds: [1] }]), {}, (o) => expect(o).toEqual([])],
+    [
+      "fetchEventRsvps",
+      () => fetchEventRsvps([ADDR]),
+      {
+        kind: 31925,
+        tags: [
+          ["a", ADDR],
+          ["status", "accepted"],
+          ["d", "x"],
+        ],
+      },
+      (o) => expect((o as Map<string, unknown>).size).toBe(0),
+    ],
+    [
+      "fetchGitStatuses",
+      () => fetchGitStatuses([ITEM]),
+      { kind: 1632, tags: [["e", ITEM, "", "root"]] },
+      (o) => expect((o as Map<string, unknown>).size).toBe(0),
+    ],
+    [
+      "fetchGoalProgress",
+      () => fetchGoalProgress([GOAL]),
+      {
+        kind: 9735,
+        tags: [
+          ["e", GOAL],
+          ["P", PK],
+          ["bolt11", "lnbc10u1pjx"],
+        ],
+      },
+      (o) => expect((o as { byGoal: Map<string, unknown> }).byGoal.size).toBe(0),
+    ],
+    ["fetchAppReviews", () => fetchAppReviews("32267:x:y"), { kind: 1111 }, (o) => expect(o).toEqual([])],
+    ["fetchAppZaps", () => fetchAppZaps("32267:x:y"), { kind: 9735 }, (o) => expect(o).toEqual([])],
+    [
+      "fetchPersonVouches",
+      () => fetchPersonVouches(PK),
+      { kind: 31871, tags: [["s", "vouched"]] },
+      (o) => expect(o).toEqual([]),
+    ],
+    ["fetchRepoActivity", () => fetchRepoActivity("30617:x:y"), { kind: 1621 }, (o) => expect(o).toEqual([])],
+    ["fetchSpecsForKind", () => fetchSpecsForKind(1), { kind: 30817 }, (o) => expect(o).toEqual([])],
+    ["fetchNipPage", () => fetchNipPage(["nip-01"]), { kind: 30818 }, (o) => expect(o).toBeNull()],
+    [
+      "fetchCommentsByAddress",
+      () => fetchCommentsByAddress(null, ITEM),
+      { kind: 1111, tags: [["E", ITEM]] },
+      (o) => expect(o).toEqual([]),
+    ],
+    [
+      "fetchGitCommentCounts",
+      () => fetchGitCommentCounts([ITEM]),
+      { kind: 1111, tags: [["E", ITEM]] },
+      (o) => expect((o as Map<string, unknown>).size).toBe(0),
+    ],
+  ];
+  for (const [name, call, shape, check] of cases) {
+    it(`${name} counts nothing the store refused`, async () => {
+      const { subject } = controllable();
+      storeAddMock.mockImplementation(() => null);
+      try {
+        const pending = call();
+        await tick();
+        subject.next(frame(forged(shape)));
+        subject.next(EOSE);
+        check(await pending);
+      } finally {
+        storeAddMock.mockImplementation((e: unknown) => e);
+      }
+    });
+  }
+
+  it("fetchReleaseAsset counts nothing the store refused", async () => {
+    const subject = new Subject<ReqFrame>();
+    zapReqMock.mockImplementation(() => subject.asObservable());
+    storeAddMock.mockImplementation(() => null);
+    try {
+      const pending = fetchReleaseAsset(["asset-1"]);
+      await tick();
+      subject.next(frame(forged({ kind: 3063, tags: [["url", "https://x/app.apk"]] })));
+      subject.next(EOSE);
+      expect(await pending).toBeNull();
+    } finally {
+      storeAddMock.mockImplementation((e: unknown) => e);
+    }
+  });
+
+  it("an addressable reads as the store's newer version, not the relay's older copy", async () => {
+    const { subject } = controllable();
+    const older = { ...forged({ kind: 31923, tags: [["d", "meetup"]] }), id: "1".repeat(64), content: "old" };
+    const newer = { ...older, id: "2".repeat(64), created_at: 200, content: "new" };
+    storeAddMock.mockImplementation((e: unknown) => ((e as NostrEvent).id === older.id ? newer : e));
+    try {
+      const pending = fetchByAddress([ADDR]);
+      await tick();
+      subject.next(frame(older));
+      subject.next(EOSE);
+      expect((await pending).get(ADDR)?.content).toBe("new");
+    } finally {
+      storeAddMock.mockImplementation((e: unknown) => e);
+    }
   });
 });

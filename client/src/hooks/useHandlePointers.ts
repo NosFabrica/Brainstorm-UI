@@ -4,6 +4,7 @@ import { handleOwner } from "@/lib/nip05";
 import { accountsHandlesPointTo } from "@/lib/handlePointers";
 import type { SearchResult } from "@/lib/profileSearch";
 import { fetchPillProfiles } from "@/services/searchFaces";
+import { nameIn } from "@/lib/displayName";
 
 type HitLike = { event: NostrEvent; author: SearchResult | null; rank: number | null };
 
@@ -32,7 +33,7 @@ export function useHandlePointers(hits: readonly HitLike[]): { hits: PointedHit[
   // The matched profiles as one key: their handles and names decide the answer.
   const key = matched
     .filter((p) => p.nip05)
-    .map((p) => `${p.nip05}|${p.pubkey}|${p.display_name ?? p.name ?? ""}`)
+    .map((p) => `${p.nip05}|${p.pubkey}|${nameIn(p) ?? ""}`)
     .sort()
     .join("\n");
   const [state, setState] = useState<{ key: string; value: typeof NONE } | null>(null);

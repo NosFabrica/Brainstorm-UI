@@ -38,7 +38,7 @@ export function PlaceMap({
     let cancelled = false;
     let map: import("leaflet").Map | null = null;
     let cleanup: (() => void) | null = null;
-    (async () => {
+    void (async () => {
       try {
         const [L] = await Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]);
         if (cancelled || !host.current) return;

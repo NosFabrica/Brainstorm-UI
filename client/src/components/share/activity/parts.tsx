@@ -23,9 +23,11 @@ import type { ProfileLite, RefEvents } from "@/hooks/useRefEvents";
 import type { EventRef, ExternalTarget } from "@/lib/activity";
 import { isOver, parseCalendarEvent } from "@/lib/calendarEvent";
 import { kindTypeLabel } from "@/lib/kindLabel";
-import { parseATag, type MinimalEvent } from "@/lib/noteRefs";
-import { eventPath, neventFor, READER_KINDS } from "@/lib/shareId";
+import type { MinimalEvent } from "@/lib/noteRefs";
+import { eventPath, READER_KINDS } from "@/lib/shareId";
+import { refPath } from "@/lib/refPath";
 import { topicPath } from "@/lib/topicQuery";
+import { nameIn } from "@/lib/displayName";
 
 /** The page's heading: what happened, a line under it, and its mark on the right — the hero anatomy of a follow set or a designation. */
 export function ActivityHeader({
@@ -95,7 +97,7 @@ const npubOf = (pubkey: string) => {
 export function PersonName({ pubkey }: { pubkey: string }) {
   const profile = useLiveProfiles([pubkey]).get(pubkey) as ProfileLite | undefined;
   const npub = npubOf(pubkey);
-  const name = profile?.display_name || profile?.name;
+  const name = nameIn(profile);
   return (
     <span data-testid="activity-person-name">
       {name ? (
@@ -127,7 +129,7 @@ export function PersonCard({
   const scoreOf = useAuthorScores(keys);
   const profile = useLiveProfiles(keys).get(pubkey ?? "") as ProfileLite | undefined;
   const npub = pubkey ? npubOf(pubkey) : "";
-  const name = profile?.display_name || profile?.name;
+  const name = nameIn(profile);
   const body = (
     <>
       <Avatar
@@ -198,17 +200,8 @@ export function PeopleFlow({
   );
 }
 
-/** The page of an event named by id or address. */
-export function refHref(ref: EventRef): string {
-  if (ref.id) return `/e/${neventFor(ref.id, ref.relay ? [ref.relay] : [])}`;
-  const a = ref.addr ? parseATag(ref.addr, ref.relay) : null;
-  if (!a) return "#";
-  try {
-    return `/e/${nip19.naddrEncode({ kind: a.kind, pubkey: a.pubkey, identifier: a.identifier, relays: a.relays })}`;
-  } catch {
-    return "#";
-  }
-}
+/** The page of an event named by id or address (lib/refPath). */
+export const refHref = refPath;
 
 /** An event, quoted as what it is: an article's card, a calendar event's dated row, else the note card. */
 export function QuotedCard({

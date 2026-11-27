@@ -5,7 +5,8 @@ import containerQueries from "@tailwindcss/container-queries";
 
 export default {
   darkMode: ["class"],
-  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  // Tests are not shipped: a class only a test names would be generated for nothing.
+  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}", "!./client/src/**/*.test.{ts,tsx}"],
   // The profile customizer reorders sections via dynamically-built `order-N`
   // classes (order-1…order-8). JIT can't see runtime-built class names, so
   // safelist them — otherwise reordering into slots 6–8 silently does nothing.
@@ -80,22 +81,6 @@ export default {
           "3": "hsl(var(--chart-3) / <alpha-value>)",
           "4": "hsl(var(--chart-4) / <alpha-value>)",
           "5": "hsl(var(--chart-5) / <alpha-value>)",
-        },
-        sidebar: {
-          ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
-          DEFAULT: "hsl(var(--sidebar) / <alpha-value>)",
-          foreground: "hsl(var(--sidebar-foreground) / <alpha-value>)",
-          border: "hsl(var(--sidebar-border) / <alpha-value>)",
-        },
-        "sidebar-primary": {
-          DEFAULT: "hsl(var(--sidebar-primary) / <alpha-value>)",
-          foreground: "hsl(var(--sidebar-primary-foreground) / <alpha-value>)",
-          border: "var(--sidebar-primary-border)",
-        },
-        "sidebar-accent": {
-          DEFAULT: "hsl(var(--sidebar-accent) / <alpha-value>)",
-          foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
-          border: "var(--sidebar-accent-border)",
         },
         status: {
           online: "rgb(34 197 94)",

@@ -266,7 +266,21 @@ export async function deactivateBrainstormTrustAnchor(
  * 10040 already exists on relays; never throws. Shared by the post-score poll
  * and the self-healing app-load effect (AutoActivateBrainstorm).
  */
-export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: string): Promise<void> {
+export function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: string): Promise<void> {
+  // One run per account at a time: the post-score poll and the app-load
+  // self-heal can both arrive while the other is still reading, and each would
+  // read "none" and sign its own kind 10040.
+  const key = `${pubkey}:${taPubkey}`;
+  const running = ensuring.get(key);
+  if (running) return running;
+  const run = ensureOnce(pubkey, taPubkey).finally(() => ensuring.delete(key));
+  ensuring.set(key, run);
+  return run;
+}
+
+const ensuring = new Map<string, Promise<void>>();
+
+async function ensureOnce(pubkey: string, taPubkey: string): Promise<void> {
   if (!pubkey || !taPubkey) return;
   if (isNip85Activated(pubkey)) return;
   // Nobody asked for this publish, so it must never raise the unlock modal. A

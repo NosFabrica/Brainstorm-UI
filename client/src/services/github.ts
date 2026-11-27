@@ -46,7 +46,7 @@ export interface GitHubAccountFacts {
 }
 
 import { gistProves, pubkeysNamedIn, type GitHubEvidence } from "@/lib/githubLink";
-import { fetchGitHubClaimants } from "@/services/itemEngagement";
+import { safeHref } from "@/lib/safeHref";
 
 const TIMEOUT_MS = 8000;
 const cache = new Map<string, Promise<GitHubAccountFacts | null>>();
@@ -66,7 +66,8 @@ async function getJson<T>(path: string): Promise<T | null> {
 
 function repoOf(r: Record<string, unknown>): GitHubRepo | null {
   const name = str(r.name);
-  const url = str(r.html_url);
+  // The page links it: a web address only, whatever the upstream answered.
+  const url = safeHref(str(r.html_url));
   if (!name || !url) return null;
   return {
     name,
@@ -121,8 +122,6 @@ export function topRepos(repos: GitHubRepo[], n: number): GitHubRepo[] {
     .slice(0, n);
 }
 
-const evidenceCache = new Map<string, Promise<GitHubEvidence>>();
-
 /** "https://www.Example.com/about" → "example.com"; null for no website. */
 function hostOf(blog: string | null): string | null {
   if (!blog) return null;
@@ -133,54 +132,40 @@ function hostOf(blog: string | null): string | null {
   }
 }
 
-async function gatherEvidence(handle: string): Promise<GitHubEvidence> {
+/** What GitHub's own answers say about who owns an account: everything in GitHubEvidence but the claims. */
+export type GitHubProfileEvidence = Pick<GitHubEvidence, "checked" | "named" | "blogHost">;
+
+/**
+ * The npubs the account's GitHub profile names (its links, website, bio) and
+ * its website's host: HTTP only, asked of our origin. Not `checked` when
+ * GitHub didn't answer.
+ */
+export async function fetchGitHubProfileEvidence(handle: string): Promise<GitHubProfileEvidence> {
   const base = `/github/users/${encodeURIComponent(handle)}`;
-  const [user, social, claimants] = await Promise.all([
+  const [user, social] = await Promise.all([
     getJson<Record<string, unknown>>(base),
     getJson<{ url?: unknown }[]>(`${base}/social_accounts`),
-    fetchGitHubClaimants(handle).catch(() => []),
   ]);
   const links = Array.isArray(social) ? social.map((a) => str(a.url)) : [];
-  const proofs = await Promise.all(
-    claimants
-      .filter((c) => c.proof)
-      .map(async (c) => {
-        const gist = await getJson<{ owner?: { login?: unknown }; files?: Record<string, { content?: unknown }> }>(
-          `/github/gists/${encodeURIComponent(c.proof!)}`,
-        );
-        const text = Object.values(gist?.files ?? {})
-          .map((f) => str(f.content) ?? "")
-          .join("\n");
-        return gist && gistProves({ owner: str(gist.owner?.login), text }, handle, c.pubkey) ? c.pubkey : null;
-      }),
-  );
   return {
     checked: !!user,
     named: user ? pubkeysNamedIn([str(user.blog), str(user.bio), ...links]) : [],
     blogHost: user ? hostOf(str(user.blog)) : null,
-    claimants: claimants.map((c) => c.pubkey),
-    provenClaimants: proofs.filter((p): p is string => !!p),
   };
 }
 
-/**
- * Who GitHub says owns an account (lib/githubLink): the npubs its profile
- * names, its website's host, and the profiles whose NIP-39 claim a gist on
- * the account proves. Asked of our origin like the rest; anything but JSON is
- * nothing known. Memoised for the session, failures included.
- */
-export function fetchGitHubEvidence(handle: string): Promise<GitHubEvidence> {
-  const key = handle.toLowerCase();
-  let p = evidenceCache.get(key);
-  if (!p) {
-    p = gatherEvidence(handle);
-    evidenceCache.set(key, p);
-  }
-  return p;
+/** Whether the gist a profile's NIP-39 claim names, on GitHub, proves that `pubkey` owns `handle`. HTTP only. */
+export async function gistProvesClaim(gist: string, handle: string, pubkey: string): Promise<boolean> {
+  const answer = await getJson<{ owner?: { login?: unknown }; files?: Record<string, { content?: unknown }> }>(
+    `/github/gists/${encodeURIComponent(gist)}`,
+  );
+  const text = Object.values(answer?.files ?? {})
+    .map((f) => str(f.content) ?? "")
+    .join("\n");
+  return !!answer && gistProves({ owner: str(answer.owner?.login), text }, handle, pubkey);
 }
 
 /** Test seam. */
 export function __resetGitHub(): void {
   cache.clear();
-  evidenceCache.clear();
 }

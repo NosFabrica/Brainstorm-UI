@@ -27,6 +27,7 @@ function Mark({ mark }: { mark: ReactionMark }) {
       );
     case "custom":
       return <CustomEmojiImg code={mark.emoji.code} url={mark.emoji.url} className="!h-8 !max-w-[2.75rem]" />;
+    case "text":
     default:
       return (
         <span className="max-w-full truncate px-1 text-2xl leading-none" data-testid="reaction-text">

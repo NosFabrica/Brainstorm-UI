@@ -43,6 +43,7 @@ function show(menu: Partial<AssistantDutyMenu>) {
     error: null,
     publish: vi.fn(async () => ({ event: {} as never, relays: [] })),
     publishing: false,
+    lastPublish: null,
     ...menu,
   };
   renderWithProviders(<DutyMenuSetupPage />);

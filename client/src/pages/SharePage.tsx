@@ -133,6 +133,7 @@ import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { articleTitle, isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 import { hasOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
+import { nameIn } from "@/lib/displayName";
 
 const NO_RELAYS: string[] = [];
 
@@ -315,7 +316,7 @@ export default function SharePage() {
     return effectiveFollowerPubkeys.map((pk) => ({
       pubkey: pk,
       score01: followedByScores.get(pk) ?? null,
-      name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
+      name: nameIn(profs?.get(pk)),
       picture: profs?.get(pk)?.picture,
     }));
   }, [effectiveFollowerPubkeys, followedByProfiles, followedByScores]);
@@ -342,7 +343,7 @@ export default function SharePage() {
     const profs = candidateProfiles;
     return (followerCandidatesQuery.data ?? []).map((pk) => ({
       pubkey: pk,
-      name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
+      name: nameIn(profs?.get(pk)),
       picture: profs?.get(pk)?.picture,
     }));
   }, [followerCandidatesQuery.data, candidateProfiles]);
@@ -441,7 +442,7 @@ export default function SharePage() {
   const profileRelays = relays.length ? relays : relayHints;
 
   const profile = (liveProfile.profile ?? {}) as ProfileContentLike;
-  const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
+  const displayName = nameIn(profile) || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
 
   /**
    * "Last posted <when>" — the newest thing they actually wrote.
@@ -605,7 +606,7 @@ export default function SharePage() {
   // publishes one track to relays and six to Wavlake (2026-09-05). The artist
   // is matched by their linked Nostr key, else their exact name — never loosely.
   const catalogue = useArtistCatalogue(pubkey || null, {
-    name: profile.display_name || profile.name || null,
+    name: nameIn(profile) ?? null,
     limit: 6,
   });
   const audio = useMemo(() => mergeArtistAudio(tracks, catalogue.songs, 3), [tracks, catalogue.songs]);
@@ -715,7 +716,7 @@ export default function SharePage() {
     profiles: noteProfiles,
     eventsById,
     addrByCoord,
-  } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions });
+  } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions, ready: notesQuery.settled });
 
   /**
    * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
@@ -750,8 +751,8 @@ export default function SharePage() {
   // was the scam lever (it pressured the owner to follow BACK a stranger, forming a
   // trust edge that carries the owner's weight). The auto-follow alone is inert — a
   // brand-new account following you carries ~zero weight and gains nothing unless
-  // you follow back. The owner-facing notification stays off (WelcomeBackCard is
-  // unmounted) until a backend invite-record can gate a genuine reciprocal prompt.
+  // you follow back. The owner-facing notification stays off (WelcomeBackCard was
+  // deleted) until a backend invite-record can gate a genuine reciprocal prompt.
   // We also don't blanket-store this profile as a "pending invite" on mere view —
   // the auto-follow is CTA-only, so it's an intentional act, not a drive-by tag.
 
@@ -883,9 +884,7 @@ export default function SharePage() {
   // Who "Join free" connects a newcomer to: this profile, or its owner's Current account.
   const invitesOther = invitePk !== pubkey;
   const inviteNpub = invitesOther ? safeNpub(invitePk) : npub;
-  const inviteName = invitesOther
-    ? inviteLive.profile?.display_name || inviteLive.profile?.name || displayName
-    : displayName;
+  const inviteName = invitesOther ? (nameIn(inviteLive.profile) ?? displayName) : displayName;
   const invitePicture = invitesOther ? inviteLive.profile?.picture : profile.picture;
   const inviteEvent = invitesOther ? inviteLive.event : liveProfile.event;
   const profileMenu = (
@@ -1100,7 +1099,7 @@ export default function SharePage() {
                       type="button"
                       onClick={() => void npubCopy.copy(npub)}
                       className="shrink-0 p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
-                      title="Copy npub"
+                      title={npubCopy.copied ? "Copied" : npubCopy.failed ? "Couldn't copy" : "Copy npub"}
                       data-testid="share-copy-npub"
                     >
                       {npubCopy.copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
@@ -1702,7 +1701,7 @@ export default function SharePage() {
               open={editing}
               draft={draft}
               onChange={updateDraft}
-              onSave={saveCustomize}
+              onSave={() => void saveCustomize()}
               onCancel={cancelCustomize}
               saving={savingPrefs}
               error={prefsError}

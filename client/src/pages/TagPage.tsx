@@ -8,6 +8,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { useScorePov } from "@/components/score/TrustScorePov";
 import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
 import { TagDescriptionEditor } from "@/components/tags/TagDescriptionEditor";
@@ -26,6 +27,7 @@ import { ShareButton } from "@/components/share/ShareButton";
 import type { TagCarrier } from "@/services/tags";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * `/tags/:author/:slug` — everyone the network says carries one tag.
@@ -287,7 +289,7 @@ export default function TagPage() {
           <p className="mt-2 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-author">
             Tag created by{" "}
             <Link href={`/p/${authorNpub}`} className="font-medium text-brand-link hover:underline">
-              {authorProfile?.display_name || authorProfile?.name || `${authorNpub.slice(0, 12)}…`}
+              {nameIn(authorProfile) || `${authorNpub.slice(0, 12)}…`}
             </Link>
           </p>
         )}
@@ -445,7 +447,7 @@ export default function TagPage() {
                     <PersonListRow
                       key={c.pubkey}
                       pubkey={c.pubkey}
-                      displayName={p?.display_name || p?.name}
+                      displayName={nameIn(p)}
                       picture={p?.picture}
                       nip05={p?.nip05}
                       pov={scorePov}
@@ -500,7 +502,7 @@ export default function TagPage() {
                       <PersonListRow
                         key={c.pubkey}
                         pubkey={c.pubkey}
-                        displayName={p?.display_name || p?.name}
+                        displayName={nameIn(p)}
                         picture={p?.picture}
                         nip05={p?.nip05}
                         pov={scorePov}
@@ -550,16 +552,8 @@ function SortChip({
   testId?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
-        active ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
-      }`}
-      data-testid={testId}
-    >
+    <ToggleChip variant="ghost" pressed={active} onClick={onClick} className="px-2.5" data-testid={testId}>
       {children}
-    </button>
+    </ToggleChip>
   );
 }

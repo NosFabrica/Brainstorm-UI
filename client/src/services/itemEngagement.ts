@@ -6,6 +6,8 @@
  * the reaction as the active account (signAs) and publishes it where list
  * events go: the author's write relays and the hub (publishTagEvent).
  */
+import type { NostrEvent } from "nostr-tools";
+import type { Filter } from "applesauce-core/helpers/filter";
 import { requireActiveAccount, signAs } from "@/accounts/signing";
 import { dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
@@ -18,10 +20,27 @@ import {
   endorsersOf,
   githubClaimantsOf,
   type Endorser,
-  type GitHubClaimant,
 } from "@/lib/itemEngagement";
 
 const TIMEOUT_MS = 6000;
+
+/** Where an item's endorsements are asked for: reactions naming its id, or its address. */
+export function itemReactionFilters(item: { id: string; kind: number; pubkey: string; tags: string[][] }): Filter[] {
+  const address = coordinateOf(item);
+  const filters: Filter[] = [{ kinds: [7], "#e": [item.id], limit: 200 }];
+  if (address) filters.push({ kinds: [7], "#a": [address], limit: 200 });
+  return filters;
+}
+
+/** The reactions behind an item's endorsements, each landing in the store as it arrives. */
+export function readItemReactions(item: {
+  id: string;
+  kind: number;
+  pubkey: string;
+  tags: string[][];
+}): Promise<NostrEvent[]> {
+  return readListEvents(itemReactionFilters(item) as Record<string, unknown>[], TIMEOUT_MS);
+}
 
 export async function fetchItemReactions(item: {
   id: string;
@@ -29,11 +48,7 @@ export async function fetchItemReactions(item: {
   pubkey: string;
   tags: string[][];
 }): Promise<Endorser[]> {
-  const address = coordinateOf(item);
-  const filters: Record<string, unknown>[] = [{ kinds: [7], "#e": [item.id], limit: 200 }];
-  if (address) filters.push({ kinds: [7], "#a": [address], limit: 200 });
-  const events = await readListEvents(filters, TIMEOUT_MS);
-  return endorsersOf(events);
+  return endorsersOf(await readItemReactions(item));
 }
 
 /**
@@ -52,11 +67,14 @@ const CLAIMANTS_PER_HANDLE = 100;
 
 interface ClaimantAsk {
   handle: string;
-  resolve: (claimants: GitHubClaimant[]) => void;
+  resolve: (profiles: NostrEvent[]) => void;
 }
 
 let waiting = new Map<string, ClaimantAsk[]>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Whether a kind 0 claims this GitHub handle (an `i` tag naming it, any case). */
+const claims = (profile: NostrEvent, handle: string) => githubClaimantsOf([profile], handle).length > 0;
 
 function askClaimants(batch: Map<string, ClaimantAsk[]>): void {
   const tags = [...batch.keys()];
@@ -64,9 +82,10 @@ function askClaimants(batch: Map<string, ClaimantAsk[]>): void {
     [{ kinds: [0], "#i": tags, limit: CLAIMANTS_PER_HANDLE * tags.length }],
     TIMEOUT_MS,
   )
-    .catch(() => [])
+    .catch(() => [] as NostrEvent[])
     .then((profiles) => {
-      for (const asks of batch.values()) for (const ask of asks) ask.resolve(githubClaimantsOf(profiles, ask.handle));
+      for (const asks of batch.values())
+        for (const ask of asks) ask.resolve(profiles.filter((p) => claims(p, ask.handle)));
     });
 }
 
@@ -78,7 +97,8 @@ function flushClaimants(): void {
   for (let i = 0; i < all.length; i += CLAIMANT_BATCH) askClaimants(new Map(all.slice(i, i + CLAIMANT_BATCH)));
 }
 
-export function fetchGitHubClaimants(handle: string): Promise<GitHubClaimant[]> {
+/** The kind-0 profiles that claim a GitHub handle, as the store kept them; batched (see above). */
+export function fetchGitHubClaimantProfiles(handle: string): Promise<NostrEvent[]> {
   const tag = `github:${handle.trim()}`;
   return new Promise((resolve) => {
     const asks = waiting.get(tag);
@@ -105,13 +125,23 @@ export async function publishEndorsement(item: {
  * Who endorsed each of many items, in one batch: what search shows at once
  * (lib/itemEngagement endorsersByItem gives each reaction to the item it names).
  */
+/** Where many items' endorsements are asked for, in one batch. */
+export function itemsReactionFilters(items: { id: string; address: string | null }[]): Filter[] {
+  const addresses = items.map((i) => i.address).filter((a): a is string => !!a);
+  const filters: Filter[] = [{ kinds: [7], "#e": items.map((i) => i.id), limit: 2000 }];
+  if (addresses.length) filters.push({ kinds: [7], "#a": addresses, limit: 2000 });
+  return filters;
+}
+
+/** The reactions behind many items' endorsements, each landing in the store as it arrives. */
+export function readItemsReactions(items: { id: string; address: string | null }[]): Promise<NostrEvent[]> {
+  if (items.length === 0) return Promise.resolve([]);
+  return readListEvents(itemsReactionFilters(items) as Record<string, unknown>[], TIMEOUT_MS);
+}
+
 export async function fetchItemsReactions(
   items: { id: string; address: string | null }[],
 ): Promise<Map<string, Endorser[]>> {
   if (items.length === 0) return new Map();
-  const addresses = items.map((i) => i.address).filter((a): a is string => !!a);
-  const filters: Record<string, unknown>[] = [{ kinds: [7], "#e": items.map((i) => i.id), limit: 2000 }];
-  if (addresses.length) filters.push({ kinds: [7], "#a": addresses, limit: 2000 });
-  const events = await readListEvents(filters, TIMEOUT_MS);
-  return endorsersByItem(events, items);
+  return endorsersByItem(await readItemsReactions(items), items);
 }

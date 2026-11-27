@@ -268,7 +268,7 @@ export default function HeroLab() {
   return (
     <div className={dark ? "dark" : ""}>
       <div className="relative h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-white">
-        {/* Hero background — mirrors HomeHeroBackground */}
+        {/* Hero background: the scene photo under a scrim */}
         <div className="absolute inset-0">
           <img
             key={cand.file}

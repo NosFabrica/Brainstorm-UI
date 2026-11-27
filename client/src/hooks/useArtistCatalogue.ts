@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { fetchProfileMap } from "@/services/nostr";
+import { nameIn } from "@/lib/displayName";
 
 export interface ArtistCatalogue {
   artist: WavlakeArtist | null;
@@ -31,14 +32,14 @@ export function useArtistCatalogue(
     }
     let alive = true;
     setState({ artist: null, songs: [], loading: true });
-    (async () => {
+    void (async () => {
       let who = name ?? null;
       if (!who) {
         const map = await fetchProfileMap([pubkey]).catch(
           () => new Map<string, { name?: string; display_name?: string }>(),
         );
         const p = map.get(pubkey) as { name?: string; display_name?: string } | undefined;
-        who = p?.display_name || p?.name || null;
+        who = nameIn(p) ?? null;
       }
       if (!alive) return;
       const artist = who ? await findWavlakeArtist({ name: who, pubkey }).catch(() => null) : null;

@@ -7,13 +7,20 @@ import { appMetadata } from "@/accounts/remote-signer";
 import { renderWithProviders } from "@/test/utils";
 import { RemoteSignerModal } from "./RemoteSignerModal";
 
+/** The real metadata's fields: appMetadata sets each, though its type leaves them optional. */
+function metadata() {
+  const { name, url, image } = appMetadata();
+  if (!name || !url || !image) throw new Error("appMetadata() left a field out");
+  return { name, url: String(url), image };
+}
+
 // Built from the real metadata, so a test comparing what we render against what
 // we send is comparing two things that can actually disagree.
 const PAIRING_URI =
   "nostrconnect://abc?secret=s&relay=wss%3A%2F%2Fours" +
-  `&name=${encodeURIComponent(appMetadata().name)}` +
-  `&url=${encodeURIComponent(appMetadata().url)}` +
-  `&image=${encodeURIComponent(appMetadata().image)}`;
+  `&name=${encodeURIComponent(metadata().name)}` +
+  `&url=${encodeURIComponent(metadata().url)}` +
+  `&image=${encodeURIComponent(metadata().image)}`;
 
 /**
  * One `cancel` per pairing, not one shared spy. A shared one can only count
@@ -34,6 +41,7 @@ const beginRemotePairing = vi.fn(() => {
   return made;
 });
 const connectWithBunkerURI = vi.fn();
+const releaseUnadopted = vi.fn();
 const signInWithExternalSigner = vi.fn();
 let completed: Promise<unknown>;
 let problem: string | null = null;
@@ -46,6 +54,7 @@ vi.mock("@/accounts/remote-login", () => ({
   bunkerUriProblem: (input: string) => (input.trim() ? problem : "Paste the link."),
   connectWithBunkerURI: (uri: string) => connectWithBunkerURI(uri),
   isPairingCancelled: (error: unknown) => (error as { name?: string })?.name === "PairingCancelled",
+  releaseUnadopted: (account: unknown, adopted: (id: string) => boolean) => releaseUnadopted(account, adopted),
   remoteSignerMessage: (error: unknown) => (error as Error)?.message ?? "",
 }));
 vi.mock("@/accounts/remote-transport", () => ({ relaysReachable$: () => reachable$ }));
@@ -53,6 +62,7 @@ vi.mock("@/accounts/login-flow", () => ({
   signInWithExternalSigner: (account: unknown) => signInWithExternalSigner(account),
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mobile }));
+vi.mock("@/accounts", () => ({ accountManager: { getAccount: () => undefined } }));
 
 function open(props: Record<string, unknown> = {}) {
   return renderWithProviders(<RemoteSignerModal open onOpenChange={() => {}} onSignedIn={() => {}} {...props} />);
@@ -89,14 +99,30 @@ const cancelCount = () => pairings.filter((p) => p.cancel.mock.calls.length > 0)
  * fields is what turns them into something checkable: a lookalike screen can say
  * anything, but it can't match what this side already told you to expect.
  */
+// In-app webviews (Slack, X, Instagram) have no clipboard API: lib/clipboard's fallback copies there.
+describe("copying the link", () => {
+  it("copies where the browser has no clipboard API, as an in-app webview", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    const exec = vi.fn(() => true);
+    Object.defineProperty(document, "execCommand", { value: exec, configurable: true });
+    open();
+
+    fireEvent.click(screen.getByTestId("button-copy-connect-uri"));
+
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    expect(exec).toHaveBeenCalledWith("copy");
+    Object.defineProperty(document, "execCommand", { value: undefined, configurable: true });
+  });
+});
+
 describe("what the signer is about to be told about us", () => {
   it("shows the name, origin and icon we send", () => {
     open();
     const shown = screen.getByTestId("remote-signer-identity");
 
-    expect(shown).toHaveTextContent(appMetadata().name);
-    expect(shown).toHaveTextContent(new URL(appMetadata().url).host);
-    expect(screen.getByTestId("img-remote-signer-icon")).toHaveAttribute("src", appMetadata().image);
+    expect(shown).toHaveTextContent(metadata().name);
+    expect(shown).toHaveTextContent(new URL(metadata().url).host);
+    expect(screen.getByTestId("img-remote-signer-icon")).toHaveAttribute("src", metadata().image);
   });
 
   // The whole point is that the user can compare the two screens, which is
@@ -293,6 +319,23 @@ describe("pasting a link", () => {
 
     await waitFor(() => expect(signInWithExternalSigner).toHaveBeenCalledWith({ pubkey: "abc" }));
     expect(onSignedIn).toHaveBeenCalled();
+  });
+
+  // Each failed attempt left its signer's subscription running for the life of the tab.
+  it("lets the connection go when signing in with it fails", async () => {
+    const account = { id: "row", pubkey: "abc" };
+    connectWithBunkerURI.mockResolvedValue(account);
+    signInWithExternalSigner.mockRejectedValue(new Error("Auth verification failed (500)"));
+    open();
+
+    fireEvent.click(screen.getByTestId("button-paste-bunker"));
+    fireEvent.change(screen.getByTestId("input-bunker-uri"), {
+      target: { value: "bunker://abc?relay=wss://x" },
+    });
+    fireEvent.click(screen.getByTestId("button-connect-bunker"));
+
+    await waitFor(() => expect(releaseUnadopted).toHaveBeenCalledWith(account, expect.any(Function)));
+    expect(screen.getByTestId("text-remote-signer-error")).toHaveTextContent("Auth verification failed");
   });
 
   it("warns that the link is single-use before they go and fetch a stale one", () => {

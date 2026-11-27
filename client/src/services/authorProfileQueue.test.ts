@@ -19,8 +19,13 @@ vi.mock("@/lib/searchRelay", () => ({
 }));
 /** What the memory store holds, by pubkey. */
 const inStore = new Map<string, NostrEvent>();
+/** What the store answers an add with: by default the event, as if kept. */
+const addMock = vi.fn((e: unknown) => e);
 vi.mock("@/lib/eventStore", () => ({
-  eventStore: { add: (e: unknown) => e, getReplaceable: (_kind: number, pk: string) => inStore.get(pk) },
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
+  eventStore: { add: (e: unknown) => addMock(e), getReplaceable: (_kind: number, pk: string) => inStore.get(pk) },
 }));
 const loadReplaceableMock = vi.fn(async (..._args: unknown[]) => undefined);
 vi.mock("@/lib/loaders", () => ({ loadReplaceable: (...args: unknown[]) => loadReplaceableMock(...args) }));
@@ -53,6 +58,8 @@ const settle = async () => {
 beforeEach(() => {
   vi.useFakeTimers();
   reqMock.mockClear();
+  addMock.mockReset();
+  addMock.mockImplementation((e) => e);
   loadReplaceableMock.mockClear();
   readsMock.mockClear();
   held.clear();
@@ -65,10 +72,10 @@ afterEach(() => vi.useRealTimers());
 describe("the author queue and the device's own copy", () => {
   it("answers from the device without asking the relay", async () => {
     held.set("a".repeat(64), { event: profile("a".repeat(64)), at: Date.now() });
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile("a".repeat(64), (p) => got.push(p));
     await settle();
-    expect(got.map((p) => p.pubkey)).toEqual(["a".repeat(64)]);
+    expect(got.map((p) => p?.pubkey)).toEqual(["a".repeat(64)]);
     expect(reqMock).not.toHaveBeenCalled();
   });
 
@@ -84,7 +91,7 @@ describe("the author queue and the device's own copy", () => {
   it("shows an old copy at once and asks after it, so the next visit is right", async () => {
     const stale = Date.now() - PROFILE_FRESH_MS - 1;
     held.set("d".repeat(64), { event: profile("d".repeat(64)), at: stale });
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile("d".repeat(64), (p) => got.push(p));
     await settle();
     expect(got).toHaveLength(1);
@@ -120,7 +127,7 @@ describe("the author queue and the device's own copy", () => {
     const pk = "9".repeat(64);
     expect(claimRefresh(`0:${pk}:`, 0)).toBe(true); // the loader got there first
     held.set(pk, { event: profile(pk), at: Date.now() - PROFILE_FRESH_MS - 1 });
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile(pk, (p) => got.push(p));
     await settle();
     expect(got).toHaveLength(1); // still shown
@@ -132,7 +139,7 @@ describe("the author queue and the store", () => {
   it("answers someone the store holds at once, without reading the device or asking a relay", async () => {
     const pk = "1".repeat(64);
     inStore.set(pk, profile(pk));
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile(pk, (p) => got.push(p));
     expect(got).toHaveLength(1); // no flush to wait for
     await settle();
@@ -145,7 +152,7 @@ describe("the author queue and the store", () => {
     const copy = profile(pk);
     inStore.set(pk, copy);
     learned.set(copy.id, Date.now() - PROFILE_FRESH_MS - 1);
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile(pk, (p) => got.push(p));
     expect(got).toHaveLength(1);
     await settle();
@@ -165,5 +172,42 @@ describe("the author queue and the store", () => {
     expect(got).toEqual([a]);
     expect(readsMock).toHaveBeenCalledWith([b]);
     expect((reqMock.mock.calls[0][0] as { authors: string[] }).authors).toEqual([b]);
+  });
+});
+
+describe("the author queue and what the relay sends", () => {
+  it("never hands on a profile the store refused, and counts its author unanswered", async () => {
+    const pk = "5".repeat(64);
+    addMock.mockImplementation(() => null);
+    const got: (NostrEvent | null)[] = [];
+    wantProfile(pk, (p) => got.push(p));
+    await settle();
+    frames.next({ type: "EVENT", event: profile(pk) });
+    frames.next({ type: "EOSE" });
+    await Promise.resolve();
+    expect(got).toEqual([null]);
+  });
+
+  it("hands on the store's kept copy, not the relay's", async () => {
+    const pk = "6".repeat(64);
+    const winner = { ...profile(pk), id: "winner", created_at: 9 };
+    addMock.mockImplementation(() => winner);
+    const got: (NostrEvent | null)[] = [];
+    wantProfile(pk, (p) => got.push(p));
+    await settle();
+    frames.next({ type: "EVENT", event: profile(pk) });
+    frames.next({ type: "EOSE" });
+    await Promise.resolve();
+    expect(got).toEqual([winner]);
+  });
+
+  it("never hands on a device copy the store refused", async () => {
+    const pk = "7".repeat(64);
+    held.set(pk, { event: profile(pk), at: Date.now() });
+    addMock.mockImplementation(() => null);
+    const got: (NostrEvent | null)[] = [];
+    wantProfile(pk, (p) => got.push(p));
+    await settle();
+    expect(got.filter(Boolean)).toEqual([]);
   });
 });

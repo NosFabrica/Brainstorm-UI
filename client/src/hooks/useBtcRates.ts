@@ -12,7 +12,7 @@ export function useBtcRates(enabled = true): BtcRates | null {
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    fetchBtcRates().then((r) => {
+    void fetchBtcRates().then((r) => {
       if (alive) setRates(r);
     });
     return () => {

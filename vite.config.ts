@@ -3,7 +3,9 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import zlib from "zlib";
 import { precacheLists, type BuiltFile } from "./client/src/sw/precache";
+import { bundleReport, type BudgetFile } from "./client/src/buildChecks/bundleBudget";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -61,6 +63,60 @@ function serviceWorkerPlugin(): Plugin {
 }
 
 /**
+ * What the first page downloads, printed with every build, and the build
+ * fails when the entry outgrows its budget or the chunks it loads import each
+ * other in a circle (client/src/buildChecks/bundleBudget). Gzipped at level 9, as
+ * the image serves them (Dockerfile).
+ */
+function bundleBudgetPlugin(): Plugin {
+  return {
+    name: "bundle-budget",
+    apply: "build",
+    // After Vite's own generateBundle, which still rewrites the chunks' preload lists.
+    enforce: "post",
+    generateBundle(_options, bundle) {
+      const gzip = (code: string) => zlib.gzipSync(code, { level: 9 }).length;
+      const report = bundleReport(bundle as unknown as Record<string, BudgetFile>, gzip);
+      const kb = (bytes: number) => `${(bytes / 1024).toFixed(0)} KB`;
+      console.log(
+        `bundle: entry ${report.entry} ${kb(report.entryGz)} gz; first page ${report.firstLoad.length} chunks, ${kb(report.firstLoadGz)} gz`,
+      );
+      if (report.problems.length) this.error(report.problems.join("\n"));
+    },
+  };
+}
+
+/**
+ * Library code the production build leaves out, though nothing would drop it
+ * on its own:
+ *
+ * - `debug`, which applesauce logs through, gives way to client/src/lib/noDebug:
+ *   in a visitor's browser it only writes when `localStorage.debug` asks. The
+ *   dev server keeps the real one for tracing relays.
+ * - applesauce-signers' serial-port signer (a hardware signer over Web Serial,
+ *   which the app doesn't offer), and @noble/secp256k1, which only it imports:
+ *   its class reads `navigator.serial` in a static field, so Rollup can't tell
+ *   that an unused copy is safe to drop. Declared free of side effects, it goes
+ *   when nothing imports it by name.
+ */
+const SIDE_EFFECT_FREE = [/\/node_modules\/applesauce-signers\/dist\/signers\/serial-port-signer\.js$/];
+
+function pruneVendorPlugin(): Plugin {
+  const noDebug = path.resolve(__dirname, "client", "src", "lib", "noDebug.ts");
+  return {
+    name: "prune-vendor",
+    apply: "build",
+    enforce: "pre",
+    resolveId(source) {
+      return source === "debug" ? noDebug : null;
+    },
+    transform(code, id) {
+      return SIDE_EFFECT_FREE.some((file) => file.test(id)) ? { code, map: null, moduleSideEffects: false } : null;
+    },
+  };
+}
+
+/**
  * The face nearly every word on first paint is set in: Figtree's Latin subset.
  * The CSS names it, so without a hint its download only starts once the
  * stylesheet has arrived and been parsed; preloaded, it overlaps the stylesheet.
@@ -97,9 +153,99 @@ function fontPreloadPlugin(): Plugin {
   };
 }
 
+/**
+ * Libraries that change far less often than the app, each in a chunk of its
+ * own: an app release then re-hashes only the app's chunk, and a returning
+ * visitor's cached copy of these still holds. The browser fetches them side
+ * by side with the entry (modulepreload), so the first visit is no heavier.
+ */
+const VENDOR_CHUNKS: [name: string, packages: RegExp][] = [
+  ["react", /\/node_modules\/(react|react-dom|scheduler)\//],
+  ["nostr", /\/node_modules\/(applesauce-[^/]+|nostr-tools|@noble\/[^/]+|@scure\/[^/]+|rxjs)\//],
+  ["ui", /\/node_modules\/(@radix-ui\/[^/]+|@floating-ui\/[^/]+|lucide-react|tailwind-merge)\//],
+];
+
+/**
+ * lucide-react's icons, one module each, and the barrel that re-exports them.
+ * The entry reaches every icon through that barrel, and which of them a page
+ * really uses is only known once the bundle is tree-shaken, after chunks are
+ * assigned; Rollup also moves a manual chunk's unassigned imports in with it.
+ * In the vendor chunk, every lazy page's icons would ship on the first visit,
+ * so they stay with the code that draws them; lucide's shared core goes in `ui`.
+ */
+const LUCIDE_ICONS = /\/node_modules\/lucide-react\/dist\/esm\/(icons\/|lucide-react\.js$)/;
+
+type ModuleInfo = { isEntry: boolean; importedIds: readonly string[] } | null;
+interface ChunkMeta {
+  getModuleIds: () => IterableIterator<string>;
+  getModuleInfo: (id: string) => ModuleInfo;
+}
+
+/**
+ * A vendor chunk holds only what the first page already runs: the modules the
+ * entry reaches through static imports. A lazy page's own icon or Radix
+ * widget stays in that page's chunk, where it was, rather than coming along
+ * with the vendor chunk on every visit.
+ */
+function vendorChunks() {
+  let eager: Set<string> | null = null;
+  const reach = (meta: ChunkMeta): Set<string> => {
+    const seen = new Set<string>();
+    const queue = [...meta.getModuleIds()].filter((id) => meta.getModuleInfo(id)?.isEntry);
+    while (queue.length) {
+      const id = queue.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      for (const next of meta.getModuleInfo(id)?.importedIds ?? []) queue.push(next);
+    }
+    return seen;
+  };
+  return (id: string, meta: ChunkMeta): string | undefined => {
+    // Rollup's CommonJS interop, which React's CJS build needs first. Left
+    // unassigned it joins whichever vendor chunk reached it first (`nostr`),
+    // and `react` then imports `nostr`, which imports `react`: a chunk cycle,
+    // which runs React's module before the helper it calls exists.
+    if (id.includes("commonjsHelpers")) return "react";
+    const vendor = VENDOR_CHUNKS.find(([, packages]) => packages.test(id));
+    if (!vendor || LUCIDE_ICONS.test(id)) return undefined;
+    eager ??= reach(meta);
+    return eager.has(id) ? vendor[0] : undefined;
+  };
+}
+
+/**
+ * Dynamic imports of modules the entry already holds, kept on purpose: each
+ * breaks a static import cycle whose order matters at module init, not to
+ * split a chunk. Rollup warns for every one; these importers of these modules
+ * are expected, and a new one still warns.
+ */
+const CYCLE_BREAKERS: Record<string, string[]> = {
+  // lib/loaders and lib/relayRouting import lib/eventCache; the loader is built at init.
+  "client/src/lib/loaders.ts": ["client/src/lib/eventCache.ts"],
+  "client/src/lib/relayRouting.ts": ["client/src/lib/eventCache.ts"],
+  // services/api/core imports accounts/session for the session it attaches.
+  "client/src/services/api/index.ts": ["client/src/accounts/session.ts"],
+};
+const MIXED_IMPORT = /\(!\) (\S+) is dynamically imported by (.+?) but also statically imported by/;
+
+function expectedMixedImport(message: string): boolean {
+  const match = MIXED_IMPORT.exec(message);
+  if (!match) return false;
+  const local = (id: string) => path.relative(__dirname, id);
+  const allowed = CYCLE_BREAKERS[local(match[1])];
+  return !!allowed && match[2].split(", ").every((importer) => allowed.includes(local(importer)));
+}
+
 export default defineConfig({
   appType: "spa",
-  plugins: [react(), fontPreloadPlugin(), spaFallbackPlugin(), serviceWorkerPlugin()],
+  plugins: [
+    pruneVendorPlugin(),
+    react(),
+    fontPreloadPlugin(),
+    spaFallbackPlugin(),
+    serviceWorkerPlugin(),
+    bundleBudgetPlugin(),
+  ],
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
@@ -113,11 +259,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: { manualChunks: vendorChunks() },
+      onwarn(warning, warn) {
+        if (!expectedMixedImport(warning.message)) warn(warning);
+      },
+    },
   },
   server: {
     port: 5000,
     host: "0.0.0.0",
-    allowedHosts: true,
+    // No `allowedHosts: true`: that turns off the dev server's Host check, and
+    // any site could then read it through DNS rebinding. Vite always allows
+    // localhost, *.localhost and IP addresses, which is everything
+    // docs/agents/run-ui.md and the e2e stack open (a phone on the LAN by IP).
     // Same-origin in development too: the service reads Sec-Fetch-Site to pick
     // a rate-limit tier, and a cross-origin dev setup lands the SPA in the
     // tight one.

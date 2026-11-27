@@ -16,7 +16,14 @@ export interface CalendarEvent {
   location?: string;
   /** A list item's organizer, as text — the feed's calendar name, never a nostr name. */
   organizer?: string;
-  /** Called off: the status tag, or a title that says so for clients that ignore the tag. */
+  /**
+   * Called off, in the host's own words: a title that starts "Cancelled:", or a
+   * `status` of `cancelled`. Event Index marks a cancelled event both ways. NIP-52
+   * defines no status for a calendar event (a host that withdraws one deletes it,
+   * NIP-09): `status: cancelled` is Event Index's convention, proposed for NIP-52
+   * (issue #243), and no other value of it is read. A list item's `status` field is
+   * its list's, and reads the same.
+   */
   cancelled: boolean;
   image?: string;
   summary?: string;
@@ -47,16 +54,17 @@ export function parseCalendarEvent(ev: MinimalEvent): CalendarEvent {
     (ev.content || "").match(/https?:\/\/\S+\.(mp4|webm|m3u8|mov|youtube\.com\/\S+|youtu\.be\/\S+)/i)?.[0] ||
     undefined;
   const rawTitle = tag("title") || tag("name") || "Event";
-  const saidCancelled = /^cancelled:\s*/i.test(rawTitle);
+  const saidCancelled = /^cancell?ed:\s*/i.test(rawTitle);
   const start = tag("start");
   return {
-    title: saidCancelled ? rawTitle.replace(/^cancelled:\s*/i, "") : rawTitle,
+    title: saidCancelled ? rawTitle.replace(/^cancell?ed:\s*/i, "") : rawTitle,
     startSec: toSec(start),
     endSec: toSec(tag("end")),
     isDateOnly: ev.kind === 31922 || (ev.kind === EVENT_ITEM_KIND && /^\d{4}-\d{2}-\d{2}$/.test(start ?? "")),
     location: tag("location"),
     organizer: tag("organizer")?.trim() || undefined,
-    cancelled: saidCancelled || tag("status")?.toLowerCase() === "cancelled",
+    // `status: cancelled`: Event Index's convention, not NIP-52's (see `cancelled` above).
+    cancelled: saidCancelled || tag("status")?.trim().toLowerCase() === "cancelled",
     image: tag("image"),
     summary: (tag("summary") || ev.content || "").trim() || undefined,
     recordingUrl,

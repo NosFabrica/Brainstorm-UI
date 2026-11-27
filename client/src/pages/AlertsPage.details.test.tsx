@@ -20,6 +20,12 @@ vi.mock("@/services/nostr", () => ({
   fetchAlertPrefs: async () => null,
 }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
+// The rows' follow and mute buttons read the reader's lists from the relays.
+vi.mock("@/services/socialActions", async (orig) => ({
+  ...(await orig<typeof import("@/services/socialActions")>()),
+  fetchContactList: async () => null,
+  fetchMuteList: async () => null,
+}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: ME }) }));
 vi.mock("@/hooks/useLiveProfile", () => ({
   useLiveProfiles: (pks: string[]) => new Map(pks.map((p) => [p, { name: `Name ${p.slice(0, 2)}` }])),

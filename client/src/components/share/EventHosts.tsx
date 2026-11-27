@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { displayNameOf } from "@/lib/displayName";
 
 type Profile = { name?: string; display_name?: string; picture?: string };
 
@@ -36,7 +37,7 @@ export function EventHosts({
   const more = hosts.length - named.length;
   const nameOf = (pk: string) => {
     const p = profiles.get(pk);
-    return p?.display_name || p?.name || `${npubOf(pk).slice(0, 12)}…`;
+    return displayNameOf(p, pk, "npub12");
   };
   const faces = (
     <span className="flex shrink-0 -space-x-1.5">

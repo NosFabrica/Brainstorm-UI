@@ -12,6 +12,9 @@ import type { SearchHit } from "@/services/search";
 
 vi.mock("@/services/nostr", async () => ({ ...(await import("@/test/fakeNostr")).nostrReadDefaults }));
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: { ...(await import("@/test/fakeEventStore")).eventStoreDefaults },
 }));
 const openLightboxMock = vi.fn();

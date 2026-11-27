@@ -7,6 +7,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
+import type { AssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
+
+/** What useFinishSetup reads of the Duty Menu. */
+type MenuState = Pick<AssistantDutyMenu, "supported" | "status" | "settled"> &
+  Partial<Pick<AssistantDutyMenu, "lastPublish">>;
 
 const ME = "a".repeat(64);
 const TA = "b".repeat(64);
@@ -19,7 +24,7 @@ const state = vi.hoisted(() => ({
   lists: undefined as undefined | { status: string; designation: unknown },
   dm: "stopped" as string,
   /** The Duty Menu: unsupported unless a test says otherwise. */
-  menu: { supported: false as boolean | undefined, status: null as string | null, settled: true },
+  menu: { supported: false, status: null, settled: true } as MenuState,
   /** The Assistant's Treasure Map: unsupported unless a test says otherwise. */
   selfMap: { supported: false as boolean | undefined, status: null as string | null, settled: true } as Record<
     string,

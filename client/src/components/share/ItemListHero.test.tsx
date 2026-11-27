@@ -20,6 +20,9 @@ vi.mock("@/services/nostr", async () => ({
   },
 }));
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
   },

@@ -4,7 +4,8 @@
  * What prose uses is translated, and nothing it does not know is mangled.
  */
 import { describe, expect, it } from "vitest";
-import { asciiDocToMarkdown } from "./asciidoc";
+import { asciiDocToMarkdown, MAX_INLINE_LINE } from "./asciidoc";
+import { expectLinear } from "@/test/linearTime";
 
 describe("asciiDocToMarkdown", () => {
   it("plain prose passes through: its wrapped lines are one paragraph in both languages", () => {
@@ -120,18 +121,20 @@ describe("asciiDocToMarkdown", () => {
     expect(asciiDocToMarkdown(forged)).toBe("see 0 https://a.b/_x_");
   });
 
-  it("stays linear on hostile lines: no pattern rescans a long line from every character", () => {
-    const hostile = [
-      "image::a" + "[".repeat(100_000),
-      "https://".repeat(40_000),
-      "link:".repeat(40_000),
-      "image:".repeat(30_000),
-      "[[a".repeat(40_000),
-    ];
-    for (const line of hostile) {
-      const t = performance.now();
-      asciiDocToMarkdown(line);
-      expect(performance.now() - t).toBeLessThan(1000);
-    }
+  // Inline markup is read only on lines up to MAX_INLINE_LINE, so the lines measured stay under it.
+  it.each([
+    ["image::a", "["],
+    ["", "https://"],
+    ["", "link:"],
+    ["", "image:"],
+    ["", "[[a"],
+  ])("stays linear on hostile lines (%s%s…): no pattern rescans a long line from every character", (lead, unit) => {
+    const n = Math.floor((MAX_INLINE_LINE - lead.length) / 4 / unit.length);
+    expectLinear((reps) => lead + unit.repeat(reps), asciiDocToMarkdown, n);
+  });
+
+  it("passes a line past MAX_INLINE_LINE through as text", () => {
+    const line = "*a* ".repeat(MAX_INLINE_LINE / 4 + 1);
+    expect(asciiDocToMarkdown(line).trim()).toBe(line.trim());
   });
 });

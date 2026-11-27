@@ -1,4 +1,5 @@
 import { nip19 } from "nostr-tools";
+import { contentShape } from "@/lib/contentShape";
 
 /**
  * A profile identifier resolved from a share URL (`/p/:id`). `pubkey` is hex;
@@ -114,21 +115,37 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
   }
 }
 
-/** Addressable kinds that read on the article reader: long-form (NIP-23),
- *  wiki pages (NIP-54), specs (30817), NKBIP-01 publications with their
- *  sections (30040, 30041; components/share/PublicationReader) and the
- *  bookshelves that hold them (30045; BookshelfReader). Opened as a bare event they
- *  rendered as a note, markup and all. */
-export const READER_KINDS = new Set([30023, 30818, 30817, 30040, 30041, 30045]);
+/** NIP-23's long-form draft: "same format as kind:30023", deprecated for NIP-37 but still published. */
+export const LONG_FORM_DRAFT_KIND = 30024;
+
+/** Addressable kinds that read on the article reader: long-form (NIP-23) and
+ *  its drafts (30024, marked as one), wiki pages (NIP-54), specs (30817),
+ *  NKBIP-01 publications with their sections (30040, 30041;
+ *  components/share/PublicationReader) and the bookshelves that hold them
+ *  (30045; BookshelfReader). Opened as a bare event they rendered as a note,
+ *  markup and all. */
+export const READER_KINDS = new Set([30023, LONG_FORM_DRAFT_KIND, 30818, 30817, 30040, 30041, 30045]);
+
+/** Whether this event opens on the article reader: a reader kind, and a draft only when its
+ *  words are readable — NIP-23's drafts were "self-encrypted nip04", for their author alone. */
+export function readsAsArticle(event: { kind: number; content: string }): boolean {
+  if (!READER_KINDS.has(event.kind)) return false;
+  return event.kind !== LONG_FORM_DRAFT_KIND || contentShape(event.content).kind !== "encrypted";
+}
 
 /** Addressable kinds linked by address that keep their own page: NIP-52's
  *  calendar events and calendars (31922, 31923, 31924), which a calendar
  *  mirrored from a feed publishes again whenever its source changes; NIP-71's
- *  addressable videos (Divine publishes shorts as 34236); and list items
- *  (39999), which a curator signs again at every import. Whoever republishes
- *  one gives it a new id, and a link by id is left on the old version. Apart
- *  from READER_KINDS, which sends a kind to the article reader. */
-export const ADDRESS_LINK_KINDS: ReadonlySet<number> = new Set([31922, 31923, 31924, 34235, 34236, 39999]);
+ *  addressable videos (Divine publishes shorts as 34236); list items
+ *  (39999), which a curator signs again at every import; NIP-53's meeting
+ *  spaces and meetings (30312, 30313), republished as their status changes
+ *  ("The activity MUST be linked to using the NIP-19 naddr code"); and NIP-38
+ *  statuses (30315), where the latest is the status. Whoever republishes one
+ *  gives it a new id, and a link by id is left on the old version. Apart from
+ *  READER_KINDS, which sends a kind to the article reader. */
+export const ADDRESS_LINK_KINDS: ReadonlySet<number> = new Set([
+  30312, 30313, 30315, 31922, 31923, 31924, 34235, 34236, 39999,
+]);
 
 /** An addressable event's coordinate; null for other kinds or without a `d` tag. */
 export function addressOf(event: {

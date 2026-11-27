@@ -4,7 +4,7 @@ import { publicOrigin } from "@/lib/publicOrigin";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { motion } from "framer-motion";
+import { m, Motion } from "@/lib/motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useTrustProviderList } from "@/hooks/useTrustProviderStatus";
@@ -49,6 +49,7 @@ import {
   setPictureSet,
   type AssistantProfile,
 } from "@/lib/assistantStorage";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * A kind-0 as this card stores it. `AssistantProfile` is a storage shape — it is
@@ -173,7 +174,7 @@ export function BrainstormAssistantCard({
     // The profile-default POST publishes for this server's key, so only for `ta_pubkey`.
     if (!taPubkey || published?.pubkey !== taPubkey || !assistantProfile) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const next = toAssistantProfile(assistantProfile);
         setProfile(next);
@@ -224,6 +225,7 @@ export function BrainstormAssistantCard({
     onSuccess: ({ state, name }) => {
       setError(null);
       // Fetch the kind 0 just published, so its link and age replace the old one's.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: the kind 0 just published, read back into the store
       void refreshProfileEvent(state.pubkey).catch(() => {});
 
       const isFirst = !readFirstPublishDone();
@@ -252,14 +254,14 @@ export function BrainstormAssistantCard({
 
   const handleCopyNpub = useCallback(() => {
     if (!published?.npub) return;
-    copyToClipboard(published.npub).then(
-      () => toast({ title: "Copied!", description: "Assistant npub copied to clipboard." }),
-      () =>
-        toast({
-          title: "Copy failed",
-          description: "Could not copy to clipboard. Please copy manually.",
-          variant: "destructive",
-        }),
+    void copyToClipboard(published.npub).then((ok) =>
+      ok
+        ? toast({ title: "Copied!", description: "Assistant npub copied to clipboard." })
+        : toast({
+            title: "Copy failed",
+            description: "Could not copy to clipboard. Please copy manually.",
+            variant: "destructive",
+          }),
     );
   }, [published?.npub, toast]);
 
@@ -478,7 +480,7 @@ export function BrainstormAssistantCard({
                   : "space-y-3"
               }
             >
-              {(profile?.display_name || profile?.name || profile?.about || profile?.website) && (
+              {(nameIn(profile) || profile?.about || profile?.website) && (
                 <div
                   className="relative overflow-hidden rounded-xl border border-brand-accent/20 bg-gradient-to-br from-white to-brand-primary/10 px-4 py-3.5 dark:from-slate-900"
                   data-testid={`profile-assistant-${variant}`}
@@ -492,10 +494,10 @@ export function BrainstormAssistantCard({
                       <div className="min-w-0">
                         <h4
                           className="truncate text-sm font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-[15px]"
-                          title={profile?.display_name || profile?.name}
+                          title={nameIn(profile)}
                           data-testid={`text-assistant-display-name-${variant}`}
                         >
-                          {profile?.display_name || profile?.name}
+                          {nameIn(profile)}
                         </h4>
                         {profile?.nip05 && (
                           <p
@@ -718,50 +720,52 @@ export function BrainstormAssistantCard({
               }
             >
               {isHighlighted ? (
-                <motion.div
-                  className="relative flex-1 sm:flex-none"
-                  initial={false}
-                  animate={
-                    reduceMotion
-                      ? undefined
-                      : {
-                          boxShadow: [
-                            "0 0 0px 0px rgb(var(--brand-accent)/0.00), 0 14px 30px -14px rgb(var(--brand-link)/0.45)",
-                            "0 0 22px 6px rgb(var(--brand-accent)/0.28), 0 18px 36px -14px rgb(var(--brand-link)/0.55)",
-                            "0 0 0px 0px rgb(var(--brand-accent)/0.00), 0 14px 30px -14px rgb(var(--brand-link)/0.45)",
-                          ],
-                        }
-                  }
-                  transition={reduceMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                  style={{ borderRadius: "0.75rem" }}
-                  whileHover={reduceMotion ? undefined : { y: -1.5 }}
-                  whileTap={reduceMotion ? undefined : { y: 0, scale: 0.985 }}
-                >
-                  <button
-                    type="button"
-                    onClick={handlePublish}
-                    disabled={isPending || !taPubkey}
-                    className="group/cta relative inline-flex min-h-[48px] w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-[linear-gradient(110deg,rgb(var(--brand-primary))_0%,rgb(var(--brand-primary-hover))_40%,rgb(var(--brand-accent))_100%)] bg-[length:200%_100%] px-6 py-3 text-sm font-bold text-white transition-[filter,background-position] duration-300 hover:bg-[position:100%_0] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-60"
-                    data-testid={`button-assistant-publish-${variant}`}
+                <Motion>
+                  <m.div
+                    className="relative flex-1 sm:flex-none"
+                    initial={false}
+                    animate={
+                      reduceMotion
+                        ? undefined
+                        : {
+                            boxShadow: [
+                              "0 0 0px 0px rgb(var(--brand-accent)/0.00), 0 14px 30px -14px rgb(var(--brand-link)/0.45)",
+                              "0 0 22px 6px rgb(var(--brand-accent)/0.28), 0 18px 36px -14px rgb(var(--brand-link)/0.55)",
+                              "0 0 0px 0px rgb(var(--brand-accent)/0.00), 0 14px 30px -14px rgb(var(--brand-link)/0.45)",
+                            ],
+                          }
+                    }
+                    transition={reduceMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                    style={{ borderRadius: "0.75rem" }}
+                    whileHover={reduceMotion ? undefined : { y: -1.5 }}
+                    whileTap={reduceMotion ? undefined : { y: 0, scale: 0.985 }}
                   >
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(120deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)] transition-transform duration-700 ease-out group-hover/cta:translate-x-full motion-reduce:hidden"
-                    />
-                    {isPending ? (
-                      <>
-                        <Loader2 className="relative z-10 h-4 w-4 animate-spin" />
-                        <span className="relative z-10">Publishing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <BrainLogo mono size={14} className="relative z-10 text-white" />
-                        <span className="relative z-10">Publish my Assistant</span>
-                        <ArrowRight className="relative z-10 h-4 w-4 transition-transform duration-300 group-hover/cta:translate-x-0.5" />
-                      </>
-                    )}
-                  </button>
-                </motion.div>
+                    <button
+                      type="button"
+                      onClick={handlePublish}
+                      disabled={isPending || !taPubkey}
+                      className="group/cta relative inline-flex min-h-[48px] w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-[linear-gradient(110deg,rgb(var(--brand-primary))_0%,rgb(var(--brand-primary-hover))_40%,rgb(var(--brand-accent))_100%)] bg-[length:200%_100%] px-6 py-3 text-sm font-bold text-white transition-[filter,background-position] duration-300 hover:bg-[position:100%_0] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-60"
+                      data-testid={`button-assistant-publish-${variant}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(120deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)] transition-transform duration-700 ease-out group-hover/cta:translate-x-full motion-reduce:hidden"
+                      />
+                      {isPending ? (
+                        <>
+                          <Loader2 className="relative z-10 h-4 w-4 animate-spin" />
+                          <span className="relative z-10">Publishing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <BrainLogo mono size={14} className="relative z-10 text-white" />
+                          <span className="relative z-10">Publish my Assistant</span>
+                          <ArrowRight className="relative z-10 h-4 w-4 transition-transform duration-300 group-hover/cta:translate-x-0.5" />
+                        </>
+                      )}
+                    </button>
+                  </m.div>
+                </Motion>
               ) : (
                 <button
                   type="button"

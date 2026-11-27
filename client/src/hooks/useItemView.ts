@@ -1,9 +1,10 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 import { useItemConcept } from "@/hooks/useItemConcept";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { itemLinks, type ItemLink } from "@/lib/linkTemplates";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
+import type { LinkRef } from "@/lib/linkTemplates";
 
 export interface ItemView {
   pending: boolean;
@@ -39,6 +40,8 @@ export type PresentationOverride = (
 
 export const PresentationOverrideContext = createContext<PresentationOverride | null>(null);
 
+const NO_REFS: LinkRef[] = [];
+
 /**
  * Everything a list item's renderers draw from — the page, the results card,
  * the search popup row, the list row — so none can disagree: the governing
@@ -63,14 +66,31 @@ export function useResolvedItemView(
   resolved: ResolvedConcept | null,
   pending = false,
 ): ItemView {
-  const refs = resolved ? resolved.governing.links : [];
+  const refs = resolved ? resolved.governing.links : NO_REFS;
   const templates = useLinkTemplates(refs);
   const override = useContext(PresentationOverrideContext);
+  // Every card, row and tile of a list runs this, and re-renders with its parent: the reading and
+  // the links are made once per item (its tags), definition, templates and override.
+  const { tags } = item;
+  return useMemo(
+    () => readItemView({ tags }, resolved, pending, refs, templates.data, override),
+    [tags, resolved, pending, refs, templates.data, override],
+  );
+}
+
+function readItemView(
+  item: { tags: string[][] },
+  resolved: ResolvedConcept | null,
+  pending: boolean,
+  refs: LinkRef[],
+  templates: Parameters<typeof itemLinks>[2] | undefined,
+  override: PresentationOverride | null,
+): ItemView {
   if (pending || !resolved) return { pending, resolved: null, shown: null, links: [], usedFields: new Set() };
   const hinted = presentItem(item, resolved.governing);
   const shown = override ? override(item, resolved, hinted) : hinted;
   // The item's own link (a `link` role) first, then the ones its templates build; one per address.
-  const links = [...(shown.link ? [shown.link] : []), ...itemLinks(item, refs, templates.data ?? new Map())].filter(
+  const links = [...(shown.link ? [shown.link] : []), ...itemLinks(item, refs, templates ?? new Map())].filter(
     (l, i, all) => all.findIndex((x) => x.href === l.href) === i,
   );
   const usedFields = new Set(

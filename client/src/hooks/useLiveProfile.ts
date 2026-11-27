@@ -42,7 +42,7 @@ export function __resetAskedProfiles(): void {
 
 /** Start the ask a profile page would make on mount, ahead of it — e.g. on a search click. */
 export function warmProfile(pubkey: string, relayHints: string[] = []): void {
-  askOnce(pubkey, relayHints);
+  void askOnce(pubkey, relayHints);
 }
 
 function askOnce(pubkey: string, relayHints: string[]): Promise<unknown> | undefined {
@@ -68,7 +68,7 @@ export function useLiveProfile(
 ): { event: NostrEvent | undefined; profile: ProfileContent | undefined; loading: boolean } {
   const held = useHeldReplaceable(0, pubkey || undefined);
   const hintsKey = relayHints.join(",");
-  // The ask's own answer, for a copy the store refused.
+  // The ask's own answer — the store's kept copy — for one it has pruned since.
   const [answer, setAnswer] = useState<{ pubkey: string; event?: NostrEvent }>();
 
   useEffect(() => {
@@ -161,8 +161,10 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
   const coords = useMemo(() => unique.map((pubkey) => ({ kind: 0, pubkey })), [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const held = useHeldReplaceables(coords);
 
-  // Only a copy the store refused ever needs this map; it accumulates rather
-  // than resetting, so a growing list never blanks a name it already had.
+  // The batch's answers: store-kept copies only (the author queue and the
+  // loaders hand on what `eventStore.add` kept), for one the store has since
+  // pruned. It accumulates rather than resetting, so a growing list never
+  // blanks a name it already had.
   const [fetched, setFetched] = useState<Map<string, ProfileContent>>(NO_PROFILES);
   useEffect(() => {
     if (!key) return;
@@ -174,7 +176,7 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
       setFetched((current) => new Map([...current, ...(found as Map<string, ProfileContent>)]));
     };
     // Asks already out for some of these people answer this list too.
-    joined.forEach((ask) => ask.then(take, () => {}));
+    joined.forEach((ask) => void ask.then(take, () => {}));
     queueProfiles(pubkeys.filter((pk) => !inFlightFor(askKey(pk)))).then(take, () => {});
     return () => {
       alive = false;
@@ -186,7 +188,7 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
     const out = new Map<string, ProfileContent>();
     for (const pubkey of unique) {
       // The store's copy is the newest seen (every fetch lands there); the
-      // fetched map only covers a copy the store refused.
+      // fetched map only covers one it has pruned since.
       const content = profileContentOf(held.get(`0:${pubkey}:`)) ?? fetched.get(pubkey);
       if (content) out.set(pubkey, content);
     }

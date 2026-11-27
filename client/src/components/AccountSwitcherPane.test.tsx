@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { renderWithProviders } from "@/test/utils";
 import type { BrainstormAccount } from "@/accounts/metadata";
-import type { PickerIdentity, RowHealth, SignerKind } from "@/accounts/picker";
+import type { PickerIdentity, PickerRow, RowHealth, SignerKind } from "@/accounts/picker";
 import { AccountSwitcherPane } from "./AccountSwitcherPane";
 
 const signInWithAccount = vi.fn();
@@ -18,12 +18,13 @@ function account(id: string): BrainstormAccount {
   return { id, pubkey: id.repeat(8) } as unknown as BrainstormAccount;
 }
 
-function row(id: string, signer: SignerKind = "key", health: RowHealth = "ok") {
+function row(id: string, signer: SignerKind = "key", health: RowHealth = "ok"): PickerRow {
   return {
     account: account(id),
     signer,
     health,
     selectable: health === "ok" || health === "no-backup" || health === "checking",
+    sessionOnly: false,
   };
 }
 

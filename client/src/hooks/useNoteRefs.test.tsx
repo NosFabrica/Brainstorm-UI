@@ -116,6 +116,48 @@ describe("useNoteRefs", () => {
   });
 });
 
+// A stream of notes changes the set of references with every note that lands;
+// each change asked again for every reference still missing — the earlier
+// notes' too, whose ask was still out.
+describe("notes arriving one by one", () => {
+  const ref = (id: string, n: number): MinimalEvent => ({
+    ...note,
+    id: String(n).repeat(64),
+    content: `nostr:${nip19.neventEncode({ id })}`,
+    tags: [],
+  });
+  it("asks only for the references the new note brings", async () => {
+    const first = "7".repeat(64);
+    const second = "8".repeat(64);
+    const { rerender } = renderHook(({ notes }) => useNoteRefs(notes), {
+      wrapper,
+      initialProps: { notes: [ref(first, 3)] },
+    });
+    await waitFor(() => expect(eventsByIdsMock).toHaveBeenCalledTimes(1));
+    rerender({ notes: [ref(first, 3), ref(second, 4)] });
+    await waitFor(() => expect(eventsByIdsMock).toHaveBeenCalledTimes(2));
+    expect(eventsByIdsMock.mock.calls[0][0]).toEqual([first]);
+    expect(eventsByIdsMock.mock.calls[1][0]).toEqual([second]);
+  });
+
+  // CODING_STANDARDS, "settled before dependents": a caller whose notes are still
+  // streaming passes its ask's `settled`, and the references go out once, together.
+  it("asks nothing while the notes are still streaming, then once for them all", async () => {
+    const [a, b, c] = ["4", "5", "6"].map((x) => x.repeat(64));
+    const { rerender } = renderHook(({ notes, ready }) => useNoteRefs(notes, { ready }), {
+      wrapper,
+      initialProps: { notes: [ref(a, 7)], ready: false },
+    });
+    rerender({ notes: [ref(a, 7), ref(b, 8)], ready: false });
+    rerender({ notes: [ref(a, 7), ref(b, 8), ref(c, 9)], ready: false });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(eventsByIdsMock).not.toHaveBeenCalled();
+    rerender({ notes: [ref(a, 7), ref(b, 8), ref(c, 9)], ready: true });
+    await waitFor(() => expect(eventsByIdsMock).toHaveBeenCalledTimes(1));
+    expect([...eventsByIdsMock.mock.calls[0][0]].sort()).toEqual([a, b, c].sort());
+  });
+});
+
 describe("capHints", () => {
   it("keeps one budget of relay hints across every reference, not one each", async () => {
     const { capHints, MAX_REF_HINTS } = await import("./useNoteRefs");

@@ -53,6 +53,7 @@ export function bootstrapAccounts({
 
   if (migration) {
     accounts.manager.addAccount(migration.account);
+    for (const other of migration.others) accounts.manager.addAccount(other);
     accounts.manager.setActive(migration.account);
   }
 
@@ -66,7 +67,7 @@ export function bootstrapAccounts({
     const finish = migration.finish;
     migrated = new Promise<void>((resolve) => {
       schedule(() => {
-        finish()
+        void finish()
           .catch((err) => console.error("accounts: migration follow-up failed", err))
           .then(() => resolve());
       });

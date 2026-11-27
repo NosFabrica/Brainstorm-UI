@@ -19,7 +19,7 @@
  * Dropped on sign-out, like the event cache: a shared device should not keep
  * anyone's conversations past their session.
  */
-import { openDb, transact } from "@/lib/idb";
+import { transact } from "@/lib/idb";
 import { decryptSecret, encryptSecret, isVaultSupported } from "@/lib/skVault";
 import type { CursorSnapshot } from "./cursors";
 
@@ -74,11 +74,22 @@ export interface DmCacheBackend {
    * which wraps are held, before any envelope is read (services/dm/engine).
    */
   wrapKeys?(owner: string): Promise<string[]>;
+  /**
+   * A page of an owner's wraps, newest first (or oldest first), from `before`
+   * (exclusive): the engine reads the newest few hundred at boot and the rest
+   * only when Messages opens, instead of every row at once.
+   */
+  wrapsPage?(
+    owner: string,
+    page: { before?: { at: number; key: string }; limit: number; oldestFirst?: boolean },
+  ): Promise<StoredWrap[]>;
   putWraps(rows: StoredWrap[]): Promise<void>;
   deleteWraps(keys: string[]): Promise<void>;
   state(owner: string): Promise<DmState | undefined>;
   putState(state: DmState): Promise<void>;
   clear(): Promise<void>;
+  /** One account's wraps and paging state, for an account removed from this device. */
+  forget?(owner: string): Promise<void>;
   /** A check, taken now, that the cache hasn't been cleared since (sign-out). */
   guard?(): () => boolean;
 }
@@ -96,26 +107,64 @@ export const deviceSealer: Sealer = {
   open: async (envelope, owner) => new TextDecoder().decode(await decryptSecret(envelope, owner)),
 };
 
-function build(db: IDBDatabase) {
-  if (!db.objectStoreNames.contains(WRAPS)) {
-    const s = db.createObjectStore(WRAPS, { keyPath: "key" });
-    s.createIndex("owner", "owner");
-  }
+/** Version 2 adds the owner+time index, for reading an inbox by page. */
+const DB_VERSION = 2;
+const OWNER_AT = "owner_at";
+
+function build(db: IDBDatabase, upgrade: IDBTransaction | null) {
+  const wraps = db.objectStoreNames.contains(WRAPS)
+    ? upgrade?.objectStore(WRAPS)
+    : db.createObjectStore(WRAPS, { keyPath: "key" });
+  if (wraps && !wraps.indexNames.contains("owner")) wraps.createIndex("owner", "owner");
+  if (wraps && !wraps.indexNames.contains(OWNER_AT)) wraps.createIndex(OWNER_AT, ["owner", "at"]);
   if (!db.objectStoreNames.contains(STATE)) db.createObjectStore(STATE, { keyPath: "owner" });
 }
 
-/**
- * Bumped by every clear. A write that was asked for before a sign-out but
- * reaches the database after it (the engine flushes as it stops) is dropped
- * rather than writing the departed account's messages back.
- */
-let epoch = 0;
+/** lib/idb's openDb, with the upgrade's own transaction: an index on an existing store needs it. */
+function openCache(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => build(req.result, req.transaction);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error("indexeddb blocked"));
+  });
+}
 
+/**
+ * A row in the state store no account's pubkey can be: the token of the last
+ * clear, from whichever tab made it.
+ */
+const CLEARED = "~cleared";
+
+function readToken(db: IDBDatabase): Promise<string | undefined> {
+  return transact<string | undefined>(db, STATE, "readonly", (store, keep) => {
+    const req = store.get(CLEARED);
+    req.onsuccess = () => keep((req.result as { token?: string } | undefined)?.token);
+  });
+}
+
+/** One tab's backend (the app makes one per tab, `dmCacheBackend`). */
 export function indexedDbBackend(): DmCacheBackend | null {
   if (typeof indexedDB === "undefined") return null;
+  /**
+   * Bumped by every clear this tab makes or learns of. A write that was asked
+   * for before a sign-out but reaches the database after it (the engine flushes
+   * as it stops) is dropped rather than writing the departed account's messages
+   * back.
+   */
+  let epoch = 0;
+  /**
+   * The clear this tab last knew of. Another tab's sign-out clears the database
+   * without a word to this one, so every write checks, in its own transaction,
+   * that the stored token is still this one — a write from before that clear is
+   * dropped, and the clear becomes this tab's too.
+   */
+  let seen: string | undefined;
   let connection: Promise<IDBDatabase> | null = null;
   const db = () => {
-    connection ??= openDb(DB_NAME, 1, build).then((opened) => {
+    connection ??= openCache().then(async (opened) => {
+      seen = await readToken(opened);
       opened.onclose = () => (connection = null);
       opened.onversionchange = () => {
         opened.close();
@@ -128,6 +177,24 @@ export function indexedDbBackend(): DmCacheBackend | null {
       throw error;
     });
   };
+  /** A write, made only if no tab has cleared the database since this one last knew. */
+  const write = (opened: IDBDatabase, asked: number, stores: string[], work: (tx: IDBTransaction) => void) =>
+    new Promise<void>((resolve, reject) => {
+      const tx = opened.transaction([...new Set([STATE, ...stores])], "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
+      const req = tx.objectStore(STATE).get(CLEARED);
+      req.onsuccess = () => {
+        const token = (req.result as { token?: string } | undefined)?.token;
+        if (token !== seen) {
+          seen = token;
+          epoch++;
+        }
+        // Asked before a clear this tab made or just learned of: not this session's to write.
+        if (asked === epoch) work(tx);
+      };
+    });
   return {
     async wraps(owner) {
       const rows = await transact<StoredWrap[]>(await db(), WRAPS, "readonly", (store, keep) => {
@@ -143,12 +210,33 @@ export function indexedDbBackend(): DmCacheBackend | null {
       });
       return keys ?? [];
     },
+    async wrapsPage(owner, { before, limit, oldestFirst = false }) {
+      if (limit <= 0) return [];
+      const rows = await transact<StoredWrap[]>(await db(), WRAPS, "readonly", (store, keep) => {
+        const out: StoredWrap[] = [];
+        keep(out);
+        const range = IDBKeyRange.bound([owner, -Infinity], [owner, before ? before.at : Infinity]);
+        const req = store.index(OWNER_AT).openCursor(range, oldestFirst ? "next" : "prev");
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return;
+          const row = cursor.value as StoredWrap;
+          // `before` is exclusive; rows at its very second come in key order behind it.
+          if (!(before && row.at === before.at && row.key >= before.key)) out.push(row);
+          if (out.length < limit) cursor.continue();
+        };
+      });
+      return rows ?? [];
+    },
     async putWraps(rows) {
       if (!rows.length) return;
       const asked = epoch;
       const opened = await db();
       if (asked !== epoch) return;
-      await transact(opened, WRAPS, "readwrite", (store) => rows.forEach((r) => store.put(r)));
+      await write(opened, asked, [WRAPS], (tx) => {
+        const store = tx.objectStore(WRAPS);
+        rows.forEach((r) => store.put(r));
+      });
     },
     async deleteWraps(keys) {
       if (!keys.length) return;
@@ -164,7 +252,20 @@ export function indexedDbBackend(): DmCacheBackend | null {
       const asked = epoch;
       const opened = await db();
       if (asked !== epoch) return;
-      await transact(opened, STATE, "readwrite", (store) => store.put(state));
+      await write(opened, asked, [], (tx) => tx.objectStore(STATE).put(state));
+    },
+    async forget(owner) {
+      const opened = await db();
+      await new Promise<void>((resolve, reject) => {
+        const tx = opened.transaction([WRAPS, STATE], "readwrite");
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
+        const wraps = tx.objectStore(WRAPS);
+        const keys = wraps.index("owner").getAllKeys(IDBKeyRange.only(owner));
+        keys.onsuccess = () => (keys.result as IDBValidKey[]).forEach((key) => wraps.delete(key));
+        tx.objectStore(STATE).delete(owner);
+      });
     },
     guard() {
       const asked = epoch;
@@ -173,8 +274,19 @@ export function indexedDbBackend(): DmCacheBackend | null {
     async clear() {
       epoch++;
       const opened = await db();
-      await transact(opened, WRAPS, "readwrite", (store) => store.clear());
-      await transact(opened, STATE, "readwrite", (store) => store.clear());
+      const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      // Known before it commits: this tab's later writes are queued behind it, and are the new session's.
+      seen = token;
+      await new Promise<void>((resolve, reject) => {
+        const tx = opened.transaction([WRAPS, STATE], "readwrite");
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
+        tx.objectStore(WRAPS).clear();
+        const state = tx.objectStore(STATE);
+        state.clear();
+        state.put({ owner: CLEARED, token });
+      });
     },
   };
 }
@@ -200,6 +312,11 @@ export interface CachedOpen {
   sealAt?: number;
   /** NIP-40, wherever it was (rumor or wrap): the wrap's tags aren't kept. */
   expiresAt?: number;
+}
+
+/** An account removed from this device: its messages and paging state go, nobody else's. */
+export async function forgetDmCacheFor(owner: string): Promise<void> {
+  await dmCacheBackend()?.forget?.(owner);
 }
 
 /** Sign-out: every account's messages and paging state go. */

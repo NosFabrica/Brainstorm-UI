@@ -36,23 +36,27 @@ export function LiveVideoPlayer({
   // on the site yet); one Unmute button puts the sound back.
   const [muted, setMuted] = useState(false);
 
-  // Keep the HLS stream feeding a PiP window across navigation; it's torn down
-  // when the viewer closes PiP (onClose), or on unmount when NOT in PiP.
-  usePipAwareAutoStop(videoRef, () => {
+  // Which start is current: an unmount or a new `src` moves it on, and a start
+  // still waiting for hls.js then attaches nothing (to a detached or stale video).
+  const runRef = useRef(0);
+  const startedRef = useRef(false);
+  const destroyHls = () => {
     try {
       hlsRef.current?.destroy();
     } catch {
       /* ignore */
     }
-  });
+    hlsRef.current = null;
+  };
+
+  // Keep the HLS stream feeding a PiP window across navigation; it's torn down
+  // when the viewer closes PiP (onClose), or on unmount when NOT in PiP.
+  usePipAwareAutoStop(videoRef, destroyHls);
   useEffect(
     () => () => {
+      runRef.current++;
       if (videoRef.current && document.pictureInPictureElement === videoRef.current) return;
-      try {
-        hlsRef.current?.destroy();
-      } catch {
-        /* ignore */
-      }
+      destroyHls();
     },
     [],
   );
@@ -63,9 +67,34 @@ export function LiveVideoPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A new stream for the same player: the old one is torn down, and the new one
+  // plays if the old one was (or the caller asked it to start on its own).
+  const shownSrc = useRef(src);
+  useEffect(() => {
+    if (shownSrc.current === src) return;
+    shownSrc.current = src;
+    runRef.current++;
+    destroyHls();
+    const video = videoRef.current;
+    if (video) {
+      video.removeAttribute("src");
+      try {
+        video.load();
+      } catch {
+        /* jsdom */
+      }
+    }
+    if (startedRef.current || autoStart) void start();
+    // `src` is the input; `start` reads the render's own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
+
   const start = async () => {
     const video = videoRef.current;
     if (!video) return;
+    const run = ++runRef.current;
+    const current = () => run === runRef.current;
+    startedRef.current = true;
     setStarted(true);
     setLoading(true);
     try {
@@ -73,6 +102,8 @@ export function LiveVideoPlayer({
         video.src = src; // Safari / iOS native HLS
       } else {
         const Hls = (await import("hls.js")).default;
+        // Unmounted, or given another stream, while it loaded: nothing to attach.
+        if (!current()) return;
         if (!Hls.isSupported()) {
           setLoading(false);
           onError?.();
@@ -97,6 +128,7 @@ export function LiveVideoPlayer({
       try {
         await video.play();
       } catch (err) {
+        if (!current()) return;
         if ((err as { name?: string })?.name !== "NotAllowedError") throw err;
         // Sound refused: Twitch's answer — start muted, offer one Unmute.
         video.muted = true;
@@ -105,11 +137,13 @@ export function LiveVideoPlayer({
           setMuted(true);
         } catch {
           video.muted = false;
+          startedRef.current = false;
           setStarted(false);
         }
       }
       setLoading(false);
     } catch {
+      if (!current()) return;
       setLoading(false);
       onError?.();
     }
@@ -150,7 +184,7 @@ export function LiveVideoPlayer({
       {!started && (
         <button
           type="button"
-          onClick={start}
+          onClick={() => void start()}
           aria-label="Watch live"
           className="group absolute inset-0 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
           data-testid="live-play"

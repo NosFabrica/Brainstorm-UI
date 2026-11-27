@@ -39,6 +39,14 @@ describe("TechnicalStrip", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("naddr1qqxyz"));
   });
 
+  it("says so when the copy was refused", async () => {
+    setTechnicalView(true);
+    writeText.mockRejectedValueOnce(new Error("denied"));
+    render(<TechnicalStrip event={ev} ids={[{ label: "naddr", value: "naddr1qqxyz" }]} />);
+    fireEvent.click(screen.getByRole("button", { name: /copy naddr/i }));
+    expect(await screen.findByText("couldn't copy")).toBeInTheDocument();
+  });
+
   it("is nothing with the view off", () => {
     render(<TechnicalStrip event={ev} ids={[]} />);
     expect(screen.queryByTestId("technical-strip")).toBeNull();

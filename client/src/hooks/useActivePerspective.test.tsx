@@ -23,7 +23,7 @@ import {
 class TestAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-pov";
   // the real persistence is running here; serialise to something rather than throw
-  toJSON() {
+  override toJSON() {
     return this.saveCommonFields({ signer: null as never });
   }
 }

@@ -8,8 +8,8 @@
  * is a bounded read: up to the cap, and "cap+" beyond it. Newest first is
  * the relay's default order, so the first event carries the freshness.
  */
-import type { NostrEvent } from "nostr-tools";
 import { pool } from "@/lib/relayPool";
+import { searchOnce } from "@/lib/searchOnce";
 
 export const FOOTPRINT_CAP = 200;
 
@@ -21,36 +21,34 @@ export interface AssertionFootprint {
   updatedAt: number;
 }
 
-export function fetchAssertionFootprint(
+/**
+ * Counted from what the provider signed and the store kept (lib/searchOnce on
+ * the provider's own relay), one per person assessed: a relay padding the
+ * count with another key's assertions, or forged ones, made a dead provider
+ * look busy.
+ */
+export async function fetchAssertionFootprint(
   providerPubkey: string,
   relayUrl: string,
   timeoutMs = 6000,
 ): Promise<AssertionFootprint | null> {
-  return new Promise((resolve) => {
-    let people = 0;
-    let updatedAt = 0;
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      sub.unsubscribe();
-      resolve(people === 0 ? null : { people, capped: people >= FOOTPRINT_CAP, updatedAt });
-    };
-    const timer = setTimeout(finish, timeoutMs);
-    const sub = pool
-      .relay(relayUrl)
-      .req({ kinds: [30382], authors: [providerPubkey], limit: FOOTPRINT_CAP })
-      .subscribe({
-        next: (msg: { type: string; event?: NostrEvent }) => {
-          if (msg.type === "EVENT" && msg.event) {
-            people++;
-            if (msg.event.created_at > updatedAt) updatedAt = msg.event.created_at;
-          } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
-            finish();
-          }
-        },
-        error: finish,
-      });
-  });
+  let relay: ReturnType<typeof pool.relay> | null;
+  try {
+    relay = pool.relay(relayUrl);
+  } catch {
+    relay = null;
+  }
+  const { events } = await searchOnce(
+    { kinds: [30382], authors: [providerPubkey], limit: FOOTPRINT_CAP },
+    { relay, timeoutMs },
+  );
+  const people = new Set<string>();
+  let updatedAt = 0;
+  for (const event of events) {
+    if (event.kind !== 30382 || event.pubkey !== providerPubkey) continue;
+    people.add(event.tags.find((t) => t[0] === "d")?.[1] ?? "");
+    if (event.created_at > updatedAt) updatedAt = event.created_at;
+  }
+  if (!people.size) return null;
+  return { people: people.size, capped: events.length >= FOOTPRINT_CAP, updatedAt };
 }

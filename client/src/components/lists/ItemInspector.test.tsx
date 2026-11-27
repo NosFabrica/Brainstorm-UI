@@ -17,7 +17,7 @@ import { ItemInspector } from "./ItemInspector";
 vi.mock("@/components/lists/ItemPreview", () => ({
   ItemPreview: () => <div data-testid="item-preview-stub" />,
 }));
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: vi.fn() }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: vi.fn() }));
 
 const PUBKEY = "a".repeat(64);
 const COORD = `39998:${PUBKEY}:places`;

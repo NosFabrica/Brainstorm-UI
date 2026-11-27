@@ -16,6 +16,7 @@ import { OnboardingHeader } from "@/components/OnboardingHeader";
 import { Nip05Check } from "@/components/Nip05Check";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * First-run for EXISTING Nostr users (logged in via extension/nsec) who already
@@ -57,8 +58,7 @@ export default function ActivatePage() {
   const counts = (overviewQuery.data as { counts?: Record<string, number> } | null)?.counts ?? {};
   const followingCount = counts.following ?? knownFollowCount(pubkey);
   const followersCount = counts.followed_by ?? 0;
-  const name =
-    prof?.display_name || prof?.name || user?.displayName || (user?.npub ? user.npub.slice(0, 12) + "…" : "there");
+  const name = nameIn(prof) || user?.displayName || (user?.npub ? user.npub.slice(0, 12) + "…" : "there");
   const picture = prof?.picture || user?.picture;
 
   // Navigate to search immediately; trigger scoring in the background so the user

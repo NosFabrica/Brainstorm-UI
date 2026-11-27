@@ -11,40 +11,12 @@
  * that person ASKED to zap; that the receipt is real is the wallet's word,
  * checkable only against the recipient's LNURL `nostrPubkey`.)
  */
-import { verifyEvent, type NostrEvent } from "nostr-tools";
+import { isStringTags, isVerifiedEvent } from "@/lib/embeddedEvent";
+
+// The checks moved to lib/embeddedEvent, beside the other events carried inside events; kept here for callers.
+export { isStringTags, isVerifiedEvent };
 
 const HEX64 = /^[0-9a-f]{64}$/;
-const HEX128 = /^[0-9a-f]{128}$/;
-
-/** Tags as NIP-01 has them: arrays of strings. Anything else is not an event's tags. */
-export function isStringTags(v: unknown): v is string[][] {
-  return Array.isArray(v) && v.every((t) => Array.isArray(t) && t.every((x) => typeof x === "string"));
-}
-
-/** A whole NIP-01 event whose id is its hash and whose signature is its author's. Never throws. */
-export function isVerifiedEvent(v: unknown): v is NostrEvent {
-  const e = v as Partial<NostrEvent> | null;
-  if (
-    !e ||
-    typeof e !== "object" ||
-    typeof e.id !== "string" ||
-    !HEX64.test(e.id) ||
-    typeof e.pubkey !== "string" ||
-    !HEX64.test(e.pubkey) ||
-    typeof e.sig !== "string" ||
-    !HEX128.test(e.sig) ||
-    !Number.isSafeInteger(e.kind) ||
-    !Number.isSafeInteger(e.created_at) ||
-    typeof e.content !== "string" ||
-    !isStringTags(e.tags)
-  )
-    return false;
-  try {
-    return verifyEvent(e as NostrEvent);
-  } catch {
-    return false;
-  }
-}
 
 export interface ZapRequest {
   /** The request's own id; one request is one payment, however many receipts repeat it. */
@@ -55,7 +27,11 @@ export interface ZapRequest {
   content: string;
   /** Its tags, string ones only. */
   tags: string[][];
-  /** `anon` (NIP-57): signed by a throwaway key, so it names nobody. */
+  /**
+   * `anon`: signed by a throwaway key, so it names nobody. Not in NIP-57's text
+   * (private zaps were a proposal); read because clients write it for an anonymous zap,
+   * and it only ever makes a payer less named, never more.
+   */
   anonymous: boolean;
   /**
    * Signed, a 9734, and about what the receipt says it is about: the same set

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Card } from "@/components/ui/card";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MessagesSquare, Loader2 } from "lucide-react";
@@ -60,14 +61,14 @@ export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limi
 
   if (notesQuery.loading && notes.length === 0) {
     return (
-      <div
-        className="mb-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none"
+      <Card
+        className="mb-4 rounded-xl border-slate-200/80 p-4 dark:border-slate-800/80"
         data-testid="profile-recent-posts-loading"
       >
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading recent posts…
         </div>
-      </div>
+      </Card>
     );
   }
   if (notes.length === 0) return null;
@@ -78,8 +79,8 @@ export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limi
           space-y on the container, so each section owns its own bottom margin.
           Without it this card sat flush against Social Reach. Both this and the
           loading state carry it so the gap doesn't pop in when content arrives. */}
-      <div
-        className="mb-4 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none"
+      <Card
+        className="mb-4 overflow-hidden rounded-xl border-slate-200/80 dark:border-slate-800/80"
         data-testid="profile-recent-posts"
       >
         <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900 sm:px-4 sm:py-2.5">
@@ -101,7 +102,7 @@ export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limi
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </ShareNavProvider>
   );
 }

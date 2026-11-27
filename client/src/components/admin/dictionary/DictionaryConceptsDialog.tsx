@@ -11,7 +11,6 @@
  * was. Idempotent server-side, so a second press only reports "unchanged".
  */
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { BookOpen, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,8 @@ import {
   type DictionaryRunData,
 } from "@/services/api";
 import type { DictionaryEntry } from "@/services/dictionary";
-import { userDictionaryKey, useUserDictionary } from "./useUserDictionary";
+import { useUserDictionary } from "./useUserDictionary";
+import { DICTIONARY_READS, readAgain } from "@/lib/readGeneration";
 
 const RESULT: Record<DictionaryConceptResult["status"], { label: string; tone: Tone }> = {
   published: { label: "Added", tone: "success" },
@@ -72,7 +72,6 @@ export function DictionaryConceptsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const queryClient = useQueryClient();
   const summary = useUserDictionary(pubkey, taPubkey, open);
   const { shown: concepts } = useDictionaryConcepts();
   const [running, setRunning] = useState(false);
@@ -87,7 +86,7 @@ export function DictionaryConceptsDialog({
       const data = await apiClient.publishDictionaryConcepts(pubkey, concepts);
       setResult(data);
       // The copies now exist (or don't): read the relay again rather than guess.
-      await queryClient.invalidateQueries({ queryKey: userDictionaryKey(pubkey, taPubkey) });
+      await readAgain(DICTIONARY_READS);
     } catch (e) {
       setError({
         message: e instanceof Error ? e.message : String(e),

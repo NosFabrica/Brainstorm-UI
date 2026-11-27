@@ -25,8 +25,16 @@ import { BOOKMARK_KINDS, HashtagChips, hostAndPath, useListNotes } from "@/compo
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
 import { avatarSrc } from "@/lib/avatarSrc";
+import { APP_EMBED_KINDS } from "@/lib/embedShape";
 import { kindTypeLabel } from "@/lib/kindLabel";
-import { addressNoun, listItemCounts, listTitle, readListItems, type ListNote } from "@/lib/listItems";
+import {
+  addressNoun,
+  listItemCounts,
+  listTitle,
+  readListItems,
+  type ListNote,
+  type ListNoteNoun,
+} from "@/lib/listItems";
 import { addrCoord, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
 import { eventPath, neventFor, READER_KINDS } from "@/lib/shareId";
 
@@ -122,7 +130,23 @@ function pagesOf<T>(items: T[], pages: number, size: number): T[][] {
   );
 }
 
-function NotesPage({ notes }: { notes: ListNote[] }) {
+/** A member's score on a Trusted List, above its card: what the list says of it. */
+type ScoreOf = (key: string) => number | null | undefined;
+
+function ScoreLine({ score }: { score: number | null | undefined }) {
+  if (score === null || score === undefined) return null;
+  return (
+    <span
+      className="mb-1 block text-right font-mono text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300"
+      title={`Score ${score} of 100 on this list`}
+      data-testid="item-list-score"
+    >
+      {score}
+    </span>
+  );
+}
+
+function NotesPage({ notes, scoreOf }: { notes: ListNote[]; scoreOf?: ScoreOf }) {
   const byId = useListNotes(notes);
   return (
     <>
@@ -130,6 +154,7 @@ function NotesPage({ notes }: { notes: ListNote[] }) {
         const q = byId.get(n.id);
         return (
           <li key={n.id} data-testid={`item-list-note-${n.id}`}>
+            {scoreOf && <ScoreLine score={scoreOf(n.id)} />}
             {q ? (
               <EmbeddedNoteCard
                 event={q.event}
@@ -156,15 +181,25 @@ function NotesPage({ notes }: { notes: ListNote[] }) {
   );
 }
 
-function ListNotes({ notes }: { notes: ListNote[] }) {
+export function ListNotes({
+  notes,
+  noun = "note",
+  scoreOf,
+}: {
+  notes: ListNote[];
+  noun?: ListNoteNoun;
+  scoreOf?: ScoreOf;
+}) {
   const [pages, setPages] = useState(1);
   const left = notes.length - pages * NOTES_FOLD;
+  // A curation set of videos or pictures holds videos or pictures (NIP-51), not notes.
+  const word = noun.charAt(0).toUpperCase() + noun.slice(1);
   return (
     <section className="space-y-2" data-testid="item-list-notes">
-      <SectionHeader kicker={notes.length === 1 ? "Note" : "Notes"} />
+      <SectionHeader kicker={notes.length === 1 ? word : `${word}s`} />
       <ul className="space-y-2">
         {pagesOf(notes, pages, NOTES_FOLD).map((page, i) => (
-          <NotesPage key={i} notes={page} />
+          <NotesPage key={i} notes={page} scoreOf={scoreOf} />
         ))}
       </ul>
       {left > 0 && (
@@ -196,8 +231,11 @@ function AddressRow({ address }: { address: AddressRef }) {
   );
 }
 
-function AddressesPage({ addresses }: { addresses: AddressRef[] }) {
-  const readable = useMemo(() => addresses.filter((a) => READER_KINDS.has(a.kind)), [addresses]);
+/** Addresses drawn as their own card once found: articles, and apps (an app curation set's `a`s, NIP-51). */
+const CARD_ADDRESS_KINDS: ReadonlySet<number> = new Set([...READER_KINDS, ...APP_EMBED_KINDS]);
+
+function AddressesPage({ addresses, scoreOf }: { addresses: AddressRef[]; scoreOf?: ScoreOf }) {
+  const readable = useMemo(() => addresses.filter((a) => CARD_ADDRESS_KINDS.has(a.kind)), [addresses]);
   const { articles } = useArticlesByRefs(readable);
   const byCoord = useMemo(
     () =>
@@ -214,14 +252,24 @@ function AddressesPage({ addresses }: { addresses: AddressRef[] }) {
       {addresses.map((a) => {
         const article = byCoord.get(addrCoord(a));
         return (
-          <li key={addrCoord(a)}>{article ? <EmbeddedArticleCard event={article} /> : <AddressRow address={a} />}</li>
+          <li key={addrCoord(a)}>
+            {scoreOf && <ScoreLine score={scoreOf(addrCoord(a))} />}
+            {!article ? (
+              <AddressRow address={a} />
+            ) : APP_EMBED_KINDS.has(article.kind) ? (
+              // An app is its app card (EmbeddedNoteCard draws it, or its words when it names nothing).
+              <EmbeddedNoteCard event={article} href={eventPath(article)} nested />
+            ) : (
+              <EmbeddedArticleCard event={article} />
+            )}
+          </li>
         );
       })}
     </>
   );
 }
 
-function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
+export function ListAddresses({ addresses, scoreOf }: { addresses: AddressRef[]; scoreOf?: ScoreOf }) {
   const [pages, setPages] = useState(1);
   const left = addresses.length - pages * ADDRESSES_FOLD;
   // Named for what they are when they are all one thing: "Articles", "Videos".
@@ -233,7 +281,7 @@ function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
       <SectionHeader kicker={heading} />
       <ul className="space-y-2">
         {pagesOf(addresses, pages, ADDRESSES_FOLD).map((page, i) => (
-          <AddressesPage key={i} addresses={page} />
+          <AddressesPage key={i} addresses={page} scoreOf={scoreOf} />
         ))}
       </ul>
       {left > 0 && (
@@ -353,7 +401,7 @@ export function ItemListHero({ event }: { event: MinimalEvent }) {
         )}
       </div>
 
-      {items.notes.length > 0 && <ListNotes notes={items.notes} />}
+      {items.notes.length > 0 && <ListNotes notes={items.notes} noun={items.noteNoun} />}
       {items.addresses.length > 0 && <ListAddresses addresses={items.addresses} />}
       {items.people.length > 0 && (
         <section data-testid="item-list-people">

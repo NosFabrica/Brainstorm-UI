@@ -295,7 +295,7 @@ describe("FirstRunPage", () => {
       await waitFor(() =>
         expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Your follows weren't saved" })),
       );
-      expect(h.toast.mock.calls.at(-1)[0].action).toBeTruthy();
+      expect(h.toast.mock.calls.at(-1)?.[0].action).toBeTruthy();
       expect(h.trigger).not.toHaveBeenCalled();
     });
   });
@@ -341,6 +341,13 @@ describe("FirstRunPage", () => {
       window.history.replaceState({}, "", "/start?next=%2Fp%2Fabc");
       render(<FirstRunPage />);
       await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login?next=%2Fp%2Fabc", { replace: true }));
+    });
+
+    it("drops a next that would leave the site, however it is spelled", async () => {
+      // `/\evil.example` passes startsWith("/") && !startsWith("//"); the URL parser reads it as //evil.example.
+      window.history.replaceState({}, "", "/start?next=%2F%5Cevil.example");
+      render(<FirstRunPage />);
+      await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login", { replace: true }));
     });
 
     it("goes to plain sign in when they were headed nowhere in particular", async () => {

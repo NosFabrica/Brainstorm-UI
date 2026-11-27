@@ -16,6 +16,9 @@ const loadReplaceableMock = vi.fn(async () => undefined as NostrEvent | undefine
 
 vi.mock("@/lib/relayPool", () => ({ pool: { publish: (...a: unknown[]) => publish(...(a as [string[]])) } }));
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => held.get(`${kind}:${pubkey}`),
     getEvent: (id: string) => events.get(id),

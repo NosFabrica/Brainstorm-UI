@@ -14,7 +14,6 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 vi.mock("@/components/score/VerificationCoin", () => ({ useTierRing: () => () => null }));
 const io = vi.hoisted(() => ({ publishBookReview: vi.fn(), removeBookReview: vi.fn() }));
 vi.mock("@/services/bookReviews", () => ({
-  fetchBookReviews: async () => [],
   publishBookReview: io.publishBookReview,
   removeBookReview: io.removeBookReview,
 }));

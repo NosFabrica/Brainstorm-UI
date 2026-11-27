@@ -8,7 +8,7 @@
  * The pool is faked rather than mocked at the network layer, because what is
  * being asserted is subscription lifetime, and only the source can report that.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject, timeout } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
@@ -67,6 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
 });
+afterEach(() => vi.useRealTimers());
 
 describe("a request that no relay answers", () => {
   it("tears the subscription down instead of leaving the REQ open", async () => {
@@ -343,6 +344,23 @@ describe("asking the newest, and who answered", () => {
 
     const { newest } = await pending;
     expect(newest?.id).toBe("newer");
+  });
+
+  // The store said no (a bad signature, a deleted event): the read must not
+  // take the relay's copy anyway. It used to fall back to it.
+  it("never takes an event the store refused as the newest", async () => {
+    const { subject } = messages();
+    storeAdd.mockImplementationOnce(() => null as never);
+
+    const pending = requestNewestWithReach(RELAYS, FILTER, 1000);
+    subject.next(arrived("wss://one", event("forged", 99)));
+    subject.next(arrived("wss://two", event("genuine", 20)));
+    subject.next(eose("wss://one"));
+    subject.next(eose("wss://two"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const { newest } = await pending;
+    expect(newest?.id).toBe("genuine");
   });
 
   it("answers as soon as every relay is accounted for, without waiting out the window", async () => {

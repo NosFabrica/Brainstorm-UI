@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { safeHref } from "@/lib/safeHref";
 import {
   checkNip85Health,
   fetchProfileEvent,
@@ -26,6 +27,7 @@ import {
 } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import type { NostrEvent } from "applesauce-core/helpers";
+import { nameIn } from "@/lib/displayName";
 
 interface AdminProfileFields {
   name?: string;
@@ -141,8 +143,13 @@ function MiniCopy({ text, testId }: { text: string; testId: string }) {
       className="shrink-0 rounded p-0.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
       onClick={(e) => {
         e.stopPropagation();
-        copyToClipboard(text);
-        toast({ title: "Copied", description: text.slice(0, 24) + (text.length > 24 ? "…" : ""), duration: 1500 });
+        void copyToClipboard(text).then((ok) =>
+          toast(
+            ok
+              ? { title: "Copied", description: text.slice(0, 24) + (text.length > 24 ? "…" : ""), duration: 1500 }
+              : { title: "Couldn't copy", variant: "destructive" },
+          ),
+        );
       }}
       data-testid={testId}
       aria-label="Copy to clipboard"
@@ -742,6 +749,25 @@ function useKind0Query(pubkey: string | null, extraRelays: string[] = []) {
   });
 }
 
+/**
+ * A profile's `website`, as anyone wrote it into their kind 0: a link only
+ * when it is a web address (lib/safeHref), else the same words as text. An
+ * admin opens this card for any account, so a `javascript:` website would run
+ * with their session.
+ */
+function ProfileWebsite({ website, isAssistant, testId }: { website: string; isAssistant: boolean; testId: string }) {
+  const href = safeHref(website);
+  const className = `truncate text-[10px] ${
+    isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
+  }`;
+  if (!href) return <span className={className}>{String(website)}</span>;
+  return (
+    <a href={href} target="_blank" rel="noopener" className={`${className} hover:underline`} data-testid={testId}>
+      {website}
+    </a>
+  );
+}
+
 function AssignedAssistantSection({
   assistantPubkey,
   selfAssigned,
@@ -757,8 +783,8 @@ function AssignedAssistantSection({
   const event = query.data?.event ?? null;
   const profile = query.data?.profile ?? null;
   const isAssistant = isLikelyBrainstormWebsite(profile?.website);
-  const displayName = profile?.display_name || profile?.name || "(no name)";
-  const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
+  const displayName = nameIn(profile) ?? "(no name)";
+  const initials = (nameIn(profile) ?? "?").slice(0, 2).toUpperCase();
 
   return (
     <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800" data-testid="section-assigned-assistant">
@@ -848,17 +874,7 @@ function AssignedAssistantSection({
               {profile.website && (
                 <div className="mt-0.5 flex items-center gap-1">
                   {isAssistant && <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-500" />}
-                  <a
-                    href={profile.website}
-                    target="_blank"
-                    rel="noopener"
-                    className={`truncate text-[10px] hover:underline ${
-                      isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
-                    }`}
-                    data-testid="link-assistant-website"
-                  >
-                    {profile.website}
-                  </a>
+                  <ProfileWebsite website={profile.website} isAssistant={isAssistant} testId="link-assistant-website" />
                 </div>
               )}
             </div>
@@ -902,8 +918,8 @@ function Kind0Panel({
   const event = query.data?.event ?? null;
   const profile = query.data?.profile ?? null;
   const isAssistant = isLikelyBrainstormWebsite(profile?.website);
-  const displayName = profile?.display_name || profile?.name || "(no name)";
-  const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
+  const displayName = nameIn(profile) ?? "(no name)";
+  const initials = (nameIn(profile) ?? "?").slice(0, 2).toUpperCase();
 
   const pill = query.isLoading ? (
     <StatusPill tone="neutral" label="Loading" testId="status-kind0-overall" />
@@ -978,17 +994,7 @@ function Kind0Panel({
               {profile.website && (
                 <div className="mt-0.5 flex items-center gap-1">
                   {isAssistant && <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-500" />}
-                  <a
-                    href={profile.website}
-                    target="_blank"
-                    rel="noopener"
-                    className={`truncate text-[10px] hover:underline ${
-                      isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
-                    }`}
-                    data-testid="link-kind0-website"
-                  >
-                    {profile.website}
-                  </a>
+                  <ProfileWebsite website={profile.website} isAssistant={isAssistant} testId="link-kind0-website" />
                 </div>
               )}
             </div>
@@ -1023,6 +1029,7 @@ function Kind0Panel({
 export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | null }) {
   const nip85Query = useQuery<Nip85HealthCheck>({
     queryKey: ["admin/nip85-health", pubkey, taPubkey ?? ""],
+    // eslint-disable-next-line no-restricted-syntax -- relay probe: what the NIP-85 relay holds for them now
     queryFn: () => checkNip85Health(pubkey, taPubkey, STAFF_TIMEOUT_MS),
     staleTime: 0,
     gcTime: 0,

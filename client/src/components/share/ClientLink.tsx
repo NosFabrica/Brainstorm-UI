@@ -10,13 +10,14 @@ import { ProfileMention } from "@/components/share/ProfileMention";
 import { clientRef } from "@/lib/clientLinks";
 import { useClientLink } from "@/hooks/useClientLink";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { nameIn } from "@/lib/displayName";
 
 export function ClientLink({ url }: { url: string }) {
   const { entity } = useClientLink(clientRef(url));
   if (entity?.kind === "article")
     return <EmbeddedArticleCard event={entity.event as MinimalEvent} author={entity.author} />;
   if (entity?.kind === "profile") {
-    const name = entity.profile?.display_name || entity.profile?.name;
+    const name = nameIn(entity.profile);
     return <ProfileMention npub={entity.npub} name={name} picture={entity.profile?.picture} />;
   }
   return <LinkChip url={url} />;

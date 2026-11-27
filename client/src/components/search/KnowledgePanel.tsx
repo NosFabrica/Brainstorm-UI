@@ -69,6 +69,7 @@ import { useConnectionSpeed } from "@/lib/connection";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { resultName } from "@/lib/displayName";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -257,6 +258,9 @@ function KnowledgePanelBody({
   const topicAnswered = useRef<string | null>(null);
   const appsAnswered = useRef<string | null>(null);
   const eventsAnswered = useRef<string | null>(null);
+  // Not `person` itself: the reset below and the lookup run in one commit, and the lookup
+  // would read the last query's person as this one's answer.
+  const personAnswered = useRef<string | null>(null);
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
   useEffect(() => {
@@ -347,7 +351,7 @@ function KnowledgePanelBody({
     if (!needsWavlake || !person) return;
     let cancelled = false;
     void (async () => {
-      const artist = await findWavlakeArtist({ name: person.displayName || person.name, pubkey: person.pubkey });
+      const artist = await findWavlakeArtist({ name: resultName(person), pubkey: person.pubkey });
       if (!artist || cancelled) return;
       const songs = await wavlakeArtistTracks(artist.id, 3);
       if (!cancelled && songs.length > 0) setPersonWavlake({ artist, songs });
@@ -371,6 +375,10 @@ function KnowledgePanelBody({
     setTopicEvents(null);
   }, [query, pov, userPubkey]);
 
+  const foundPerson = (who: SearchResult) => {
+    personAnswered.current = askedKey;
+    setPerson(who);
+  };
   useEffect(() => {
     if (!active) return;
     // A search scoped to one person (from:npub…, the public profile's "View
@@ -384,7 +392,7 @@ function KnowledgePanelBody({
       void suggestProfiles(scope.token, { pov, userPubkey }, { limit: 1 }).then((people) => {
         if (!scopedAlive) return;
         const who = people.find((p) => p.pubkey === scoped);
-        if (who) setPerson(who);
+        if (who) foundPerson(who);
       });
       return () => {
         scopedAlive = false;
@@ -394,13 +402,12 @@ function KnowledgePanelBody({
     // A NIP-shaped query is a spec lookup: the wiki page takes the slot and
     // nobody is hunted for.
     if (nipCandidates(query).length > 0) return;
-    // Already answered for this query (the reset above is what clears it), so a
-    // tab switch does not ask again.
-    if (person) return;
+    // Already answered for this query, so a tab switch does not ask again.
+    if (personAnswered.current === askedKey) return;
     // The People section asks this very question, deeper — where it has, the
     // panel reads its answer instead of asking again.
     if (hasSections) {
-      if (sectionPerson && isStrongMatch(query, sectionPerson)) setPerson(sectionPerson);
+      if (sectionPerson && isStrongMatch(query, sectionPerson)) foundPerson(sectionPerson);
       return;
     }
     let alive = true;
@@ -409,7 +416,7 @@ function KnowledgePanelBody({
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
-      if (top && isStrongMatch(query, top)) setPerson(top);
+      if (top && isStrongMatch(query, top)) foundPerson(top);
     });
     return () => {
       alive = false;
@@ -653,7 +660,7 @@ function KnowledgePanelBody({
                     key={tr.id}
                     id={tr.id}
                     title={tr.title}
-                    artist={tr.artist ?? person.displayName ?? person.name}
+                    artist={tr.artist ?? resultName(person)}
                     cover={tr.cover}
                     audio={tr.audio}
                     genre={tr.genre}

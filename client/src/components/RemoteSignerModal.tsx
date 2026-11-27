@@ -21,10 +21,12 @@ import {
   bunkerUriProblem,
   connectWithBunkerURI,
   isPairingCancelled,
+  releaseUnadopted,
   remoteSignerMessage,
   type RemotePairing,
 } from "@/accounts/remote-login";
-import { appMetadata } from "@/accounts/remote-signer";
+import { accountManager } from "@/accounts";
+import { appMetadata, type RemoteAccount } from "@/accounts/remote-signer";
 import type { Observable } from "rxjs";
 import { relaysReachable$ } from "@/accounts/remote-transport";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -35,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { LazyQRCode } from "@/components/LazyQRCode";
+import { copyToClipboard, dialogOf } from "@/lib/clipboard";
 
 /** After this long with no answer, the likeliest cause is an unread notification. */
 const NUDGE_AFTER_MS = 15_000;
@@ -59,7 +62,13 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
 
   const finish = useCallback(
     async (account: BrainstormAccount, pairing?: RemotePairing) => {
-      await signInWithExternalSigner(account);
+      try {
+        await signInWithExternalSigner(account);
+      } catch (error) {
+        // Not signed in, so nothing will sign over this connection: one per retry, otherwise.
+        releaseUnadopted(account as RemoteAccount, (id) => !!accountManager.getAccount(id));
+        throw error;
+      }
       // Before the screen closes: closing cancels the pairing, and cancelling
       // would shut the connection this Account now signs over.
       pairing?.keep();
@@ -128,14 +137,15 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
     return () => clearInterval(tick);
   }, [open, pairing]);
 
-  const copy = async () => {
+  // Through lib/clipboard, whose fallback copies where the clipboard API is missing (in-app
+  // webviews); from inside the dialog, which traps focus.
+  const copy = async (from: Element) => {
     if (!pairing) return;
-    try {
-      await navigator.clipboard.writeText(pairing.uri);
+    if (await copyToClipboard(pairing.uri, { container: dialogOf(from) })) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setError("Couldn't reach the clipboard. Select the link and copy it by hand.");
+    } else {
+      setError("Couldn't copy the link. Select it and copy it by hand.");
     }
   };
 
@@ -178,7 +188,7 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
             value={pasted}
             onChange={setPasted}
             busy={busy}
-            onSubmit={submitPasted}
+            onSubmit={() => void submitPasted()}
             onBack={() => {
               setPasting(false);
               setError(null);
@@ -191,7 +201,7 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
             showQr={showQr || !mobile}
             onShowQr={() => setShowQr(true)}
             copied={copied}
-            onCopy={copy}
+            onCopy={(e) => void copy(e.currentTarget)}
             waited={waited}
             onPaste={() => {
               setPasting(true);
@@ -221,7 +231,7 @@ function ConnectPane({
   showQr: boolean;
   onShowQr(): void;
   copied: boolean;
-  onCopy(): void;
+  onCopy(e: { currentTarget: Element }): void;
   waited: number;
   onPaste(): void;
   onRetry(): void;

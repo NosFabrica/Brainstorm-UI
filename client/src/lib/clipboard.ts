@@ -44,6 +44,14 @@ export async function copyToClipboard(
   }
 }
 
+/**
+ * The modal dialog `el` sits in, for `copyToClipboard`'s `container`: the
+ * fallback's textarea must take focus, and a dialog traps it. Null outside one.
+ */
+export function dialogOf(el: Element | null | undefined): HTMLElement | null {
+  return (el?.closest('[role="dialog"]') as HTMLElement | null) ?? null;
+}
+
 /** Copy a text still being fetched, starting the write inside the tap (WebKit needs that); `fallback` otherwise. */
 export async function copyPromisedText(text: Promise<string>, fallback: string): Promise<boolean> {
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {

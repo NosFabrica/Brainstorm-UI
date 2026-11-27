@@ -14,7 +14,6 @@ import { Stars } from "@/components/search/thingCards";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useFaceProfiles } from "@/components/search/cards";
-import { fetchByAddress, fetchFromSearch } from "@/services/search";
 import { describeThing, hostOfUrl, type Thing } from "@/lib/thing";
 import { eventPath } from "@/lib/shareId";
 import { ago } from "@/lib/ago";
@@ -28,7 +27,8 @@ import {
   Section,
   SectionNote,
   nameOf,
-  useFetched,
+  useAddressedEvents,
+  useSearchEvents,
   type PageEvent,
 } from "./shared";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -66,11 +66,14 @@ function reviewFilters(event: PageEvent, subject: Detail<"review">["subject"]): 
 function useRatedSubject(event: PageEvent, subject: Detail<"review">["subject"]) {
   const coord = subject === "entity" ? (tagOf(event, "a") ?? tagOf(event, "A")) : undefined;
   const id = subject === "entity" && !coord ? tagOf(event, "e") : undefined;
-  return useFetched(coord ? `rated:${coord}` : id ? `rated:${id}` : null, async () => {
-    if (coord) return (await fetchByAddress([coord])).get(coord) ?? null;
-    const [found] = await fetchFromSearch([{ ids: [id] }], { limit: 1 });
-    return found ?? null;
-  });
+  const byAddress = useAddressedEvents(coord ? `rated:${coord}` : null, coord ? [coord] : []);
+  const byId = useSearchEvents(id ? `rated:${id}` : null, id ? [{ ids: [id] }] : null, { limit: 1 });
+  if (coord) {
+    if (!byAddress) return undefined;
+    const [kind, pubkey, ...d] = coord.split(":");
+    return byAddress.get([kind, pubkey?.toLowerCase(), ...d].join(":")) ?? null;
+  }
+  return byId ? (byId[0] ?? null) : undefined;
 }
 
 function subjectTitle(e: NostrEvent): string {
@@ -176,9 +179,9 @@ export function ReviewHero({ event, thing, detail }: { event: PageEvent; thing: 
 }
 
 export function ReviewSections({ event, detail }: { event: PageEvent; detail: Detail<"review"> }) {
-  const all = useFetched(`reviews:${event.kind}:${event.id}`, () =>
-    fetchFromSearch(reviewFilters(event, detail.subject), { limit: 200 }),
-  );
+  const all = useSearchEvents(`reviews:${event.kind}:${event.id}`, reviewFilters(event, detail.subject), {
+    limit: 200,
+  });
   // One review per author — their newest — scored on this kind's own scale.
   // The page's own review counts even when the search relay hasn't got it.
   const byAuthor = new Map<string, PageEvent>();

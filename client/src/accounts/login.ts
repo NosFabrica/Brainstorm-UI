@@ -6,12 +6,13 @@
  * timeouts, and neither built anything the rest of the app could hold onto — the
  * extension was re-discovered at every signature instead.
  */
-import { accountManager } from "@/accounts";
+import { accountManager, accounts } from "@/accounts";
 import { BrainstormExtensionAccount } from "./extension";
 import { LocalAccount } from "./local-account";
 import type { LocalSignerOptions } from "./local-signer";
 import type { StoredPasskey } from "./passkey";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
+import { retireAccount } from "./retire";
 
 declare global {
   interface Window {
@@ -123,7 +124,7 @@ export function adoptAccount(account: BrainstormAccount, metadata: AccountMetada
     const { session: _session, remembered: _remembered, ...rest } = getMetadata(held as BrainstormAccount);
     carried = rest;
     carryBackup(held as BrainstormAccount, account);
-    forgetAccount(held as BrainstormAccount);
+    forgetAccount(held as BrainstormAccount, { replaced: true });
   }
 
   // metadata first: adding is what triggers a save, and one save is enough
@@ -187,23 +188,9 @@ export function activateAccount(account: BrainstormAccount): void {
  * `visibilitychange` listener that would read the clipboard on every return to
  * the app, for an identity we no longer have.
  */
-export function forgetAccount(account: BrainstormAccount): void {
-  accountManager.removeAccount(account);
-  if (account instanceof LocalAccount) account.signer.lock();
-  // `logout` is a courtesy the spec makes optional and nsec.app doesn't
-  // implement, so it is sent without waiting and without caring.
-  releaseSigner(account);
-}
-
-/** Shut down whatever the Signer was holding open. Best effort, always. */
-function releaseSigner(account: BrainstormAccount): void {
-  const signer = account.signer as { logout?: () => Promise<void>; destroy?: () => void };
-  try {
-    signer.destroy?.();
-    void signer.logout?.().catch(() => {});
-  } catch {
-    /* a Signer that can't be shut down cleanly still has to leave */
-  }
+export function forgetAccount(account: BrainstormAccount, { replaced = false }: { replaced?: boolean } = {}): void {
+  // The one path out (accounts/retire): memory, signer, backup, caches, device key.
+  retireAccount(account, { manager: accountManager, persistence: accounts.persistence, replaced });
 }
 
 /**

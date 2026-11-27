@@ -354,6 +354,9 @@ export function readBadgeAward(ev: ActivityEvent): BadgeAward {
 
 export const REPORT_TYPES = ["nudity", "malware", "profanity", "illegal", "spam", "impersonation", "other"];
 
+/** Report types whose post is something to choose to see, never a quote shown at once. */
+export const HIDDEN_REPORT_REASONS: ReadonlySet<string> = new Set(["nudity", "illegal", "malware"]);
+
 export interface Report {
   /** Who is reported — or, beside an event, whose event it is. */
   person: string | null;
@@ -366,12 +369,14 @@ export interface Report {
 export function readReport(ev: ActivityEvent): Report {
   const p = tagsOf(ev, "p")[0];
   const e = tagsOf(ev, "e")[0];
-  // The type is the tag's third value; a relay there is a hint, not a reason.
+  // NIP-56: a blob is reported by its `x`, beside the `e` of the event that carries it.
+  const x = tagsOf(ev, "x")[0];
+  // The type is the 3rd entry of the `e`, `p` or `x`; a relay some clients put there is a hint, not a reason.
   const typeOf = (t?: string[]) => (t?.[2] && !/^wss?:\/\//i.test(t[2]) ? t[2].trim().toLowerCase() : null);
   return {
     person: hexKey(p?.[1]),
     event: refOfTag(e),
-    reason: typeOf(e) ?? typeOf(p),
+    reason: typeOf(e) ?? typeOf(x) ?? typeOf(p),
     comment: ev.content.trim(),
   };
 }
@@ -394,7 +399,8 @@ export function readLabel(ev: ActivityEvent): Label {
   const seen = new Set<string>();
   const labels: Label["labels"] = [];
   for (const t of tagsOf(ev, "l")) {
-    const label = { value: t[1], namespace: t[2] || null };
+    // NIP-32: a label with no mark is in `ugc`.
+    const label = { value: t[1], namespace: t[2] || "ugc" };
     const key = JSON.stringify([label.value, label.namespace]);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -520,13 +526,14 @@ export function readRsvp(ev: ActivityEvent): Rsvp {
   // Own keys only: `__proto__` or `constructor` is no status.
   const status = Object.hasOwn(RSVP_WORDS, raw) ? (raw as RsvpStatus) : null;
   const fb = (tagValue(ev, "fb") ?? "").toLowerCase();
-  const a = tagsOf(ev, "a").find((t) => ADDRESS.test(t[1]));
+  // NIP-52: the `a` names a kind 31922 or 31923 calendar event; any other address is no appointment.
+  const a = tagsOf(ev, "a").find((t) => /^3192[23]:/.test(t[1]) && ADDRESS.test(t[1]));
   return {
     status,
     word: status ? RSVP_WORDS[status] : "Replied",
     // NIP-52: free/busy is only said beside a reply that is not a "no".
     freeBusy: status !== "declined" && (fb === "free" || fb === "busy") ? fb : null,
-    appointment: a?.[1] ?? null,
+    appointment: a ? normalAddr(a[1]) : null,
     relay: a ? relayOf(a) : undefined,
     eventId: hexKey(tagValue(ev, "e")),
     note: ev.content.trim(),
@@ -537,19 +544,40 @@ export function readRsvp(ev: ActivityEvent): Rsvp {
 
 export interface Follows {
   people: string[];
-  hashtags: string[];
 }
 
+/**
+ * NIP-02 defines a follow list as its `p` tags and nothing else. A `t` some
+ * clients add is not a followed hashtag by any spec (NIP-51's kind 10015 is
+ * where interests live), so it is not read as one.
+ */
 export function readFollows(ev: ActivityEvent): Follows {
-  return {
-    people: unique(tagsOf(ev, "p").map((t) => hexKey(t[1]))),
-    hashtags: unique(tagsOf(ev, "t").map((t) => t[1].replace(/^#/, "").trim())),
-  };
+  return { people: unique(tagsOf(ev, "p").map((t) => hexKey(t[1]))) };
 }
 
 // ---- Trusted assertions (NIP-85, 30382–30385; NosFabrica/protocols trusted-assertions.md) ----
 
 export const ASSERTION_KINDS: ReadonlySet<number> = new Set([30382, 30383, 30384, 30385]);
+
+/**
+ * The kinds read here: what someone did, to whom, about what. Each has its
+ * page (components/share/activity), its quoted card and its result rows, all
+ * reading through the same parser so they agree.
+ */
+export const ACTIVITY_KINDS: ReadonlySet<number> = new Set([
+  3,
+  5,
+  7,
+  8,
+  17,
+  1018,
+  1984,
+  1985,
+  4550,
+  31925,
+  ...ZAP_KINDS,
+  ...ASSERTION_KINDS,
+]);
 
 export interface Metric {
   tag: string;
@@ -623,4 +651,20 @@ export function metricNoun(tag: string): string {
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
     .toLowerCase();
+}
+
+/**
+ * Whether a card or a row may quote the event an activity is about, or only
+ * link it: not what a deletion names (NIP-09: clients SHOULD hide it), not a
+ * post reported as nudity, malware or illegal, not a badge named by anyone but
+ * its issuer (NIP-58: only the issuer awards it, so the claim is no award).
+ */
+export function quotesItsTarget(ev: ActivityEvent): boolean {
+  if (ev.kind === 5) return false;
+  if (ev.kind === 8) return readBadgeAward(ev).byIssuer;
+  if (ev.kind === 1984) {
+    const reason = readReport(ev).reason;
+    return !reason || !HIDDEN_REPORT_REASONS.has(reason);
+  }
+  return true;
 }

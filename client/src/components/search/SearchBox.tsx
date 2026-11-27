@@ -88,6 +88,7 @@ import { PersonTagLabel } from "@/components/search/PersonTagLabel";
 import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
 import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS } from "@/components/search/searchBoxChrome";
 import { isTouchScreen } from "@/lib/touchScreen";
+import { resultName } from "@/lib/displayName";
 
 const NO_PUBKEYS: string[] = [];
 
@@ -381,7 +382,7 @@ export function SearchBox({
         typedSinceSearchRef.current = true;
         setIsSuggesting(true);
         setShowSuggestions(true);
-        suggestTimerRef.current = window.setTimeout(async () => {
+        const suggestPeople = async () => {
           try {
             suggestRequestRef.current = new AbortController();
             const people = await suggestProfiles(
@@ -401,7 +402,8 @@ export function SearchBox({
           } finally {
             if (suggestAbortRef.current === reqId) setIsSuggesting(false);
           }
-        }, typeaheadPause(speed));
+        };
+        suggestTimerRef.current = window.setTimeout(() => void suggestPeople(), typeaheadPause(speed));
         return;
       }
       // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
@@ -432,7 +434,7 @@ export function SearchBox({
       typedSinceSearchRef.current = true;
       setIsSuggesting(true);
       setShowSuggestions(true);
-      suggestTimerRef.current = window.setTimeout(async () => {
+      const suggest = async () => {
         try {
           suggestRequestRef.current = new AbortController();
           const signal = suggestRequestRef.current.signal;
@@ -478,7 +480,8 @@ export function SearchBox({
         } finally {
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
-      }, typeaheadPause(speed));
+      };
+      suggestTimerRef.current = window.setTimeout(() => void suggest(), typeaheadPause(speed));
     },
     [effectivePov, user?.pubkey, speed],
   );
@@ -626,8 +629,7 @@ export function SearchBox({
   const words = scope ? scope.rest : value;
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
-  const scopeName =
-    scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  const scopeName = resultName(scopeProfile) ?? null;
 
   // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
   // the dropdown's action row resolves it straight to the right landing page.

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { dlistCoordinateOf } from "@/lib/dlists";
@@ -9,6 +9,7 @@ import { bLinksOf } from "@/lib/conceptResolution";
 import { useListKinds } from "@/hooks/useListKinds";
 import type { ListNames } from "@/lib/taggable";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
+import { isNewerVersion } from "@/lib/newestPerAddress";
 
 const addressOfEvent = (e: NostrEvent) => `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
 
@@ -51,28 +52,37 @@ export function useTaggedItems(targets: string[]): {
     Array.from((await fetchAddressableEvents(coords, PROFILE_RELAYS).catch(() => new Map())).values()),
   );
 
-  // The newest version of each addressable thing, by its coordinate.
+  // The newest version of each addressable thing, by its coordinate (NIP-01:
+  // newer wins, a tie goes to the lower id).
   const events = useMemo(() => {
     const out = new Map<string, NostrEvent>();
     for (const e of byId.events) out.set(e.id, e);
     for (const e of byCoord.events) {
       const address = addressOfEvent(e);
-      const held = out.get(address);
-      if (!held || e.created_at > held.created_at) out.set(address, e);
+      if (isNewerVersion(e, out.get(address))) out.set(address, e);
     }
     return out;
   }, [byId.events, byCoord.events]);
 
-  const lists = useListNames(events);
+  // The headers are keyed on the items: asked once they are in, not per
+  // arriving item (CODING_STANDARDS, "settled before dependents").
+  const settled = (!ids.length || byId.settled) && (!coords.length || byCoord.settled);
+  const lists = useListNames(events, { ready: settled });
 
-  return {
-    eventOf: (target) => events.get(target),
-    listOf: (target) => {
-      const item = events.get(target);
-      return item ? lists.listOf(item) : null;
-    },
-    loading: byId.loading || byCoord.loading || lists.loading,
-  };
+  const { listOf: listOfItem } = lists;
+  const loading = byId.loading || byCoord.loading || lists.loading;
+  // One object while nothing it reads changes, so a caller can memoize on it.
+  return useMemo(
+    () => ({
+      eventOf: (target: string) => events.get(target),
+      listOf: (target: string) => {
+        const item = events.get(target);
+        return item ? listOfItem(item) : null;
+      },
+      loading,
+    }),
+    [events, listOfItem, loading],
+  );
 }
 
 /**
@@ -83,7 +93,15 @@ export function useTaggedItems(targets: string[]): {
  * answers for one item. Null for anything that is
  * not a list's item, or whose list couldn't be read.
  */
-export function useListNames(events: ReadonlyMap<string, NostrEvent> | readonly NostrEvent[]): {
+export function useListNames(
+  events: ReadonlyMap<string, NostrEvent> | readonly NostrEvent[],
+  {
+    ready = true,
+  }: {
+    /** False while `events` are still streaming in: the headers are asked once they have settled. */
+    ready?: boolean;
+  } = {},
+): {
   listOf: (event: { kind: number; tags: string[][] }) => ListNames | null;
   loading: boolean;
 } {
@@ -95,12 +113,13 @@ export function useListNames(events: ReadonlyMap<string, NostrEvent> | readonly 
   // Each list item's list, for what the list calls its items.
   const listCoords = useMemo(() => {
     const found = new Set<string>();
+    if (!ready) return [];
     for (const e of all) {
       const list = isDListItem(e) ? dlistCoordinateOf(e) : null;
       if (list && coordinateOf(list)) found.add(list);
     }
     return [...found].sort();
-  }, [all]);
+  }, [all, ready]);
   const listKey = listCoords.join("\n");
   const listFilters = useMemo(
     () =>
@@ -128,8 +147,7 @@ export function useListNames(events: ReadonlyMap<string, NostrEvent> | readonly 
     const newest = new Map<string, NostrEvent>();
     for (const e of lists.events) {
       const address = addressOfEvent(e);
-      const held = newest.get(address);
-      if (!held || e.created_at > held.created_at) newest.set(address, e);
+      if (isNewerVersion(e, newest.get(address))) newest.set(address, e);
     }
     const out = new Map<string, ListNames>();
     for (const [address, header] of newest) {
@@ -144,11 +162,12 @@ export function useListNames(events: ReadonlyMap<string, NostrEvent> | readonly 
     return out;
   }, [lists.events, kinds]);
 
-  return {
-    listOf: (event) => {
+  const listOf = useCallback(
+    (event: { kind: number; tags: string[][] }) => {
       const list = isDListItem(event) ? dlistCoordinateOf(event) : null;
       return (list && namesByList.get(list)) || null;
     },
-    loading: lists.loading,
-  };
+    [namesByList],
+  );
+  return { listOf, loading: lists.loading };
 }

@@ -186,7 +186,11 @@ export default function HashtagPage() {
   // quoted, and the quoted notes themselves — through the shared hook; the
   // authors ride along as extra pubkeys.
   const authorPubkeys = useMemo(() => [...new Set(events.map((ev) => ev.pubkey))], [events]);
-  const { profiles, eventsById, addrByCoord } = useNoteRefs(events as MinimalEvent[], { extraPubkeys: authorPubkeys });
+  const { profiles, eventsById, addrByCoord } = useNoteRefs(events as MinimalEvent[], {
+    extraPubkeys: authorPubkeys,
+    // Once the feed's notes are in: a REQ per arriving note otherwise.
+    ready: notes.settled,
+  });
 
   const loading = notes.loading || (scoredAuthors.length > 0 && scoresQuery.isLoading);
   const { canonicalUrl: shareUrl, ...shortLink } = hashtagShortLink(tag);

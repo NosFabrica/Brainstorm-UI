@@ -599,6 +599,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
           `<span class="${KEY_CLASS}">within</span><span class="${VALUE_CLASS}">people you follow</span>` + x;
         span.title = `${seg.raw} — shown by this page, not asked of the relay`;
         return span;
+      case "key":
       default: {
         // A bare key draws its face first; `from:`/`to:` draw their prefix first.
         span.className = seg.field ? pillClass("slate") : `${pillClass("slate")} ${FACE_PILL}`;

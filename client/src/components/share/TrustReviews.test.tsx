@@ -6,6 +6,7 @@
  * when they answered. Silent when nobody has vouched.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { publishVouch, revokeVouch } from "@/services/vouches";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 
@@ -40,17 +41,17 @@ vi.mock("@/services/nostr", async () => ({
 }));
 let viewerMock: { pubkey: string } | null = null;
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => viewerMock }));
-const publishVouchMock = vi.fn(async (_subject: string, _opts: { type: string; content: string }) => ({
-  success: true,
-  event: undefined as unknown,
-}));
-const revokeVouchMock = vi.fn(async (_subject: string, _id: string) => ({ success: true }));
+const publishVouchMock = vi.fn<typeof publishVouch>(async () => ({ success: true }));
+const revokeVouchMock = vi.fn<typeof revokeVouch>(async () => ({ success: true }));
 vi.mock("@/services/vouches", () => ({
-  publishVouch: (s: string, o: { type: string; content: string }) => publishVouchMock(s, o),
-  revokeVouch: (s: string, id: string) => revokeVouchMock(s, id),
+  publishVouch: (...a: Parameters<typeof publishVouch>) => publishVouchMock(...a),
+  revokeVouch: (...a: Parameters<typeof revokeVouch>) => revokeVouchMock(...a),
 }));
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_k: number, pubkey: string) => knownProfiles.get(pubkey),

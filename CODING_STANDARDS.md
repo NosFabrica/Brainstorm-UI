@@ -18,6 +18,17 @@ rules live in `eslint.config.js`.
   pending overlay (`lib/listEdits` is the pattern), never `setQueryData` on Nostr
   data.
 
+## Kinds and links
+
+- **A kind's look is a row, not a branch.** Which surface draws a kind, and how a
+  quote of it reads, is `lib/kindSurfaces.ts`'s call (`lib/embedKinds.ts` beneath
+  it). A new kind or a changed hero is a row there; a surface never tests
+  `kind === …` to pick a hero, gate or embed of its own.
+- **Anything someone else wrote goes through safeHref.** Lint catches a tag read
+  put straight into `href` or an iframe's `src`; it can't see a url from content,
+  a profile, a signer's message or a query parameter, or one passed through a
+  variable first. Those go through `lib/safeHref` too.
+
 ## DList item rendering tiers (docs/adr/0007)
 
 How a DList item renders: tier two is drawn from its list's header, tier three is a

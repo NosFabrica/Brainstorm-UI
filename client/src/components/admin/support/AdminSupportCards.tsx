@@ -76,6 +76,7 @@ function RequesterCell({
   onFilter?: (query: string) => void;
 }) {
   const label = requesterLabel(pubkey);
+  const { toast } = useToast();
   return (
     <span
       className="flex min-w-0 cursor-pointer items-center gap-2 hover:opacity-80"
@@ -111,11 +112,19 @@ function RequesterCell({
         className="shrink-0 rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500 dark:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-400"
         onClick={(e) => {
           e.stopPropagation();
+          let npub: string;
           try {
-            copyToClipboard(npubFromPubkey(pubkey));
+            npub = npubFromPubkey(pubkey);
           } catch {
-            /* malformed pubkey — nothing to copy */
+            return; // malformed pubkey — nothing to copy
           }
+          void copyToClipboard(npub).then((ok) =>
+            toast(
+              ok
+                ? { title: "Copied", description: `${npub.slice(0, 20)}…`, duration: 1500 }
+                : { title: "Couldn't copy", description: "Copy the npub by hand.", variant: "destructive" },
+            ),
+          );
         }}
         data-testid={`copy-npub-${pubkey.slice(0, 8)}`}
       >

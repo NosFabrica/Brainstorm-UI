@@ -6,17 +6,20 @@
  * open hundreds of subscriptions at once.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppEndorsements, fetchAppEndorsements } from "@/services/endorsements";
 import { act, render, screen } from "@testing-library/react";
 
-type Deferred = { resolve: (v: unknown) => void };
+type Deferred = { resolve: (v: AppEndorsements) => void };
 const pending: Deferred[] = [];
-const fetchMock = vi.fn(
+const fetchMock = vi.fn<typeof fetchAppEndorsements>(
   () =>
     new Promise((resolve) => {
       pending.push({ resolve });
     }),
 );
-vi.mock("@/services/endorsements", () => ({ fetchAppEndorsements: (...a: unknown[]) => fetchMock(...a) }));
+vi.mock("@/services/endorsements", () => ({
+  fetchAppEndorsements: (...a: Parameters<typeof fetchAppEndorsements>) => fetchMock(...a),
+}));
 
 import { useAppEndorsements, __resetAppEndorsementsCache } from "./useAppEndorsements";
 

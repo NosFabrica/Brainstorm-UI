@@ -20,6 +20,9 @@ vi.mock("@/lib/relayRequest", () => ({
 
 const storeEvents = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     getEvent: (id: string) => storeEvents.get(id),
     getReplaceable: () => undefined,
@@ -62,6 +65,14 @@ describe("fetchEventsByIds", () => {
     expect(events.map((e) => e.id)).toEqual([ID_A]);
     expect(requestAllMock).not.toHaveBeenCalled();
     expect(searchReqMock).not.toHaveBeenCalled();
+  });
+
+  it("asks only for the ids it doesn't hold, when some are missing", async () => {
+    storeEvents.set(ID_A, ev(ID_A));
+    requestAllMock.mockResolvedValueOnce([ev(ID_B)]);
+    const events = await fetchEventsByIds([ID_A, ID_B], ["wss://content.example/"]);
+    expect(events.map((e) => e.id).sort()).toEqual([ID_A, ID_B]);
+    expect((requestAllMock.mock.calls[0] as unknown[])[1]).toEqual({ ids: [ID_B] });
   });
 
   it("falls back to the search relay (with a lens) for ids the content relays lack", async () => {

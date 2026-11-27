@@ -9,9 +9,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY, of } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
+import type { Relay } from "applesauce-relay";
+import type { pool } from "./relayPool";
 
-const requestMock = vi.fn(() => EMPTY);
-vi.mock("./relayPool", () => ({ pool: { request: (...a: unknown[]) => requestMock(...(a as [])) } }));
+type Request = typeof pool.request;
+const requestMock = vi.fn<Request>(() => EMPTY);
+vi.mock("./relayPool", () => ({ pool: { request: (...a: Parameters<Request>) => requestMock(...a) } }));
 vi.mock("./eventStore", () => ({ eventStore: { add: (e: unknown) => e } }));
 
 import { requestAllByRelay } from "./relayRequest";
@@ -29,8 +32,10 @@ const plan = {
 
 /** The filter the pool would hand a given relay. */
 function filterFor(url: string) {
-  const build = requestMock.mock.calls[0][1] as (relay: { url: string }) => Record<string, unknown>;
-  return build({ url });
+  const build = requestMock.mock.calls[0][1];
+  if (typeof build !== "function") throw new Error("not a per-relay filter");
+  // The builder reads only the relay's url.
+  return build({ url } as Relay);
 }
 
 beforeEach(() => {
@@ -74,7 +79,7 @@ describe("requestAllByRelay", () => {
       content: "",
       sig: "s",
     } as NostrEvent;
-    requestMock.mockReturnValueOnce(of(event, event) as never);
+    requestMock.mockReturnValueOnce(of(event, event));
 
     expect(await requestAllByRelay(plan, { kinds: [1] }, 10)).toEqual([event]);
   });

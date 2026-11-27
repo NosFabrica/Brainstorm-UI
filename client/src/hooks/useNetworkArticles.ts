@@ -100,6 +100,18 @@ function qualifies(e: NostrEvent): boolean {
 }
 
 /** An extended-network author, with the trust context for "why am I seeing this". */
+/**
+ * The fetch windows, from a clock rounded down to the hour: the ask key holds
+ * `freshSince`, and a key taken from `Date.now()` per mount was a new key — so
+ * the heaviest read in the app, sent again — every time the page remounted.
+ * An hour moves a 90-day window by nothing anyone could see.
+ */
+export function articleWindows(nowMs: number): { freshSince: number; widerSince: number } {
+  const hour = 60 * 60;
+  const now = Math.floor(nowMs / 1000 / hour) * hour;
+  return { freshSince: now - FRESH_WINDOW_DAYS * DAY, widerSince: now - FALLBACK_WINDOW_DAYS * DAY };
+}
+
 export interface ArticleAuthor {
   pubkey: string;
   /** How many of the observer's OWN follows follow this author. */
@@ -216,11 +228,9 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
   const byPubkey = useMemo(() => new Map(authors.map((a) => [a.pubkey, a])), [authors]);
 
   const authorsKey = authorKeys.join(",");
-  // Fixed per author set: windows recomputed every render would be a new filter, and a new REQ, each time.
-  const windows = useMemo(() => {
-    const now = Math.floor(Date.now() / 1000);
-    return { freshSince: now - FRESH_WINDOW_DAYS * DAY, widerSince: now - FALLBACK_WINDOW_DAYS * DAY };
-  }, [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fixed per author set, and per hour across mounts: windows recomputed every
+  // render would be a new filter, and a new REQ, each time (articleWindows).
+  const windows = useMemo(() => articleWindows(Date.now()), [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const articlesFilter = useMemo(
     () => ({ kinds: ARTICLE_KINDS, authors: authorKeys, since: windows.widerSince }),
     [authorsKey, windows], // eslint-disable-line react-hooks/exhaustive-deps

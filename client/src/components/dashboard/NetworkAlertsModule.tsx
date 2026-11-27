@@ -298,7 +298,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
             <AlertDialogAction
               onClick={(ev) => {
                 ev.preventDefault();
-                runAction();
+                void runAction();
               }}
               disabled={busy}
             >
@@ -395,7 +395,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
             <AlertDialogAction
               onClick={(ev) => {
                 ev.preventDefault();
-                submitReport();
+                void submitReport();
               }}
               disabled={reporting || !reportType}
               className="bg-red-600 hover:bg-red-700 focus-visible:ring-red-400"
@@ -640,7 +640,7 @@ export function AlertRow({
           onClick={onDeepDive}
           title="View profile"
           aria-label={`View ${name}'s profile`}
-          className={`${actionBtn} ${details ? "" : "ml-auto"}border-brand-accent/30 bg-brand-accent/[0.06] text-brand-deep hover:border-brand-accent/50 dark:text-brand-accent`}
+          className={`${actionBtn} ${details ? "" : "ml-auto"} border-brand-accent/30 bg-brand-accent/[0.06] text-brand-deep hover:border-brand-accent/50 dark:text-brand-accent`}
           data-testid="network-alert-deepdive"
         >
           View <ArrowRight className="h-3 w-3" />

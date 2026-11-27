@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useActiveAccount } from "applesauce-react/hooks";
 
 import { accountManager } from "@/accounts";
+import { perspectiveChanged } from "@/lib/accountScoped";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import type { BaseAccount } from "applesauce-accounts";
 import type { ISigner } from "applesauce-signers";
@@ -56,6 +57,8 @@ export function setActivePerspective(perspective: ActivePerspective): void {
       /* private browsing */
     }
   }
+  // Caches holding the viewer's scores in the old Perspective forget them.
+  perspectiveChanged();
   try {
     window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: perspective }));
   } catch {}

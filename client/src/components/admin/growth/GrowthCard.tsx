@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
-import { fetchAuthorRanks } from "@/services/wotRanks";
+import { useAuthorRanks } from "@/hooks/useLensRanks";
 import { houseObserverQuery } from "@/lib/houseObserverQuery";
 import type { AdminRange } from "@/pages/adminRange";
 import { growthCohorts, type GrowthCohorts, type GrowthPerson, type RunRecord } from "./growthCohorts";
@@ -100,13 +100,9 @@ export function GrowthCard({
   );
   const segmentPeople = cohorts[segment];
   const pubkeys = useMemo(() => segmentPeople.map((p) => p.pubkey), [segmentPeople]);
-  const ranks = useQuery({
-    queryKey: ["house-ranks", pubkeys],
-    queryFn: () => fetchAuthorRanks(pubkeys, "house"),
-    enabled: pubkeys.length > 0,
-    staleTime: 300_000,
-  });
-  const rankOf = (pubkey: string) => ranks.data?.ranks.get(pubkey);
+  // The house lens, from the store: its 10040, then its scorer's ranks (hooks/useLensRanks).
+  const ranks = useAuthorRanks(pubkeys, "house", { minMs: 300_000 });
+  const rankOf = (pubkey: string) => ranks.ranks.get(pubkey);
   const tierOptions = useMemo(() => [...new Set([...tiers.values()].filter(Boolean))].sort(), [tiers]);
 
   const people = useMemo(() => {
@@ -130,8 +126,8 @@ export function GrowthCard({
             : (rankOf(p.pubkey) ?? -1);
     const sign = sort.dir === "desc" ? -1 : 1;
     return segmentPeople.filter(matches).sort((a, b) => sign * (value(a) - value(b)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rankOf reads ranks.data
-  }, [segmentPeople, search, tier, scored, sort, tiers, profiles, ranks.data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rankOf reads ranks.ranks
+  }, [segmentPeople, search, tier, scored, sort, tiers, profiles, ranks.ranks]);
 
   const meaning = SEGMENTS.find((s) => s.key === segment)!.meaning;
   const toggleSort = (key: SortKey) =>
@@ -210,7 +206,7 @@ export function GrowthCard({
               type="button"
               variant="outline"
               size="sm"
-              onClick={copyNpubs}
+              onClick={() => void copyNpubs()}
               disabled={people.length === 0}
               data-testid="button-copy-npubs"
             >
@@ -334,9 +330,10 @@ export function GrowthCard({
                   <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                     <PersonMenu
                       pubkey={p.pubkey}
-                      onCopy={async () => {
-                        const ok = await copyToClipboard(npub, {});
-                        toast({ title: ok ? "Copied npub" : "Couldn't copy" });
+                      onCopy={() => {
+                        void copyToClipboard(npub, {}).then((ok) =>
+                          toast({ title: ok ? "Copied npub" : "Couldn't copy" }),
+                        );
                       }}
                       onOpen={() => onOpenPerson(p.pubkey)}
                     />

@@ -23,14 +23,14 @@ function Page() {
 
 function mount(Lazy: ComponentType, onError: (e: unknown) => void) {
   class Catch extends Component<{ children: ReactNode }, { failed: boolean }> {
-    state = { failed: false };
+    override state = { failed: false };
     static getDerivedStateFromError() {
       return { failed: true };
     }
-    componentDidCatch(e: unknown) {
+    override componentDidCatch(e: unknown) {
       onError(e);
     }
-    render() {
+    override render() {
       return this.state.failed ? <p>failed</p> : this.props.children;
     }
   }

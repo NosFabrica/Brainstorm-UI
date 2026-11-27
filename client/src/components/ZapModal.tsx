@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FlashIcon } from "@/components/FlashIcon";
-import { copyToClipboard } from "@/lib/clipboard";
+import { copyToClipboard, dialogOf } from "@/lib/clipboard";
 import { useCopied } from "@/hooks/useCopied";
 import { initialsFor } from "@/lib/profileDefaults";
 import { condenseLightning } from "@/lib/profileFacts";
@@ -60,7 +60,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   const [comment, setComment] = useState("");
   const [invoice, setInvoice] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const invoiceCopy = useCopied();
   const [paid, setPaid] = useState(false);
   const [paying, setPaying] = useState(false);
   // The lightning address read from the recipient's CRYPTOGRAPHICALLY VERIFIED
@@ -95,10 +95,11 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
     setPaid(false);
     setComment("");
     setVerifiedLud16(null);
-    (async () => {
+    void (async () => {
       // SECURITY: verify the recipient's signed kind-0 and take the lightning
       // address from THAT verified event — never pay an unverified / forged
       // address served by a relay.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: the address paid is the one in the signed kind 0 the relays hold now
       const v = await getVerifiedProfileLud16(recipientPubkey);
       if (cancelled) return;
       if (!v.verified || !v.lud16) {
@@ -126,12 +127,10 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   const amountNum = Math.floor(Number(amount));
   const amountValid = Number.isFinite(amountNum) && amountNum >= minSats && amountNum <= maxSats;
 
-  const copyInvoice = async (val: string) => {
-    if (await copyToClipboard(val)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }
-  };
+  // Inside the dialog, which traps focus: the clipboard's fallback copies from within it (lib/clipboard).
+  const copyIn = (e: { currentTarget: Element }) => (text: string) =>
+    copyToClipboard(text, { container: dialogOf(e.currentTarget) });
+  const copyLabel = (idle: string) => (invoiceCopy.copied ? "Copied" : invoiceCopy.failed ? "Couldn't copy" : idle);
 
   const handleContinue = async () => {
     if (!params || !amountValid) return;
@@ -144,6 +143,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       // our defaults. Sending our five back meant the receipt landed somewhere
       // the person being zapped may never look, and the zap never showed up on
       // their profile in their own client.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: where this zap request is sent (a write)
       const relays = await inboxRelays([recipientPubkey], PROFILE_RELAYS);
       // The `p` hint is where the recipient WRITES — where a reader of the
       // receipt goes to find them — which is not the same as the `relays` tag
@@ -268,8 +268,14 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 {isVerified && (
                   <button
                     type="button"
-                    onClick={() => void recipientCopy.copy(displayAddr)}
-                    title={recipientCopy.copied ? "Copied" : "Copy lightning address"}
+                    onClick={(e) => void recipientCopy.copy(displayAddr, copyIn(e))}
+                    title={
+                      recipientCopy.copied
+                        ? "Copied"
+                        : recipientCopy.failed
+                          ? "Couldn't copy"
+                          : "Copy lightning address"
+                    }
                     aria-label="Copy lightning address"
                     className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:text-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500"
                     data-testid="zap-copy-recipient"
@@ -334,7 +340,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               )}
               <button
                 type="button"
-                onClick={handleContinue}
+                onClick={() => void handleContinue()}
                 disabled={!amountValid}
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 data-testid="zap-continue"
@@ -378,7 +384,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   {isWebLNAvailable() && (
                     <button
                       type="button"
-                      onClick={handleWebLN}
+                      onClick={() => void handleWebLN()}
                       disabled={paying}
                       className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-60"
                       data-testid="zap-webln"
@@ -390,12 +396,16 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => copyInvoice(invoice)}
+                      onClick={(e) => void invoiceCopy.copy(invoice, copyIn(e))}
                       className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       data-testid="zap-copy-invoice"
                     >
-                      {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
-                      {copied ? "Copied" : "Copy invoice"}
+                      {invoiceCopy.copied ? (
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}{" "}
+                      {copyLabel("Copy invoice")}
                     </button>
                     <a
                       href={lightningUriForInvoice(invoice)}
@@ -437,12 +447,12 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => copyInvoice(displayAddr)}
+                  onClick={(e) => void invoiceCopy.copy(displayAddr, copyIn(e))}
                   className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   data-testid="zap-copy-address"
                 >
-                  {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
-                  {copied ? "Copied" : "Copy address"}
+                  {invoiceCopy.copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
+                  {copyLabel("Copy address")}
                 </button>
                 <a
                   href={lightningUriForAddress(displayAddr)}

@@ -21,7 +21,7 @@ import { useLocation } from "wouter";
 import { parseNoteContent, prettyUrlLabel, trimProse, type NoteToken } from "@/lib/noteContent";
 import { toNoteBlocks, parseInlineMarkdown, type InlineSpan, type NestedList } from "@/lib/noteBlocks";
 import { decodeNostrEntity } from "@/lib/noteRefs";
-import { READER_KINDS } from "@/lib/shareId";
+import { LONG_FORM_DRAFT_KIND, READER_KINDS } from "@/lib/shareId";
 import { nip19 } from "nostr-tools";
 import { normalizeMarkup } from "@/lib/htmlText";
 import { MentionChip } from "@/components/share/MentionChip";
@@ -184,8 +184,11 @@ const SHARED_KINDS: ReadonlySet<number> = new Set([38000]);
 
 /** Addresses read as "📄 article", whose link is ours. Publications, their
  *  sections and bookshelves read on the article reader too, but keep their own
- *  name and the author's link: an unfound one is a publication, not an article. */
-const ARTICLE_LINK_KINDS = new Set([...READER_KINDS].filter((k) => !PUBLICATION_KINDS.has(k)));
+ *  name and the author's link: an unfound one is a publication, not an article.
+ *  So does a long-form draft (30024): unpublished, its author's link is where it lives. */
+const ARTICLE_LINK_KINDS = new Set(
+  [...READER_KINDS].filter((k) => !PUBLICATION_KINDS.has(k) && k !== LONG_FORM_DRAFT_KIND),
+);
 
 /** What an address names, for its link: "📄 article", "↗ track". */
 export function addressLabel(bech32: string): string {
@@ -332,6 +335,7 @@ export function ReadingText({
           </button>
         );
       }
+      case "text":
       default:
         return null;
     }

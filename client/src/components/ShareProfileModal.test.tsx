@@ -16,7 +16,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ShareProfileModal } from "./ShareProfileModal";
 
 const copyMock = vi.fn(async (_text: string) => true);
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => copyMock(text) }));
 const navigate = vi.fn();
 vi.mock("wouter", () => ({ useLocation: () => ["/", navigate] }));
 vi.mock("@/components/ShareOgCard", () => ({

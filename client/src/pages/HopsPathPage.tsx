@@ -38,6 +38,7 @@ import { PathChecking, PathRiskLine, PathStepper } from "@/components/hops/PathS
 import { Chip } from "@/components/ui/chip";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { nameIn } from "@/lib/displayName";
 
 /** Signals that judge nothing, so the order falls back to pubkey. */
 const UNJUDGED: RiskSignals = { flaggedOf: () => false, scoreOf: () => 1 };
@@ -175,7 +176,7 @@ export default function HopsPathPage() {
   if (originLoading) return null;
   if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
-  const subjectName = subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
+  const subjectName = nameIn(subject) || shortNpub(npubFromPubkey(toPubkey));
   const profs = profileMap;
   const myFollows = signedIn && viewerFollows.signedIn && viewerFollows.ready ? viewerFollows.follows : undefined;
 
@@ -201,7 +202,7 @@ export default function HopsPathPage() {
     if (!pk) return "";
     const sp = i === shown.length - 1 ? subject : undefined;
     const pp = profs?.get(pk);
-    return sp?.display_name || sp?.name || pp?.display_name || pp?.name || shortNpub(npubFromPubkey(pk));
+    return nameIn(sp) || nameIn(pp) || shortNpub(npubFromPubkey(pk));
   };
 
   const backLink = `/p/${rawId}`;
@@ -329,7 +330,7 @@ export default function HopsPathPage() {
                       const name =
                         isOrigin && originPov === "global"
                           ? "Brainstorm"
-                          : subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
+                          : nameIn(subj) || nameIn(p) || shortNpub(npub);
                       const roleLabel = isOrigin
                         ? originPov === "personalized"
                           ? "You"
@@ -639,7 +640,7 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
   return (
     <button
       type="button"
-      onClick={follow}
+      onClick={(e) => void follow(e)}
       disabled={busy}
       className="inline-flex shrink-0 items-center gap-1 rounded-md border border-brand-accent/40 bg-white px-2 py-1 text-[11px] font-semibold text-brand-deep transition-colors hover:bg-brand-accent/[0.06] disabled:opacity-50 dark:bg-slate-900"
       data-testid="hops-follow"

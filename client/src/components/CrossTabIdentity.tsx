@@ -21,6 +21,7 @@ import { leaveScopedRoute } from "@/accounts/scoped-routes";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { clearHydratedStore } from "@/services/storeHydration";
 
 function nameOf(account: BrainstormAccount): string {
   const npub = npubOf(account);
@@ -40,6 +41,10 @@ export function CrossTabIdentity() {
       queryClient.clear();
 
       if (!account) {
+        // As signing out here does (accounts/login-flow logout): the signing-out tab cleared
+        // the device's caches, but this tab's own copy of the prefs, its event-cache writer
+        // and its DM cache's view of the database are still the departed session's.
+        clearHydratedStore();
         toast({ title: "Signed out", description: "Another tab signed out of this browser." });
         return;
       }

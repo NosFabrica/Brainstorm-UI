@@ -36,6 +36,9 @@ vi.mock("@/services/nostr", async () => ({
 }));
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
@@ -44,7 +47,11 @@ vi.mock("@/lib/eventStore", async () => ({
   },
 }));
 
+const clipboardMock = vi.hoisted(() => vi.fn(async (_text: string) => true));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: (text: string) => clipboardMock(text) }));
+
 import { RepoHero } from "./RepoHero";
+import { HOSTILE_URL, HOSTILE_URL_WITH_HOST, expectNoScriptHrefs } from "@/test/hrefs";
 
 const MAINTAINER = "b".repeat(64);
 
@@ -75,6 +82,26 @@ beforeEach(() => {
 });
 
 describe("RepoHero", () => {
+  it("links web, source and forkedFrom only when they are web addresses", () => {
+    render(
+      <RepoHero
+        event={{
+          ...NGIT,
+          tags: [
+            ["d", "ngit"],
+            ["name", "ngit"],
+            ["web", HOSTILE_URL],
+            ["source", HOSTILE_URL_WITH_HOST],
+            ["forkedFrom", HOSTILE_URL],
+          ],
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("repo-hero-web")).toBeNull();
+    expect(screen.queryByTestId("repo-hero-source")).toBeNull();
+    expectNoScriptHrefs();
+  });
+
   it("presents the repo: name, description, web + clone, publisher", () => {
     knownProfiles.set(MAINTAINER, {
       id: "p".repeat(64),
@@ -92,6 +119,16 @@ describe("RepoHero", () => {
     expect(screen.getByTestId("repo-hero-web").getAttribute("href")).toBe("https://gitworkshop.dev/ngit");
     expect(screen.getByTestId("repo-hero-clone")).toHaveTextContent("relay.ngit.dev");
     expect(screen.getByTestId("repo-hero-publisher")).toHaveTextContent("DanConwayDev");
+  });
+
+  it("copies the clone URL and says whether it did", async () => {
+    render(<RepoHero event={NGIT} />);
+    fireEvent.click(screen.getByTestId("repo-hero-clone"));
+    expect(clipboardMock).toHaveBeenCalledWith("https://relay.ngit.dev/npub1rmz/ngit.git");
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    clipboardMock.mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByTestId("repo-hero-clone"));
+    expect(await screen.findByText("Couldn't copy")).toBeInTheDocument();
   });
 
   it("shows the repo's live issues and patches, labeled and linked", async () => {
@@ -219,7 +256,10 @@ describe("RepoHero", () => {
     expect(within(activity).getByTestId(`repo-activity-state-${items[1].id}`)).toHaveTextContent("Closed");
     expect(within(activity).getByTestId(`repo-activity-state-${items[2].id}`)).toHaveTextContent("Open");
     expect(within(activity).getByTestId(`repo-activity-comments-${items[1].id}`)).toHaveTextContent("4");
-    expect(statusesMock).toHaveBeenCalledWith(expect.arrayContaining(items.map((i) => i.id)));
+    // The items themselves: whose status counts is their author's and their repo's (NIP-34).
+    expect(statusesMock).toHaveBeenCalledWith(
+      expect.arrayContaining(items.map((i) => expect.objectContaining({ id: i.id }))),
+    );
     // Eight rows, then the rest on request.
     expect(
       activity.querySelectorAll(

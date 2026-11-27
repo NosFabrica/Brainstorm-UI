@@ -12,6 +12,8 @@ vi.mock("./listMembers", () => ({ loadTrustedList: (...a: unknown[]) => loadTrus
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchProfileMap: async () => new Map([["d".repeat(64), { name: "Vitor Pamplona" }]]),
+  // A list of notes asks the relays for them; a note not found still shows its row and score.
+  fetchEventsByIds: async () => [],
 }));
 
 import { TrustedListRunResult } from "./TrustedListRunResult";
@@ -85,7 +87,8 @@ describe("TrustedListRunResult", () => {
   // Counts say how big a list is; the members say whether it's right.
   it("shows a published list's members, read back from the relay, with a link to it", async () => {
     loadTrustedList.mockResolvedValue({
-      members: [{ pubkey: "d".repeat(64), score: 87, endorsements: 3, disputes: 0 }],
+      kind: 30392,
+      members: [{ value: "d".repeat(64), score: 87, endorsements: 3, disputes: 0 }],
       retracted: false,
       relay: "wss://tl.example",
       naddr: "naddr1example",
@@ -101,9 +104,35 @@ describe("TrustedListRunResult", () => {
       observer: WITH_LISTS.observer,
       signingPubkey: WITH_LISTS.signing_pubkey,
       dTag: "tl-tag-bbbbbbbb-aaaaaaaa-podcaster",
+      kind: 30392,
     });
     expect(screen.getByRole("button", { name: /copy link/i })).toBeInTheDocument();
     // A list that failed to publish has nothing to read back.
     expect(screen.queryByTestId("trusted-list-view-bitcoiner")).toBeNull();
+  });
+
+  // Issue #335: a run's lists of notes (30393) are read at their kind, their members as notes.
+  it("reads a list of notes at its own kind, says what was tagged, and shows its notes", async () => {
+    const NOTE = "e".repeat(64);
+    loadTrustedList.mockResolvedValue({
+      kind: 30393,
+      members: [{ value: NOTE, score: 64 }],
+      retracted: false,
+      relay: "wss://tl.example",
+      naddr: "naddr1example",
+    });
+    renderWithProviders(
+      <TrustedListRunResult
+        run={{
+          ...WITH_LISTS,
+          tags: [{ ...WITH_LISTS.tags[0], slug: "espresso", kind: 30393, tagging_target: "1" }],
+        }}
+        observerName="Vitor"
+      />,
+    );
+    expect(screen.getByTestId("trusted-list-target-espresso")).toHaveTextContent("· Note");
+    fireEvent.click(screen.getByTestId("trusted-list-view-espresso"));
+    expect(await screen.findByTestId(`item-list-note-${NOTE}`)).toHaveTextContent("64");
+    expect(loadTrustedList).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 30393 }));
   });
 });

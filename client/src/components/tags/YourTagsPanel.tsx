@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Box, ChevronDown, ChevronRight, PinOff, Tag as TagIcon, type LucideIcon } from "lucide-react";
@@ -7,6 +7,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { FacePile, NameList, displayName, profilePath } from "@/components/tags/FacePile";
 import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
@@ -38,6 +39,7 @@ import { ContentSectionHeading, SECTION_ICON } from "@/components/tags/ContentSe
 import type { ItemPresentation } from "@/lib/itemPresentation";
 import type { KindEvent } from "@/lib/kindLabel";
 import { proxiedSrc } from "@/lib/imageProxy";
+import { asyncHandler } from "@/lib/asyncHandler";
 
 /**
  * Everything tagging-related about you — the body of `/tags/mine`, the "Yours"
@@ -93,20 +95,6 @@ export function YourTagsPanel() {
    * coordinate (which carries its kind) when we don't; an item otherwise, since
    * an id alone says nothing.
    */
-  const typeOf = (target: string): TaggableType => {
-    const event = items.eventOf(target);
-    if (event) return taggableType(event, items.listOf(target));
-    const at = coordinateOf(target);
-    if (!at) return UNKNOWN_ITEM;
-    return taggableType({
-      kind: at.kind,
-      pubkey: at.pubkey,
-      tags: [["d", at.identifier]],
-      id: "",
-      content: "",
-      created_at: 0,
-    });
-  };
 
   const filtered = useMemo(() => (stance === "all" ? said : said.filter((a) => a.stance === stance)), [said, stance]);
 
@@ -123,22 +111,8 @@ export function YourTagsPanel() {
    * Issues, Repos, a Dictionary list's Books), each collapsed to one row per
    * tag. A section exists only while something is in it; the newest first.
    */
-  const contentSaid = filtered.filter((a) => a.targetKind === "event");
-  const contentSections: ContentSection[] = [];
-  if (!items.loading) {
-    const byType = new Map<string, { type: TaggableType; said: MyAssertion[] }>();
-    for (const a of contentSaid) {
-      const type = typeOf(a.target);
-      const held = byType.get(type.key) ?? { type, said: [] };
-      held.said.push(a);
-      byType.set(type.key, held);
-    }
-    for (const { type, said: inType } of byType.values()) {
-      const groups = groupByTag(inType);
-      contentSections.push({ type, groups, latestAt: Math.max(...groups.map((g) => g.latestAt)) });
-    }
-    contentSections.sort((x, y) => y.latestAt - x.latestAt);
-  }
+  const contentSaid = useMemo(() => filtered.filter((a) => a.targetKind === "event"), [filtered]);
+  const contentSections = useMemo(() => (items.loading ? [] : sectionsOf(contentSaid, items)), [contentSaid, items]);
 
   /**
    * A tagged thing's row: what it is called, what it is and the most worth
@@ -147,41 +121,47 @@ export function YourTagsPanel() {
    * its picture or its list's mark, the line under its title. `named` is read
    * when the row is drawn, so a name arrives when the profile does.
    */
-  const describeItem =
+  const describeItem = useCallback(
     (type: TaggableType, named?: Map<string, FaceProfile>): Describe =>
-    (a, shown) => {
-      const event = items.eventOf(a.target);
-      const at = coordinateOf(a.target);
-      let href = `/e/${a.target}`;
-      if (event) href = eventPath(event);
-      else if (at) {
-        try {
-          href = `/e/${nip19.naddrEncode(at)}`;
-        } catch {
-          /* an unlinkable coordinate keeps the plain path */
+      (a, shown) => {
+        const event = items.eventOf(a.target);
+        const at = coordinateOf(a.target);
+        let href = `/e/${a.target}`;
+        if (event) href = eventPath(event);
+        else if (at) {
+          try {
+            href = `/e/${nip19.naddrEncode(at)}`;
+          } catch {
+            /* an unlinkable coordinate keeps the plain path */
+          }
         }
-      }
-      // What it is, in its own word ("App handler" in a section headed Apps).
-      const itsType = event ? taggableType(event, items.listOf(a.target)) : type;
-      const name = shown?.title || (event && taggableTitle(event)) || `Untitled ${itsType.noun}`;
-      const author = event ? named?.get(event.pubkey) : undefined;
-      // Whose it is, once we know their name (a row of hex says nothing), and not when it is
-      // the thing's own name over again: an app published under its own account.
-      const by = [author?.display_name, author?.name].find((n) => n && n.trim().toLowerCase() !== name.toLowerCase());
-      // The most worth saying: what its page says under the title, or when an event is. A
-      // list's item says that or nothing: whoever listed it is not whose it is.
-      const detail = shown ? shown.summary || shown.facts[0]?.value : event ? (taggableDetail(event) ?? by) : undefined;
-      const image = shown?.image || (event ? taggableImage(event) : null) || shown?.listImage || null;
-      return {
-        name,
-        href,
-        about: [itsType.label, detail].filter(Boolean).join(" · "),
-        image,
-        // A post with no picture is known by who wrote it.
-        author: !image && event && type.key === POSTS ? { picture: author?.picture } : null,
-        icon: SECTION_ICON[type.key] ?? Box,
-      };
-    };
+        // What it is, in its own word ("App handler" in a section headed Apps).
+        const itsType = event ? taggableType(event, items.listOf(a.target)) : type;
+        const name = shown?.title || (event && taggableTitle(event)) || `Untitled ${itsType.noun}`;
+        const author = event ? named?.get(event.pubkey) : undefined;
+        // Whose it is, once we know their name (a row of hex says nothing), and not when it is
+        // the thing's own name over again: an app published under its own account.
+        const by = [author?.display_name, author?.name].find((n) => n && n.trim().toLowerCase() !== name.toLowerCase());
+        // The most worth saying: what its page says under the title, or when an event is. A
+        // list's item says that or nothing: whoever listed it is not whose it is.
+        const detail = shown
+          ? shown.summary || shown.facts[0]?.value
+          : event
+            ? (taggableDetail(event) ?? by)
+            : undefined;
+        const image = shown?.image || (event ? taggableImage(event) : null) || shown?.listImage || null;
+        return {
+          name,
+          href,
+          about: [itsType.label, detail].filter(Boolean).join(" · "),
+          image,
+          // A post with no picture is known by who wrote it.
+          author: !image && event && type.key === POSTS ? { picture: author?.picture } : null,
+          icon: SECTION_ICON[type.key] ?? Box,
+        };
+      },
+    [items],
+  );
 
   const authorKey = [...new Set(contentTargets.flatMap((target) => items.eventOf(target)?.pubkey ?? []))]
     .sort()
@@ -206,6 +186,13 @@ export function YourTagsPanel() {
 
   const profileMap = useLiveProfiles(people);
   const profiles = profileMap;
+  // Made once per section and per profiles read, so the cards below skip a render that changes neither.
+  const describeSection = useMemo(
+    () => new Map(contentSections.map(({ type }) => [type.key, describeItem(type, profiles)])),
+    [contentSections, describeItem, profiles],
+  );
+  const describePeople = useMemo(() => describePerson(profiles), [profiles]);
+  const itemEventOf = useCallback<EventOf>((a) => items.eventOf(a.target), [items]);
 
   return (
     <div className="space-y-6" data-testid="your-tags-panel">
@@ -332,12 +319,7 @@ export function YourTagsPanel() {
             {peopleGroups.length > 0 && (
               <div data-testid="my-tags-said-people">
                 <SectionLabel count={peopleGroups.length}>People you've tagged</SectionLabel>
-                <SaidCard
-                  groups={peopleGroups}
-                  profiles={profiles}
-                  counted={PEOPLE}
-                  describe={describePerson(profiles)}
-                />
+                <SaidCard groups={peopleGroups} profiles={profiles} counted={PEOPLE} describe={describePeople} />
               </div>
             )}
 
@@ -362,8 +344,8 @@ export function YourTagsPanel() {
                           groups={groups}
                           profiles={profiles}
                           counted={type.counted}
-                          describe={describeItem(type, profiles)}
-                          eventOf={(a) => items.eventOf(a.target)}
+                          describe={describeSection.get(type.key)!}
+                          eventOf={itemEventOf}
                         />
                       </div>
                     ))}
@@ -534,7 +516,12 @@ function TagOnMeRow({
           you — and until now the only button on it said "Agree". */}
       {canAct && (
         <div className="mt-0.5">
-          <StanceButtons stance={tag.myStance} pending={busy} onVote={setStance} testId="my-tag-stance" />
+          <StanceButtons
+            stance={tag.myStance}
+            pending={busy}
+            onVote={(polarity) => void setStance(polarity)}
+            testId="my-tag-stance"
+          />
         </div>
       )}
     </div>
@@ -586,6 +573,8 @@ type Describe = (said: MyAssertion, shown: ItemPresentation | null) => Described
 /** The thing a claim is about, when it is content and has been read. */
 type EventOf = (said: MyAssertion) => KindEvent | undefined;
 
+type TaggedItems = ReturnType<typeof useTaggedItems>;
+
 /** Stands in for a thing that isn't a list's item, so a row asks for one view whatever it shows. */
 const NO_ITEM = { kind: 0, tags: [] as string[][] };
 const POSTS = "filter:notes";
@@ -622,8 +611,45 @@ function groupByTag(said: MyAssertion[]): SaidGroupData[] {
   return out.sort((x, y) => y.latestAt - x.latestAt);
 }
 
-/** A card of tag groups, the first few shown until asked for the rest. */
-function SaidCard({
+/**
+ * What a tagged thing is: read off the thing when we have it; off its
+ * coordinate (which carries its kind) when we don't; an item otherwise, since
+ * an id alone says nothing.
+ */
+function typeOf(target: string, items: TaggedItems): TaggableType {
+  const event = items.eventOf(target);
+  if (event) return taggableType(event, items.listOf(target));
+  const at = coordinateOf(target);
+  if (!at) return UNKNOWN_ITEM;
+  return taggableType({
+    kind: at.kind,
+    pubkey: at.pubkey,
+    tags: [["d", at.identifier]],
+    id: "",
+    content: "",
+    created_at: 0,
+  });
+}
+
+/** Tagged content, one section per kind of thing in use, each grouped by tag; the newest first. */
+function sectionsOf(said: MyAssertion[], items: TaggedItems): ContentSection[] {
+  const byType = new Map<string, { type: TaggableType; said: MyAssertion[] }>();
+  for (const a of said) {
+    const type = typeOf(a.target, items);
+    const held = byType.get(type.key) ?? { type, said: [] };
+    held.said.push(a);
+    byType.set(type.key, held);
+  }
+  const sections: ContentSection[] = [];
+  for (const { type, said: inType } of byType.values()) {
+    const groups = groupByTag(inType);
+    sections.push({ type, groups, latestAt: Math.max(...groups.map((g) => g.latestAt)) });
+  }
+  return sections.sort((x, y) => y.latestAt - x.latestAt);
+}
+
+/** A card of tag groups, the first few shown until asked for the rest. Memoized: its props are. */
+const SaidCard = memo(function SaidCard({
   groups,
   profiles,
   counted,
@@ -654,7 +680,7 @@ function SaidCard({
       )}
     </Card>
   );
-}
+});
 
 /** Rough cap on rows revealed inside one expanded group before "Show all". */
 const GROUP_PREVIEW = 10;
@@ -960,14 +986,14 @@ function PinnedRow({
       )}
       <button
         type="button"
-        onClick={async () => {
+        onClick={asyncHandler(async () => {
           try {
             await toggle.mutateAsync({ pinEventId: pin.pinEventId });
             toast({ title: `Removed "${pin.name}"` });
           } catch {
             toast({ title: "Couldn't remove that", variant: "destructive" });
           }
-        }}
+        })}
         disabled={toggle.isPending}
         aria-label={`Remove ${pin.name}`}
         className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800"
@@ -992,17 +1018,15 @@ function StanceTab({
   testId: string;
 }) {
   return (
-    <button
-      type="button"
+    <ToggleChip
+      variant="ghost"
+      pressed={active}
       onClick={onClick}
-      aria-pressed={active}
-      className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-        active ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
-      }`}
+      className="flex items-center gap-1.5"
       data-testid={testId}
     >
       {children}
-    </button>
+    </ToggleChip>
   );
 }
 

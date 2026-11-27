@@ -9,6 +9,7 @@ import { SEED_FOLLOW_HEX } from "@/services/nostr";
 import { HOUSE_POV, suggestProfiles } from "@/services/search";
 import type { SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { nameIn, resultName } from "@/lib/displayName";
 
 function readInviterHex(): string {
   try {
@@ -86,7 +87,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false, addOnly 
       const p = map?.get(c.pubkey);
       return {
         pubkey: c.pubkey,
-        name: p?.display_name || p?.name || c.fallbackName,
+        name: nameIn(p) ?? c.fallbackName,
         nip05: p?.nip05,
         picture: p?.picture,
       };
@@ -99,7 +100,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false, addOnly 
       const next = new Map(prev);
       for (const p of curatedPeople) next.set(p.pubkey, p);
       for (const r of results)
-        next.set(r.pubkey, { pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture });
+        next.set(r.pubkey, { pubkey: r.pubkey, name: resultName(r), nip05: r.nip05, picture: r.picture });
       return next;
     });
   }, [curatedPeople, results]);
@@ -131,7 +132,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false, addOnly 
     }
     let cancelled = false;
     setSearching(true);
-    const timer = setTimeout(async () => {
+    const search = async () => {
       try {
         const r = await suggestProfiles(q, { pov: HOUSE_POV }, { limit: 12 });
         if (!cancelled) {
@@ -146,7 +147,8 @@ export function FollowPicker({ onContinue, continueLabel, busy = false, addOnly 
       } finally {
         if (!cancelled) setSearching(false);
       }
-    }, 300);
+    };
+    const timer = setTimeout(() => void search(), 300);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -221,7 +223,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false, addOnly 
             {results.map((r) => (
               <PersonRow
                 key={r.pubkey}
-                person={{ pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture }}
+                person={{ pubkey: r.pubkey, name: resultName(r), nip05: r.nip05, picture: r.picture }}
                 selected={selected.has(r.pubkey)}
                 onToggle={() => toggle(r.pubkey)}
               />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Loader2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,24 @@ import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { publishBrainstormTrustAnchor, type TrustAnchorPublishResult } from "@/services/trustAnchor";
 import { ToastAction } from "@/components/ui/toast";
+
+/**
+ * One update at a time across every surface that offers it. The header pill
+ * and the setup page's line are separate components: a "busy" of their own
+ * let a tap on the pill, a move to /setup and a tap on the line there ask for
+ * a second signature and publish a second kind 10040 while the first was out.
+ */
+let updating = false;
+const watchers = new Set<() => void>();
+function setUpdating(next: boolean): void {
+  updating = next;
+  for (const watch of watchers) watch();
+}
+function watchUpdating(watch: () => void): () => void {
+  watchers.add(watch);
+  return () => watchers.delete(watch);
+}
+const isUpdating = () => updating;
 
 /**
  * The update Brainstorm asks for once a user's network has produced Trusted
@@ -23,7 +41,7 @@ export function useListsUpdate() {
   const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   const lists = useTrustListsStatus(pubkey, taPubkey).data;
   const { toast } = useToast();
-  const [busy, setBusy] = useState(false);
+  const busy = useSyncExternalStore(watchUpdating, isUpdating);
   const pending = !!pubkey && !!taPubkey && lists?.status === "missing" && !!lists.designation;
 
   function announce(res: TrustAnchorPublishResult) {
@@ -52,14 +70,20 @@ export function useListsUpdate() {
   }
 
   async function run(send: () => Promise<TrustAnchorPublishResult>) {
-    setBusy(true);
-    const res = await send();
-    setBusy(false);
+    // Checked and set before the first await: a second tap in the same tick sees it.
+    if (updating) return;
+    setUpdating(true);
+    let res: TrustAnchorPublishResult;
+    try {
+      res = await send();
+    } finally {
+      setUpdating(false);
+    }
     announce(res);
   }
 
   async function update() {
-    if (!pending || busy || !pubkey || !taPubkey) return;
+    if (!pending || !pubkey || !taPubkey) return;
     await run(() => publishBrainstormTrustAnchor(pubkey, taPubkey, undefined, { lists: lists!.designation }));
   }
 

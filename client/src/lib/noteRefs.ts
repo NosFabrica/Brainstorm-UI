@@ -1,4 +1,5 @@
 import { decodeEntity, parseNoteContent } from "@/lib/noteContent";
+import { readEmbeddedEvent } from "@/lib/embeddedEvent";
 
 /** An addressable (replaceable) event reference — what an `naddr` decodes to. */
 export interface AddressRef {
@@ -182,16 +183,13 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
 
   // Repost (NIP-18): the original event is usually embedded as JSON in content.
   if (ev.kind === 6 || ev.kind === 16) {
-    let repostEvent: MinimalEvent | undefined;
-    if (ev.content) {
-      try {
-        const parsed = JSON.parse(ev.content);
-        if (parsed && parsed.id && parsed.pubkey) repostEvent = parsed as MinimalEvent;
-      } catch {
-        // content not JSON
-      }
-    }
-    const repostId = repostEvent?.id ?? eTags[0]?.[1];
+    // Anyone can write any JSON there: it is the author's note only under their signature, and
+    // only the note the repost's `e` (or a generic repost's `a`) names. Else the `e` is asked for.
+    const eId = eTags.find((t) => HEX64.test(t[1] ?? ""))?.[1];
+    const aTag = ev.kind === 16 ? tags.find((t) => t[0] === "a" && typeof t[1] === "string")?.[1] : undefined;
+    const repostEvent =
+      readEmbeddedEvent(ev.content, { expectId: eId, expectAddr: eId ? undefined : aTag }) ?? undefined;
+    const repostId = eId?.toLowerCase() ?? repostEvent?.id ?? eTags[0]?.[1];
     const quoteRelays = eTags[0] ? tagRelay(eTags[0]) : [];
     // Include pubkeys tagged inside the reposted note's content so the embedded
     // card can show @names instead of raw npubs.
@@ -357,6 +355,15 @@ export function replyRefs(ev: MinimalEvent): ReplyRefs {
   if (NIP22_KINDS.has(ev.kind)) return commentRefs(ev);
   const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
   const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
+  // NIP-28: a channel message's root `e` is its kind-40 channel, not a message it answers — the
+  // page names the channel above the message (ChatContextLine). Only its `reply` is a parent;
+  // unmarked, by NIP-10's deprecated positional scheme, a last `e` after the first.
+  if (ev.kind === 42) {
+    const markedReply = threadTags.find((t) => t[3] === "reply");
+    const anyMarked = threadTags.some((t) => t[3] === "root" || t[3] === "reply");
+    const reply = anyMarked ? markedReply : threadTags.length > 1 ? threadTags.at(-1) : undefined;
+    return reply ? { rootId: reply[1], parentId: reply[1] } : {};
+  }
   if (threadTags.length === 0) {
     // A chat reply names its parent with `q` (NIP-C7); chat has no deeper root.
     const chat = chatParentOf(ev);

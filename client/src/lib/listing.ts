@@ -89,6 +89,12 @@ export interface Listing {
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; tags: string[][]; content: string };
 
 export const LISTING_KIND = 30402;
+/**
+ * NIP-99's draft or inactive listing: the same shape as a 30402, saved by a
+ * seller who is not selling it (yet, or any more). Read like a listing, so
+ * every surface says what it is, and never for sale: its status is "draft".
+ */
+export const DRAFT_LISTING_KIND = 30403;
 
 /** Marketplace apps tag every listing with their own name; that is provenance, not a category. */
 export const APP_TAGS = new Set([
@@ -215,10 +221,25 @@ export function shippingOf(tags: string[][]): { inline: InlineShipping[]; refs: 
 export const PRODUCT_KIND = 30018;
 export const AUCTION_KIND = 30020;
 
+/**
+ * One read per event object, as describeThing keeps (lib/thing): the Shop tab reads each hit
+ * several times a frame, and a NIP-15 product parses JSON content to answer. Events are not
+ * mutated once received, so the object is the key.
+ */
+const listingRead = new WeakMap<EventLike, Listing | null>();
+
 export function parseListing(ev: EventLike): Listing | null {
+  const known = listingRead.get(ev);
+  if (known !== undefined) return known;
+  const listing = readListing(ev);
+  listingRead.set(ev, listing);
+  return listing;
+}
+
+function readListing(ev: EventLike): Listing | null {
   if (ev.kind === PRODUCT_KIND) return parseProduct(ev);
   if (ev.kind === AUCTION_KIND) return parseAuction(ev);
-  if (ev.kind !== LISTING_KIND) return null;
+  if (ev.kind !== LISTING_KIND && ev.kind !== DRAFT_LISTING_KIND) return null;
   const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
   const title = tag("title");
   const priceTag = ev.tags.find((t) => t[0] === "price");
@@ -248,7 +269,8 @@ export function parseListing(ev: EventLike): Listing | null {
     price,
     images,
     location: tag("location") ?? null,
-    status: (tag("status") || "active").toLowerCase(),
+    // A draft's own `status` (often a stale "active") does not put it on sale.
+    status: ev.kind === DRAFT_LISTING_KIND ? "draft" : (tag("status") || "active").toLowerCase(),
     hidden: visibility === "hidden",
     preOrder: visibility === "pre-order",
     stock: stock !== null && Number.isInteger(stock) && stock >= 0 ? stock : null,
@@ -277,16 +299,43 @@ export function parseListing(ev: EventLike): Listing | null {
  * Stock of zero is sold out. The stall's own shipping zones are not fetched,
  * so a product's `shipping` costs are shown as the extra they are.
  */
-function parseProduct(ev: EventLike): Listing | null {
-  let json: Record<string, unknown>;
+/** A JSON object in `content`, or null. */
+function contentObject(ev: EventLike): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(ev.content);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    json = parsed as Record<string, unknown>;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
   }
-  const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+}
+
+const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+
+/** NIP-15's `specs`: `[[key, value], …]` in the product's JSON. */
+function jsonSpecs(v: unknown): { key: string; value: string }[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((pair) => {
+    if (!Array.isArray(pair)) return [];
+    const key = text(pair[0]);
+    const value = typeof pair[1] === "number" ? String(pair[1]) : text(pair[1]);
+    return key && value ? [{ key, value }] : [];
+  });
+}
+
+/** NIP-15's per-zone shipping costs on a product or auction, in its currency. */
+function jsonShipping(v: unknown, currency: string | undefined): InlineShipping[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((z) => {
+    const zone = z as Record<string, unknown>;
+    const cost = amountOf(zone?.cost);
+    const name = text(zone?.name) ?? text(zone?.id) ?? "";
+    return name && cost !== null ? [{ name, amount: cost, currency: currency ?? "" }] : [];
+  });
+}
+
+function parseProduct(ev: EventLike): Listing | null {
+  const json = contentObject(ev);
+  if (!json) return null;
   const title = text(json.name);
   if (!title) return null;
   const amount = numberOf(json.price);
@@ -295,14 +344,7 @@ function parseProduct(ev: EventLike): Listing | null {
   const images = Array.isArray(json.images)
     ? json.images.filter((u): u is string => typeof u === "string" && isHttp(u))
     : [];
-  const shipping = Array.isArray(json.shipping)
-    ? json.shipping.flatMap((z) => {
-        const zone = z as Record<string, unknown>;
-        const cost = amountOf(zone?.cost);
-        const name = text(zone?.name) ?? text(zone?.id) ?? "";
-        return name && cost !== null ? [{ name, amount: cost, currency: currency ?? "" }] : [];
-      })
-    : [];
+  const shipping = jsonShipping(json.shipping, currency);
   return {
     id: ev.id,
     pubkey: ev.pubkey,
@@ -320,7 +362,7 @@ function parseProduct(ev: EventLike): Listing | null {
     format: null,
     productType: null,
     parent: null,
-    specs: [],
+    specs: jsonSpecs(json.specs),
     categories: categoriesOf(ev),
     shopUrl: null,
     shipping,
@@ -330,27 +372,43 @@ function parseProduct(ev: EventLike): Listing | null {
 }
 
 /**
- * A NIP-15 auction, in the tag form bitpopart and hash21 publish: title,
- * summary, image, a starting price, and an end time. The price shown is the
- * opening bid; once the end time passes it is no longer for sale.
+ * A NIP-15 auction, in either form it is published in: NIP-15's own, where
+ * everything is JSON in content — `name`, `description`, `images`,
+ * `starting_bid`, `start_date` and `duration` (it ends at the start plus the
+ * duration) — or the tag form bitpopart and hash21 publish: title, summary,
+ * image, a starting price, and an end time. The price shown is the opening
+ * bid; once the end time passes it is no longer for sale. NIP-15 prices an
+ * auction in its stall's currency, which is not fetched: without a currency
+ * of its own, the opening bid is not a price shown.
  */
 function parseAuction(ev: EventLike): Listing | null {
   const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
-  const title = tag("title") ?? tag("name");
+  const tagged = tag("title") ?? tag("name");
+  const json = tagged ? null : contentObject(ev);
+  const title = tagged ?? text(json?.name);
   if (!title) return null;
-  const amount = amountOf(tag("start_price") ?? tag("starting_bid"));
-  const currency = tag("currency")?.toUpperCase();
-  const endsAt = Number(numberOf(tag("end_time")));
+  const amount = amountOf(tag("start_price") ?? tag("starting_bid") ?? json?.starting_bid);
+  const currency = (tag("currency") ?? text(json?.currency))?.toUpperCase();
+  const start = numberOf(json?.start_date);
+  const duration = numberOf(json?.duration);
+  const endsAt = json
+    ? start !== null && duration !== null && start > 0 && duration > 0
+      ? start + duration
+      : NaN
+    : Number(numberOf(tag("end_time")));
   const ended = Number.isFinite(endsAt) && endsAt > 0 && endsAt * 1000 < Date.now();
+  const jsonImages = Array.isArray(json?.images)
+    ? json.images.filter((u): u is string => typeof u === "string" && isHttp(u))
+    : [];
   return {
     id: ev.id,
     pubkey: ev.pubkey,
     d: tag("d") ?? "",
     title,
     summary: tag("summary") ?? null,
-    description: (ev.content || "").trim(),
+    description: json ? (text(json.description) ?? "") : (ev.content || "").trim(),
     price: amount !== null && currency ? { amount, currency } : null,
-    images: ev.tags.filter((t) => t[0] === "image" && isHttp(t[1])).map((t) => t[1]),
+    images: json ? jsonImages : ev.tags.filter((t) => t[0] === "image" && isHttp(t[1])).map((t) => t[1]),
     location: tag("location") ?? null,
     status: ended ? "ended" : "active",
     hidden: false,
@@ -359,10 +417,10 @@ function parseAuction(ev: EventLike): Listing | null {
     format: null,
     productType: null,
     parent: null,
-    specs: [],
+    specs: json ? jsonSpecs(json.specs) : [],
     categories: categoriesOf(ev),
     shopUrl: null,
-    shipping: [],
+    shipping: json ? jsonShipping(json.shipping, currency) : [],
     shippingRefs: [],
     createdAt: ev.created_at,
   };
@@ -389,7 +447,7 @@ export function categoriesToShow(categories: readonly string[], sellerName?: str
 }
 
 /** The statuses that stop a sale; any other a seller writes ("available", "pending") still sells. */
-const GONE_STATUSES = new Set(["sold", "deleted", "inactive", "ended"]);
+const GONE_STATUSES = new Set(["sold", "deleted", "inactive", "ended", "draft"]);
 
 /** None left: a stock of zero, except on a parent, whose options carry their own. */
 const soldOut = (l: Listing) => l.stock === 0 && l.productType !== "variable";

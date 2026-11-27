@@ -70,4 +70,14 @@ describe("townEvents", () => {
     ]);
     expect(got.map((e) => e.id)).toEqual(["i1", "n2"]);
   });
+
+  // NIP-52's events are addressable: a relay can hand back an edit beside the version it replaced.
+  it("keeps only the newest version of an addressable event", async () => {
+    const old = { ...nip52("1".repeat(64), "meetup", 2_000_000_000, "Meetup"), created_at: 10 };
+    const edited = { ...nip52("2".repeat(64), "meetup", 2_000_000_000, "Meetup (moved)"), created_at: 20 };
+    asked.answer = [old, edited];
+    expect((await fetchTownEvents("austin")).map((e) => e.id)).toEqual([edited.id]);
+    asked.answer = [edited, old];
+    expect((await fetchAreaEvents(["9v6k"], null)).map((e) => e.id)).toEqual([edited.id]);
+  });
 });

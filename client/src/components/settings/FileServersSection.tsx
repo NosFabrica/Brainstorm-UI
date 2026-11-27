@@ -2,55 +2,54 @@
  * The account's Blossom servers (BUD-03, kind 10063), edited beside its inbox
  * relays: private-message attachments are uploaded there first.
  */
-import { useEffect, useState, useMemo } from "react";
+import { useState } from "react";
 import { HardDrive, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   ENCRYPTED_BLOSSOM_SERVERS,
-  loadBlossomServers,
   parseBlossomServers,
   BLOSSOM_SERVER_LIST_KIND,
   normalizeServer,
 } from "@/lib/blossomServers";
 import { publishBlossomServers } from "@/services/blossom";
-import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
+import { useReplaceableListDraft } from "@/hooks/useReplaceableListDraft";
+import { ListDraftNotice } from "@/components/settings/ListDraftNotice";
 
 const host = (url: string) => url.replace(/^https?:\/\//, "");
 
 export function FileServersSection({ pubkey }: { pubkey: string }) {
   const { toast } = useToast();
-  const list = useStoreReplaceable(BLOSSOM_SERVER_LIST_KIND, pubkey || null, () => loadBlossomServers(pubkey));
-  const listed = useMemo(() => parseBlossomServers(list.event), [list.event]);
-  const listLoading = !!pubkey && !list.event && !list.settled;
-  const [draft, setDraft] = useState<string[] | null>(null);
+  // The kind 10063 as a draft (hooks/useReplaceableListDraft): nothing is added or
+  // removed before the list is read, and a publish never replaces a newer one.
+  const list = useReplaceableListDraft(BLOSSOM_SERVER_LIST_KIND, pubkey || null, undefined, {
+    read: parseBlossomServers,
+  });
   const [adding, setAdding] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const busy = list.publishing;
 
-  const servers = draft ?? listed;
-  const dirty = draft !== null;
-  useEffect(() => setDraft(null), [pubkey]);
+  const servers = list.value;
+  const dirty = list.dirty;
+  const listLoading = list.status !== "ready";
 
   const add = () => {
+    if (!list.canEdit) return;
     const url = normalizeServer(adding);
     if (!url) {
       setAddError("That isn't a server address (https://…).");
       return;
     }
     setAddError(null);
-    setDraft(servers.includes(url) ? servers : [...servers, url]);
+    list.edit((cur) => (cur.includes(url) ? cur : [...cur, url]));
     setAdding("");
   };
 
   const publish = async () => {
-    setBusy(true);
-    const outcome = await publishBlossomServers(servers);
-    setBusy(false);
+    const outcome = await list.publish((value, { createdAt }) => publishBlossomServers(value, { createdAt }));
     if (outcome.cancelled) return;
     if (outcome.success) {
-      setDraft(null);
       toast({ title: "File servers published" });
     } else {
       toast({ title: "Couldn't publish your file servers", description: outcome.error, variant: "destructive" });
@@ -68,9 +67,7 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
         </p>
       </div>
       {listLoading ? (
-        <span className="flex items-center gap-2 text-xs text-slate-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking up your list…
-        </span>
+        <ListDraftNotice draft={list} testId="file-servers-notice" />
       ) : (
         <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
           {servers.length === 0 && (
@@ -84,7 +81,8 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{host(url)}</span>
               <button
                 type="button"
-                onClick={() => setDraft(servers.filter((s) => s !== url))}
+                onClick={() => list.edit((cur) => cur.filter((s) => s !== url))}
+                disabled={!list.canEdit}
                 aria-label={`Remove ${host(url)}`}
                 className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
@@ -108,15 +106,16 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
           aria-label="File server address"
           className="font-mono text-xs"
         />
-        <Button type="submit" variant="outline" disabled={!adding.trim()}>
+        <Button type="submit" variant="outline" disabled={!adding.trim() || !list.canEdit}>
           <Plus className="mr-1 h-4 w-4" /> Add
         </Button>
       </form>
       {addError && <p className="text-xs text-red-600 dark:text-red-400">{addError}</p>}
-      {!servers.length && !dirty && !listLoading && (
+      {list.stale && <ListDraftNotice draft={list} testId="file-servers-notice" />}
+      {!servers.length && !dirty && list.canEdit && (
         <button
           type="button"
-          onClick={() => setDraft(ENCRYPTED_BLOSSOM_SERVERS)}
+          onClick={() => list.edit(ENCRYPTED_BLOSSOM_SERVERS)}
           className="self-start text-xs font-semibold text-brand-link hover:underline"
           data-testid="button-suggest-file-servers"
         >
@@ -128,7 +127,7 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
         <Button
           className="ml-auto"
           onClick={() => void publish()}
-          disabled={!dirty || !servers.length || busy}
+          disabled={!dirty || !servers.length || busy || list.stale}
           data-testid="button-publish-file-servers"
         >
           {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

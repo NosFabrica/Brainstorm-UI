@@ -1,57 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   liveCategoryOf,
+  liveHostClaim,
+  liveHostOf,
+  liveStateLabel,
   liveNeedsCheck,
   liveStateOf,
   onAirLabel,
+  parseLiveStream,
   pickStreams,
   verifyRecording,
   __resetRecordingChecks,
 } from "./liveStream";
+import { schnorr } from "@noble/curves/secp256k1.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
+import { getPublicKey } from "nostr-tools";
 
-// Odell's year-old replay: the recording host (data.zap.stream) no longer
-// answers at all, and the panel advertised a black player. A recording is
-// advertised only after it has answered.
+// A recording is someone else's server: the reader's browser never probes it
+// (ADR 0007: third-party calls go through our origin, never from search or a
+// card). Only a web address is a recording; a dead one shows when it fails to play.
 describe("verifyRecording", () => {
   beforeEach(() => __resetRecordingChecks());
 
-  it("a recording that answers is playable", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("", { status: 200 })),
-    );
-    expect(await verifyRecording("https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8")).toBe(true);
-  });
-
-  it("a missing or dead recording is not", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("", { status: 404 })),
-    );
-    expect(await verifyRecording("https://data.zap.stream/recording/gone.m3u8")).toBe(false);
-    __resetRecordingChecks();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new TypeError("Failed to fetch");
-      }),
-    );
-    expect(await verifyRecording("https://data.zap.stream/recording/dead.m3u8")).toBe(false);
-  });
-
-  it("trusts YouTube without asking — its player answers for itself", async () => {
+  it("a web address is a recording, and nothing is asked to say so", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    expect(await verifyRecording("https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8")).toBe(true);
     expect(await verifyRecording("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("asks once per recording", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    await verifyRecording("https://cdn.example/replay.mp4");
-    await verifyRecording("https://cdn.example/replay.mp4");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  it("anything else is not one", async () => {
+    expect(await verifyRecording("data:video/mp4;base64,AAAA")).toBe(false);
+    expect(await verifyRecording("javascript:alert(1)")).toBe(false);
+    expect(await verifyRecording("not a url")).toBe(false);
   });
 });
 
@@ -60,6 +43,26 @@ describe("verifyRecording", () => {
 // radio and Owncast servers that never end), 80 ended (16 with a recording),
 // none planned; kind 30313 meetings carry the planned ones; kind 30312 rooms
 // are 8k mostly-closed, untitled machine records.
+describe("liveStateOf — a recording that is no web address is no replay", () => {
+  it("is ended, not a replay", () => {
+    const ev = (recording: string) => ({
+      id: "x",
+      pubkey: "a".repeat(64),
+      kind: 30311,
+      created_at: 1,
+      tags: [
+        ["title", "T"],
+        ["status", "ended"],
+        ["recording", recording],
+      ],
+      content: "",
+    });
+    expect(liveStateOf(ev("https://cdn.example/r.mp4"), 100)).toBe("replay");
+    expect(liveStateOf(ev("data:video/mp4;base64,AAAA"), 100)).toBeNull();
+    expect(liveStateOf(ev("javascript:alert(1)"), 100)).toBeNull();
+  });
+});
+
 describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => {
   const now = 1_800_000_000;
   const ev = (kind: number, tags: string[][]) => ({
@@ -139,12 +142,12 @@ describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => 
       ),
     ).toBeNull();
   });
-  it("rooms count only while open and titled; untitled machine records never", () => {
+  it("rooms count only while open and named by their `room`; unnamed machine records never", () => {
     expect(
       liveStateOf(
         ev(30312, [
           ["d", "r"],
-          ["title", "JB's Voice Room"],
+          ["room", "JB's Voice Room"],
           ["status", "open"],
         ]),
         now,
@@ -154,7 +157,7 @@ describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => 
       liveStateOf(
         ev(30312, [
           ["d", "r"],
-          ["title", "JB's Voice Room"],
+          ["room", "JB's Voice Room"],
           ["status", "closed"],
         ]),
         now,
@@ -169,6 +172,28 @@ describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => 
         now,
       ),
     ).toBeNull();
+    // NIP-53 names a space by `room`; a `title` is not its name.
+    expect(
+      liveStateOf(
+        ev(30312, [
+          ["d", "r"],
+          ["title", "Not a room name"],
+          ["status", "open"],
+        ]),
+        now,
+      ),
+    ).toBeNull();
+    // Private is in operation, behind its own door.
+    expect(
+      liveStateOf(
+        ev(30312, [
+          ["d", "r"],
+          ["room", "Members only"],
+          ["status", "private"],
+        ]),
+        now,
+      ),
+    ).toBe("live");
     expect(
       liveStateOf(
         ev(30313, [
@@ -236,6 +261,23 @@ describe("stale live — a status nobody updated is not a broadcast", () => {
     expect(liveStateOf(live(8 * 86_400, [["recording", "https://r/x.m3u8"]]), now)).toBe("replay");
     expect(liveStateOf(live(2 * 86_400), now)).toBe("live");
   });
+  // NIP-53: "events without updates for 1 hour MAY be considered ended" is said of a live
+  // activity (30311) and a meeting (30313). A space (30312) is a standing room whose status
+  // (open, private, closed) is its door, not a broadcast: an old one that says open is open.
+  it("a space that says open stays open however long ago it was published", () => {
+    const space = (status: string) => ({
+      ...live(30 * 86_400),
+      kind: 30312,
+      tags: [
+        ["d", "r"],
+        ["room", "Town hall"],
+        ["status", status],
+      ],
+    });
+    expect(liveStateOf(space("open"), now)).toBe("live");
+    expect(liveStateOf(space("private"), now)).toBe("live");
+    expect(liveStateOf(space("closed"), now)).toBeNull();
+  });
   it("a live whose own end has passed is over", () => {
     expect(liveStateOf(live(3600, [["ends", String(now - 60)]]), now)).toBeNull();
     expect(liveStateOf(live(3600, [["ends", String(now + 3600)]]), now)).toBe("live");
@@ -267,6 +309,9 @@ describe("a stream nothing can play is not a broadcast", () => {
   // ftp://example.com/not-a-web-url, 99999 viewers — led the Live grid.
   const now = 1_760_000_000;
   const live = (tags: string[][]) => ({
+    id: "x",
+    pubkey: "a".repeat(64),
+    content: "",
     kind: 30311,
     created_at: now - 3600,
     tags: [["d", "s"], ["title", "QA: non-web streaming scheme"], ["status", "live"], ...tags],
@@ -340,5 +385,102 @@ describe("pickStreams — the person panel's live, upcoming and replay, by the s
     expect(picked.live?.id).toBe("l");
     expect(picked.upcoming?.id).toBe("p");
     expect(picked.replay?.id).toBe("e");
+  });
+});
+
+describe("liveHostOf — NIP-53's role is a displayable word, in any case", () => {
+  const stream = (role: string) => ({
+    id: "s",
+    pubkey: "a".repeat(64),
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["p", "b".repeat(64), "", "Speaker"],
+      ["p", "c".repeat(64), "wss://relay.example", role],
+    ],
+  });
+
+  it('reads NIP-53\'s own "Host" as well as zap.stream\'s "host"', () => {
+    expect(liveHostOf(stream("Host"))).toBe("c".repeat(64));
+    expect(liveHostOf(stream("host"))).toBe("c".repeat(64));
+    expect(liveHostOf(stream("Participant"))).toBeNull();
+  });
+});
+
+describe("liveStateLabel — one word per shelf", () => {
+  it("says what the Live tab's shelf says, and Ended for a stream with none", () => {
+    expect(liveStateLabel("live")).toBe("Live");
+    expect(liveStateLabel("upcoming")).toBe("Upcoming");
+    expect(liveStateLabel("replay")).toBe("Replay");
+    expect(liveStateLabel(null)).toBe("Ended");
+  });
+});
+
+describe("liveHostOf — only a key is a host", () => {
+  const withHost = (value: string) => ({
+    id: "s",
+    pubkey: "a".repeat(64),
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [["p", value, "", "Host"]],
+  });
+
+  it("is nothing for a value that is not 64 hex characters (it threw in npub encoding)", () => {
+    expect(liveHostOf(withHost("not-a-key"))).toBeNull();
+    expect(liveHostOf(withHost("c".repeat(63)))).toBeNull();
+    expect(liveHostOf(withHost("C".repeat(64)))).toBe("c".repeat(64));
+  });
+});
+
+describe("liveHostClaim — a named host agreed only with NIP-53's proof", () => {
+  const signer = "a".repeat(64);
+  const hostKey = new Uint8Array(32).fill(9);
+  const host = getPublicKey(hostKey);
+  const stream = (proof?: string, hostPk = host) => ({
+    id: "s",
+    pubkey: signer,
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["d", "show"],
+      ["p", hostPk, "", "Host", ...(proof ? [proof] : [])],
+    ],
+  });
+  const proofFor = (address: string) => bytesToHex(schnorr.sign(sha256(utf8ToBytes(address)), hostKey));
+
+  it("is unconfirmed when the signer only names them", () => {
+    expect(liveHostClaim(stream())).toEqual({ pubkey: host, confirmed: false });
+    expect(liveHostClaim(stream("0".repeat(128)))).toEqual({ pubkey: host, confirmed: false });
+  });
+
+  it("is confirmed by their signature over the event's address", () => {
+    expect(liveHostClaim(stream(proofFor(`30311:${signer}:show`)))).toEqual({ pubkey: host, confirmed: true });
+    // A proof for another event is not agreement to this one.
+    expect(liveHostClaim(stream(proofFor(`30311:${signer}:other`)))?.confirmed).toBe(false);
+  });
+
+  it("is confirmed when the host is the signer", () => {
+    expect(liveHostClaim(stream(undefined, signer))).toEqual({ pubkey: signer, confirmed: true });
+  });
+});
+
+describe("a stream named only by its `name`", () => {
+  const named = {
+    id: "n",
+    pubkey: "a".repeat(64),
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["d", "x"],
+      ["name", "Friday Jam"],
+    ],
+  };
+  // Its quote card said "Friday Jam"; its page and its row said "Live stream".
+  it("is called by its name everywhere: liveTitleOf's rule", () => {
+    expect(parseLiveStream(named)?.title).toBe("Friday Jam");
   });
 });

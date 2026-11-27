@@ -3,6 +3,7 @@
  * holds nothing. The ceremony and the server are faked; the seal is real.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Sessions } from "./session";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
@@ -17,8 +18,8 @@ const PRF = new Uint8Array(32).fill(5);
 const assertPasskey = vi.fn<(options: { challenge?: string }) => Promise<PasskeyAssertion>>();
 const passkeyVaultChallenge = vi.fn(async () => "server-challenge");
 const openPasskeyVault = vi.fn<(hash: string, wire: unknown) => Promise<string>>();
-const ensureSession = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
-const authenticate = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
+const ensureSession = vi.fn<Sessions["ensureSession"]>(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
+const authenticate = vi.fn<Sessions["authenticate"]>(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
 
 vi.mock("./passkey", async (original) => ({
   ...(await original<typeof import("./passkey")>()),
@@ -33,8 +34,8 @@ vi.mock("@/services/api/passkeyVault", async (original) => ({
 }));
 vi.mock("./session", () => ({
   sessions: {
-    ensureSession: (account: BrainstormAccount) => ensureSession(account),
-    authenticate: (account: BrainstormAccount) => authenticate(account),
+    ensureSession: (...a: Parameters<Sessions["ensureSession"]>) => ensureSession(...a),
+    authenticate: (...a: Parameters<Sessions["authenticate"]>) => authenticate(...a),
   },
   SessionTransportError: class SessionTransportError extends Error {},
   SESSION_SIGN_TIMEOUT_MS: 90_000,

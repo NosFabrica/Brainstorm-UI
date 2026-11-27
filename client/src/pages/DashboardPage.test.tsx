@@ -53,6 +53,12 @@ vi.mock("@/hooks/useVerifiedNoFollows", () => ({ useVerifiedNoFollows: () => "ha
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/accounts/display", () => ({ identityHas: () => false }));
+// The compromised-follows alert reads the reader's follow and mute lists from the relays.
+vi.mock("@/services/socialActions", async (orig) => ({
+  ...(await orig<typeof import("@/services/socialActions")>()),
+  fetchContactList: async () => null,
+  fetchMuteList: async () => null,
+}));
 // The relay verdict: "none" — no kind-10040 names Brainstorm, so activation is
 // pending — unless a test flips it to "brainstorm" for the activated cohort, or
 // "other" for a Treasure Map that gives the rank duty to another Assistant.

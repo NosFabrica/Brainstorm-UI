@@ -5,6 +5,7 @@ import { onlySelfDeclared } from "@/lib/tagCounts";
 import { relativeTime } from "@/lib/relativeTime";
 import type { TagCarrier } from "@/services/tags";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
+import { displayNameOf } from "@/lib/displayName";
 
 /**
  * The line under a carrier's name: who vouched, and any caveat.
@@ -27,7 +28,7 @@ export function CarrierMeta({
 
   const nameFor = (pk: string) => {
     const p = profileMap?.get(pk);
-    return p?.display_name || p?.name || `${pk.slice(0, 8)}…`;
+    return displayNameOf(p, pk, "hex8");
   };
   const linkFor = (pk: string) => {
     try {

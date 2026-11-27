@@ -20,7 +20,7 @@ import { AmberClipboardSigner } from "applesauce-signers/signers/amber-clipboard
 import type { SerializedAccount } from "applesauce-accounts";
 
 import type { AccountMetadata } from "./metadata";
-import { withTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout, withTimeout } from "./signer-timeout";
 
 /**
  * How long Amber gets before we admit it isn't coming back.
@@ -37,25 +37,45 @@ export const AMBER_TIMEOUT_MS = 60_000;
 
 const LATE = "Amber didn't answer. Open it and check for a request waiting there.";
 
+/**
+ * The engine's deadline for one wrap through Amber: none of its own. Each of the
+ * wrap's two requests ends within AMBER_TIMEOUT_MS of being *issued* (the signer's
+ * own deadline, below), however long it waited in the account's queue first — a
+ * deadline started when the engine asked ran out while the request was still
+ * queued, and the request prompted anyway once its turn came, for nobody.
+ */
+export const AMBER_WRAP_DEADLINE_MS = Number.POSITIVE_INFINITY;
+
 /** The library's signer, with a deadline on every app switch. */
 export class TimedAmberSigner extends AmberClipboardSigner {
-  getPublicKey(): Promise<string> {
-    return withTimeout(super.getPublicKey(), AMBER_TIMEOUT_MS, LATE);
+  /**
+   * The deadline starts when the request is made (the app switch), and a request
+   * that runs out is let go of: still pending, the next return to the app read the
+   * clipboard into a request nobody was waiting for any more.
+   */
+  private timed<T>(work: Promise<T>): Promise<T> {
+    return withTimeout(work, AMBER_TIMEOUT_MS, LATE).catch((error: unknown) => {
+      if (isRemoteSignerTimeout(error)) this.rejectPending();
+      throw error;
+    });
   }
-  signEvent(template: Parameters<AmberClipboardSigner["signEvent"]>[0]) {
-    return withTimeout(super.signEvent(template), AMBER_TIMEOUT_MS, LATE);
+  override getPublicKey(): Promise<string> {
+    return this.timed(super.getPublicKey());
   }
-  nip04Encrypt(pubkey: string, plaintext: string): Promise<string> {
-    return withTimeout(super.nip04Encrypt(pubkey, plaintext), AMBER_TIMEOUT_MS, LATE);
+  override signEvent(template: Parameters<AmberClipboardSigner["signEvent"]>[0]) {
+    return this.timed(super.signEvent(template));
   }
-  nip04Decrypt(pubkey: string, ciphertext: string): Promise<string> {
-    return withTimeout(super.nip04Decrypt(pubkey, ciphertext), AMBER_TIMEOUT_MS, LATE);
+  override nip04Encrypt(pubkey: string, plaintext: string): Promise<string> {
+    return this.timed(super.nip04Encrypt(pubkey, plaintext));
   }
-  nip44Encrypt(pubkey: string, plaintext: string): Promise<string> {
-    return withTimeout(super.nip44Encrypt(pubkey, plaintext), AMBER_TIMEOUT_MS, LATE);
+  override nip04Decrypt(pubkey: string, ciphertext: string): Promise<string> {
+    return this.timed(super.nip04Decrypt(pubkey, ciphertext));
   }
-  nip44Decrypt(pubkey: string, ciphertext: string): Promise<string> {
-    return withTimeout(super.nip44Decrypt(pubkey, ciphertext), AMBER_TIMEOUT_MS, LATE);
+  override nip44Encrypt(pubkey: string, plaintext: string): Promise<string> {
+    return this.timed(super.nip44Encrypt(pubkey, plaintext));
+  }
+  override nip44Decrypt(pubkey: string, ciphertext: string): Promise<string> {
+    return this.timed(super.nip44Decrypt(pubkey, ciphertext));
   }
 }
 
@@ -66,7 +86,9 @@ export class TimedAmberSigner extends AmberClipboardSigner {
  * the library's own, exactly as `RemoteAccount` keeps `"nostr-connect"`.
  */
 export class AmberAccount<Metadata = AccountMetadata> extends AmberClipboardAccount<Metadata> {
-  static fromJSON<Metadata = AccountMetadata>(json: SerializedAccount<void, Metadata>): AmberAccount<Metadata> {
+  static override fromJSON<Metadata = AccountMetadata>(
+    json: SerializedAccount<void, Metadata>,
+  ): AmberAccount<Metadata> {
     const account = new AmberAccount<Metadata>(json.pubkey, new TimedAmberSigner());
     return super.loadCommonFields(account, json) as AmberAccount<Metadata>;
   }

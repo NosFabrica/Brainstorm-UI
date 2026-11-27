@@ -81,7 +81,54 @@ describe("ActivateBrainstormPage — Trusted Lists", () => {
     fireEvent.click(screen.getByTestId("button-activate-page-confirm"));
 
     await waitFor(() =>
-      expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: LISTS, take: ["scores"] }),
+      // Nobody else holds Scores, so there is nothing to take: the button said Activate, not Switch.
+      expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: LISTS, take: [] }),
+    );
+  });
+});
+
+describe("ActivateBrainstormPage — before everything it needs has loaded", () => {
+  beforeEach(() => {
+    publish.mockReset();
+    page.activateDone = false;
+    page.listsPending = false;
+    page.provider = "none";
+    page.lists = undefined;
+    page.map = null;
+  });
+
+  /** The Switch warning only shows once their Map is read; a click before it moved Scores unannounced. */
+  it("waits for their Treasure Map before it can be pressed", () => {
+    page.provider = undefined as unknown as string;
+    renderWithProviders(<ActivateBrainstormPage />);
+    const button = screen.getByTestId("button-activate-page-confirm");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  /** One click, one signature: a second click while the Map is being read used to publish twice. */
+  it("publishes once however fast it's clicked", async () => {
+    let finish!: (r: unknown) => void;
+    publish.mockImplementation(() => new Promise((r) => (finish = r)));
+    renderWithProviders(<ActivateBrainstormPage />);
+    const button = screen.getByTestId("button-activate-page-confirm");
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent("Getting ready…");
+    finish({ status: "success" });
+    expect(await screen.findByTestId("text-activate-page-success")).toBeInTheDocument();
+  });
+
+  /** Trusted Lists still loading is "look them up", not "name none". */
+  it("leaves the lists to be looked up while they're still loading", async () => {
+    publish.mockResolvedValue({ status: "success" });
+    renderWithProviders(<ActivateBrainstormPage />);
+    fireEvent.click(screen.getByTestId("button-activate-page-confirm"));
+    await waitFor(() =>
+      expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: undefined, take: [] }),
     );
   });
 });
@@ -116,7 +163,7 @@ describe("ActivateBrainstormPage — another Assistant on rank", () => {
 
     // "Switch" is the explicit choice to move Scores — and only Scores.
     await waitFor(() =>
-      expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: null, take: ["scores"] }),
+      expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: undefined, take: ["scores"] }),
     );
     expect(await screen.findByTestId("text-activate-page-success")).toBeInTheDocument();
   });

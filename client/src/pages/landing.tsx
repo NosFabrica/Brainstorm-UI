@@ -16,7 +16,7 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { logout } from "@/accounts/login-flow";
 import { AccountCards } from "@/components/AccountCards";
-import { getDisplayLabel, isLikelyNpub, isHexPubkey, isNip05Handle } from "@/lib/profileSearch";
+import { isLikelyNpub, isHexPubkey, isNip05Handle } from "@/lib/profileSearch";
 import { type SearchHit } from "@/services/search";
 import { BackToTop } from "@/components/search/BackToTop";
 import { LazySearchResults, SearchResultsFallback } from "@/components/search/lazySearchResults";
@@ -33,6 +33,7 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 import { isTouchScreen } from "@/lib/touchScreen";
 import { syncThemeColor } from "@/lib/themeColor";
+import { resultName } from "@/lib/displayName";
 
 // Example prompts the empty search box gently cycles through to teach
 // first-time visitors what they can search for. The first entry is the
@@ -408,7 +409,7 @@ export default function Landing() {
     setQuery(q);
     setFilters(f);
     didInitFromUrlRef.current = true;
-    handleSearch(q, f, "pop");
+    void handleSearch(q, f, "pop");
     // `submitted` is read, not a trigger: a change in it is the search this effect started.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, handleSearch]);
@@ -424,7 +425,7 @@ export default function Landing() {
       didInitFromUrlRef.current = true;
       // Back/forward: the URL is the truth for the filters too.
       setFilters(f);
-      if (q.trim()) handleSearch(q, f, "pop");
+      if (q.trim()) void handleSearch(q, f, "pop");
       else resetResults();
     };
     window.addEventListener("popstate", onPopState);
@@ -439,7 +440,7 @@ export default function Landing() {
     const q = params.get("q") || "";
     if (q.trim()) {
       didInitFromUrlRef.current = true;
-      handleSearch(q, params.get("f") || "", "init");
+      void handleSearch(q, params.get("f") || "", "init");
     }
   }, [handleSearch]);
 
@@ -451,8 +452,7 @@ export default function Landing() {
   // fetch. A profile with no name stays unnamed: never a key.
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
-  const scopeName =
-    scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  const scopeName = resultName(scopeProfile) ?? null;
   // A search of one person's things is a search — RECENT remembers it the way the chip that
   // opened it read: the face, the name, the tab it opened on, never the key. Recorded from
   // the search that RAN (not each keystroke), once the person's name is known. Tabs browsed
@@ -940,18 +940,19 @@ export default function Landing() {
             (follow list, activation) lives ONLY in the header's
             FinishSetupBanner — nothing setup-shaped renders under the search. */}
         <AccountCards />
-        {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
+        {/* No "someone just joined & followed you" card (WelcomeBackCard, deleted).
             New users still auto-follow the profile they join from (see SharePage) —
             that connection is benign. But this owner-facing notification was the scam
             lever: it pressured the owner to follow BACK a stranger, forming a trust
             edge that carries the owner's weight. It fired for ANY brand-new inbound
-            follower, so it can't be re-enabled safely until a backend invite-record
-            gates it to genuine, owner-issued invites. */}
+            follower, so it can't come back (git history keeps it) until a backend
+            invite-record gates it to genuine, owner-issued invites. */}
 
         {/* The home feed ("What's happening now") is unmounted for now
             (Benjamin, 2026-09-09: "let's remove this for now"); the pristine
-            home is the centered hero and nothing below it. components/feed/
-            HomeFeed keeps the bands for when it comes back. */}
+            home is the centered hero and nothing below it. Its component,
+            components/feed/HomeFeed, was deleted while unmounted; git history
+            keeps it for when it comes back. */}
         {hasSearched && (
           <>
             <BackToTop />

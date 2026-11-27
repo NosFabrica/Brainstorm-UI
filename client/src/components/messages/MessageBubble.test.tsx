@@ -76,7 +76,9 @@ describe("MessageBubble on touch", () => {
 
   it("reacts and copies from the menu", async () => {
     const writeText = vi.fn(async () => {});
-    Object.assign(navigator, { clipboard: { writeText } });
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    // Through lib/clipboard, whose API path needs a secure context; jsdom says it isn't one.
+    Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
     const { h, bubble } = show();
     hold(bubble, 500);
     fireEvent.click(within(screen.getByTestId("dm-message-sheet")).getByRole("button", { name: "React with 😂" }));

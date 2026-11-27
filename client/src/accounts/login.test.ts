@@ -126,7 +126,8 @@ describe("adopting and releasing", () => {
       logn: LOW_LOGN,
       unlockCache: createFakeUnlockCache(),
     });
-    expect(backedUp.signer.data.ncryptsec).toBeTruthy();
+    const backup = backedUp.signer.data.ncryptsec;
+    expect(backup).toBeTruthy();
     adoptAccount(backedUp, { remembered: true, backedUp: true });
 
     // as `loginWithPastedKey` builds it for a bare nsec: envelope only
@@ -135,7 +136,9 @@ describe("adopting and releasing", () => {
 
     adoptAccount(pasted, { remembered: true });
 
-    expect(pasted.signer.data.ncryptsec).toBe(backedUp.signer.data.ncryptsec);
+    expect(pasted.signer.data.ncryptsec).toBe(backup);
+    // …and the replaced row lets go of its own copy: nothing still holding it can open the key.
+    expect(backedUp.signer.data).toEqual({});
   });
 
   it("does not overwrite a backup the new row brought itself", async () => {

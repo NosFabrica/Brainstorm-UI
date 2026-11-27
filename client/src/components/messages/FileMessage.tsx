@@ -3,12 +3,28 @@ import { useNearViewport } from "@/hooks/useNearViewport";
 import { Download, FileText, Loader2, Lock, AlertTriangle, Mic } from "lucide-react";
 import { fileDisplayName, type FileMeta } from "@/lib/dm/rooms";
 import { MAX_ATTACHMENT_BYTES, decryptFile, matchesHash } from "@/lib/dm/fileCrypto";
+import { isRasterImageType, rasterImageType } from "@/lib/dm/fileType";
 import { formatBytes } from "@/lib/formatBytes";
+import { useLightbox } from "@/components/share/Lightbox";
 
 /** The largest attachment we fetch and open without being asked. */
 const AUTO_OPEN_BYTES = 8 * 1024 * 1024;
 
 type Opened = { url: string; mime: string } | { error: string } | null;
+
+/**
+ * The type the decrypted bytes are given as a blob. A blob: URL is our origin
+ * and is served as this type, so it is never the sender's word: a picture by
+ * its first bytes (lib/dm/fileType), a voice note as the audio it says it is
+ * (an <audio> plays it, nothing renders it as a page), and anything else
+ * octet-stream, which a browser only ever saves.
+ */
+function blobType(plain: Uint8Array, declared: string | undefined): string {
+  const image = rasterImageType(plain);
+  if (image) return image;
+  if (declared?.toLowerCase().startsWith("audio/")) return declared;
+  return "application/octet-stream";
+}
 
 /** Read a response body, refusing past `max` bytes — a size tag is only the sender's word. */
 async function readCapped(response: Response, max: number): Promise<Uint8Array> {
@@ -57,6 +73,7 @@ export function FileMessage({ meta, mine, autoOpen = true }: { meta: FileMeta; m
     [],
   );
   const box = useRef<HTMLDivElement>(null);
+  const openLightbox = useLightbox();
   const near = useNearViewport(box, "400px");
 
   const open = async () => {
@@ -68,7 +85,7 @@ export function FileMessage({ meta, mine, autoOpen = true }: { meta: FileMeta; m
       const bytes = await readCapped(response, MAX_ATTACHMENT_BYTES + 64);
       if (!(await matchesHash(bytes, meta.hash))) throw new Error("The file doesn't match what was sent");
       const plain = encrypted ? await decryptFile(bytes, meta.key!, meta.nonce!) : bytes;
-      const mime = meta.mime || "application/octet-stream";
+      const mime = blobType(plain, meta.mime);
       const url = URL.createObjectURL(new Blob([plain], { type: mime }));
       // Closed meanwhile: nothing will ever revoke it.
       if (!alive.current) return URL.revokeObjectURL(url);
@@ -95,11 +112,18 @@ export function FileMessage({ meta, mine, autoOpen = true }: { meta: FileMeta; m
     [opened],
   );
 
-  if (opened && "url" in opened && opened.mime.startsWith("image/")) {
+  // Only a picture its bytes say is one, and never a link: full size opens in
+  // our own lightbox, not as a page of its own.
+  if (opened && "url" in opened && isRasterImageType(opened.mime)) {
     return (
-      <a href={opened.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl">
+      <button
+        type="button"
+        onClick={() => openLightbox([opened.url], 0)}
+        aria-label="View the picture"
+        className="block overflow-hidden rounded-2xl"
+      >
         <img src={opened.url} alt="Attachment" className="max-h-80 max-w-full object-contain" />
-      </a>
+      </button>
     );
   }
 

@@ -4,10 +4,10 @@
  * a publisher row (who maintains this), and the live NIP-34 activity
  * feed — the "is anyone working on this?" signal nostrhub doesn't have.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCopied } from "@/hooks/useCopied";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import type { NostrEvent } from "nostr-tools";
 import { ExternalLink, FolderGit2, GitBranch, GitFork } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -17,15 +17,8 @@ import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
-import {
-  fetchGitCommentCounts,
-  fetchGitStatuses,
-  fetchRepoActivity,
-  fetchRepoCounts,
-  fetchRepoForks,
-  kind0ToSearchResult,
-  type RepoCounts,
-} from "@/services/search";
+import { kind0ToSearchResult } from "@/services/search";
+import { useRepoActivity, useRepoCounts, useRepoForks } from "@/hooks/useRepoAsks";
 import { repoLineageOf } from "@/lib/gitStatus";
 import { Favicon } from "@/components/share/LinkPreview";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitStateOf, peopleBeforeAgents } from "@/lib/gitStatus";
@@ -33,6 +26,7 @@ import { kindTypeLabel } from "@/lib/kindLabel";
 import { MessageSquare } from "lucide-react";
 import { ReadingText } from "@/components/share/ReadingText";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { safeHref } from "@/lib/safeHref";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type RepoEvent = {
@@ -67,9 +61,12 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   const description = tagVal(event, "description");
   const longDescription = !!description && (description.length > 200 || description.includes("\n"));
   const clone = tagVal(event, "clone");
-  const web = tagVal(event, "web");
-  const source = tagVal(event, "source");
-  const forkedFrom = tagVal(event, "forkedFrom");
+  // Copying it says whether it landed (hooks/useCopied).
+  const cloneCopy = useCopied();
+  // Links the maintainer wrote: web addresses only (lib/safeHref).
+  const web = safeHref(tagVal(event, "web"));
+  const source = safeHref(tagVal(event, "source"));
+  const forkedFrom = safeHref(tagVal(event, "forkedFrom"));
   const lineage = repoLineageOf(event);
   const hostOf = (url: string) => {
     try {
@@ -89,32 +86,10 @@ export function RepoHero({ event }: { event: RepoEvent }) {
     }
   };
 
-  const [activityItems, setActivityItems] = useState<NostrEvent[]>([]);
-  const [activityStatuses, setActivityStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
-  const [activityComments, setActivityComments] = useState<Map<string, number>>(new Map());
   const [activityOpen, setActivityOpen] = useState(false);
   const address = d ? `30617:${event.pubkey}:${d}` : null;
-  useEffect(() => {
-    if (!address) return;
-    let alive = true;
-    void fetchRepoActivity(address).then((items) => {
-      if (!alive) return;
-      setActivityItems(items);
-      // What became of each, and how much talk it drew — one request each for the page.
-      const ids = items.map((i) => i.id);
-      if (ids.length) {
-        void fetchGitStatuses(ids).then((m) => {
-          if (alive) setActivityStatuses(m);
-        });
-        void fetchGitCommentCounts(ids).then((m) => {
-          if (alive) setActivityComments(m);
-        });
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, [address]);
+  // What became of each, and how much talk it drew — one ask each for the page (hooks/useRepoAsks).
+  const { items: activityItems, statuses: activityStatuses, comments: activityComments } = useRepoActivity(address);
   // Who filed each one — the profile says "agent" when the event does not.
   const activityProfiles = useLiveProfiles(activityItems.map((i) => i.pubkey));
   const activityAuthors = useMemo(() => {
@@ -131,29 +106,9 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   );
 
   // The numbers: issues, patches, who contributed, when anything last happened.
-  const [counts, setCounts] = useState<RepoCounts | null>(null);
-  useEffect(() => {
-    if (!address) return;
-    let alive = true;
-    void fetchRepoCounts(address).then((c) => {
-      if (alive) setCounts(c);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [address]);
+  const counts = useRepoCounts(address);
   // Forks on Nostr — announcements sharing this repo's earliest commit.
-  const [forks, setForks] = useState<NostrEvent[]>([]);
-  useEffect(() => {
-    if (!address || !lineage) return;
-    let alive = true;
-    void fetchRepoForks(lineage, address).then((f) => {
-      if (alive) setForks(f);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [address, lineage]);
+  const forks = useRepoForks(lineage, address);
   const contributors = counts?.contributors ?? [];
   const faces = contributors.slice(0, 3);
   const hasNumbers =
@@ -330,13 +285,15 @@ export function RepoHero({ event }: { event: RepoEvent }) {
         {clone && (
           <button
             type="button"
-            onClick={() => void navigator.clipboard?.writeText(clone).catch(() => {})}
+            onClick={() => void cloneCopy.copy(clone)}
             title="Copy clone URL"
             className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 px-3.5 py-1.5 font-mono text-[11px] text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
             data-testid="repo-hero-clone"
           >
             <GitBranch className="h-3 w-3 shrink-0" />
-            <span className="truncate">{clone.replace(/^https?:\/\//, "")}</span>
+            <span className="truncate">
+              {cloneCopy.copied ? "Copied" : cloneCopy.failed ? "Couldn't copy" : clone.replace(/^https?:\/\//, "")}
+            </span>
           </button>
         )}
       </div>

@@ -293,7 +293,7 @@ function NostrPoll({ poll, tags, relayHints }: { poll: Poll; tags: string[][]; r
 
       {canVote && (
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button size="sm" onClick={vote} disabled={!changed || busy} data-testid="poll-vote">
+          <Button size="sm" onClick={() => void vote()} disabled={!changed || busy} data-testid="poll-vote">
             {busy && <Loader2 className="animate-spin" />}
             {mine.length ? "Change vote" : "Vote"}
           </Button>

@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { articleBrief, articleSummary, wikiPlainText, wikiToMarkdown } from "./wiki";
+import { expectLinear } from "@/test/linearTime";
 import { articleTitle } from "./publication";
 
 describe("wikiToMarkdown", () => {
@@ -125,12 +126,33 @@ describe("articleTitle", () => {
 });
 
 describe("hostile pages", () => {
-  it("stays linear on a long line of would-be links", () => {
-    for (const line of ["https://".repeat(40_000), "[[a".repeat(40_000), "image::a" + "[".repeat(100_000)]) {
-      const t = performance.now();
-      wikiToMarkdown(`== Title\n${line}`);
-      wikiPlainText(`== Title\n${line}`);
-      expect(performance.now() - t).toBeLessThan(1500);
-    }
+  it.each([
+    ["https://", 500],
+    ["[[a", 500],
+    ["[", 1500],
+  ])("stays linear on a long line of would-be links (%s)", (unit, n) => {
+    const page = (reps: number) => `== Title\n${unit === "[" ? "image::a" : ""}${unit.repeat(reps)}`;
+    expectLinear(page, (text) => (wikiToMarkdown(text), wikiPlainText(text)), n);
+  });
+});
+
+describe("NIP-54 wikilinks (Djot reference links with no reference)", () => {
+  it("a reference-style link the page never defines names the article on that topic", () => {
+    const md = wikiToMarkdown(
+      "Bitcoin is a [cryptocurrency][] invented by [Satoshi Nakamoto][].\n\n" +
+        "See [lightning network][Lightning Network].\n\n[Satoshi Nakamoto]: nostr:npub1satoshi",
+    );
+    expect(md).toContain("[cryptocurrency](/?q=cryptocurrency&t=articles)");
+    expect(md).toContain("[lightning network](/?q=Lightning%20Network&t=articles)");
+    // Defined, it is an ordinary link and stays one.
+    expect(md).toContain("[Satoshi Nakamoto][]");
+  });
+
+  it("a card's words read a wikilink as its label", () => {
+    expect(wikiPlainText("See [proof of work][] for more.")).toBe("See proof of work for more.");
+  });
+
+  it("an image reference stays an image", () => {
+    expect(wikiToMarkdown("![a map][map]")).toBe("![a map][map]");
   });
 });

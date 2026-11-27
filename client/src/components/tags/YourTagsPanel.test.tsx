@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   itemsLoading: false,
   profiles: new Map<string, { name?: string; picture?: string }>(),
   views: new Map<string, unknown>(),
+  /** What useTaggedItems answers when set: the same object on every render, as the hook's is. */
+  tagged: null as unknown,
 }));
 // How a Dictionary list's item reads (hooks/useItemView): what its own page and cards draw from.
 vi.mock("@/hooks/useItemView", () => ({
@@ -29,12 +31,18 @@ vi.mock("@/hooks/useItemView", () => ({
 // What was tagged, read from the relays (hooks/useTaggedItems): the events by the target a
 // tagging names, and what a Dictionary list calls its items.
 vi.mock("@/hooks/useTaggedItems", () => ({
-  useTaggedItems: () => ({
-    eventOf: (target: string) => h.items.get(target),
-    listOf: (target: string) => h.lists.get(target) ?? null,
-    loading: h.itemsLoading,
-  }),
+  useTaggedItems: () =>
+    h.tagged ?? {
+      eventOf: (target: string) => h.items.get(target),
+      listOf: (target: string) => h.lists.get(target) ?? null,
+      loading: h.itemsLoading,
+    },
 }));
+// Counted, to see what a render re-reads.
+vi.mock("@/lib/taggable", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/taggable")>();
+  return { ...real, taggableType: vi.fn(real.taggableType) };
+});
 vi.mock("@/hooks/useTags", () => ({
   useProfileTags: () => ({ data: h.onMe, isLoading: h.loading }),
   useMyAssertions: () => ({ data: h.said, isLoading: h.loading }),
@@ -46,6 +54,7 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => h.profiles }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
+import { taggableType } from "@/lib/taggable";
 import { YourTagsPanel } from "./YourTagsPanel";
 
 const nothingOnMe: ProfileTagsResult = { tags: [], mine: [], trustUnverified: false, viewerUnscored: false };
@@ -147,6 +156,7 @@ describe("Your tags — people and content, each kind of content on its own", ()
     h.onMe = nothingOnMe;
     h.loading = false;
     h.itemsLoading = false;
+    h.tagged = null;
     h.profiles = new Map();
     h.views = new Map();
     h.items = new Map<string, unknown>([
@@ -177,6 +187,21 @@ describe("Your tags — people and content, each kind of content on its own", ()
       on(REPO, "Android", 10),
       on(ACCOUNT, "Maintainer", 5),
     ];
+  });
+
+  // A render that changes nothing it reads (a parent's, a toast's) sorts and describes nothing again.
+  it("reads what each tagged thing is once, not on every render", () => {
+    h.tagged = {
+      eventOf: (target: string) => h.items.get(target),
+      listOf: (target: string) => h.lists.get(target) ?? null,
+      loading: false,
+    };
+    const { rerender } = render(<YourTagsPanel />);
+    expect(screen.getAllByTestId("my-tags-said-type")).toHaveLength(4);
+    const read = vi.mocked(taggableType).mock.calls.length;
+    rerender(<YourTagsPanel />);
+    expect(vi.mocked(taggableType).mock.calls.length).toBe(read);
+    expect(screen.getAllByTestId("my-tags-said-type")).toHaveLength(4);
   });
 
   it("keeps the people you tagged apart from the content you tagged", () => {

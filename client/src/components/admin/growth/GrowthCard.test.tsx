@@ -16,15 +16,17 @@ const C = "c".repeat(64);
 const D = "d".repeat(64);
 const OBSERVER = "0".repeat(64);
 const copied = vi.hoisted(() => vi.fn(async () => true));
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: copied }));
+vi.mock("@/lib/clipboard", () => ({ dialogOf: () => null, copyToClipboard: copied }));
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => OBSERVER }));
-vi.mock("@/services/wotRanks", () => ({
-  fetchAuthorRanks: async () => ({
+// The house lens's ranks, as the store holds them (hooks/useLensRanks).
+vi.mock("@/hooks/useLensRanks", () => ({
+  useAuthorRanks: () => ({
     ranks: new Map([
       [A, 42],
       [C, 10],
     ]),
     source: "house",
+    pending: false,
   }),
 }));
 

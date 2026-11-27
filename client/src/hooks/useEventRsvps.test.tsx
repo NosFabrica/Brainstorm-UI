@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
+import type { EventRsvps, fetchEventRsvps } from "@/services/search";
 
-const fetchMock = vi.fn(async (addresses: string[]) => new Map(addresses.map((a) => [a, { going: 1, faces: [] }])));
+const fetchMock = vi.fn<typeof fetchEventRsvps>(
+  async (addresses) => new Map(addresses.map((a) => [a, { going: 1, faces: [], people: [] }])),
+);
 vi.mock("@/services/search", () => ({ fetchEventRsvps: (addresses: string[]) => fetchMock(addresses) }));
 
 import { RSVP_SETTLE_MS, useEventRsvps } from "./useEventRsvps";
@@ -29,6 +32,22 @@ describe("useEventRsvps", () => {
     expect(result.current.get("31923:c:3")?.going).toBe(1);
   });
 
+  // A "More" page adds events: only they are asked, and the earlier answers stay.
+  it("asks only for the events a new page adds, and keeps what it had", async () => {
+    const { result, rerender } = renderHook(({ addrs }) => useEventRsvps(addrs), {
+      initialProps: { addrs: ["31923:a:1", "31923:b:2"] },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RSVP_SETTLE_MS);
+    });
+    rerender({ addrs: ["31923:a:1", "31923:b:2", "31923:c:3"] });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RSVP_SETTLE_MS);
+    });
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([["31923:a:1", "31923:b:2"], ["31923:c:3"]]);
+    expect([...result.current.keys()].sort()).toEqual(["31923:a:1", "31923:b:2", "31923:c:3"]);
+  });
+
   it("asks nothing for no events, and clears what it held", async () => {
     const { result, rerender } = renderHook(({ addrs }) => useEventRsvps(addrs), {
       initialProps: { addrs: ["31923:a:1"] },
@@ -42,7 +61,7 @@ describe("useEventRsvps", () => {
   });
 
   it("drops an answer for a list it has moved on from", async () => {
-    let resolveOld: (m: Map<string, { going: number; faces: string[] }>) => void = () => {};
+    let resolveOld: (m: Map<string, EventRsvps>) => void = () => {};
     fetchMock.mockImplementationOnce(() => new Promise((r) => (resolveOld = r)));
     const { result, rerender } = renderHook(({ addrs }) => useEventRsvps(addrs), {
       initialProps: { addrs: ["31923:old:1"] },
@@ -52,7 +71,7 @@ describe("useEventRsvps", () => {
     });
     rerender({ addrs: [] });
     await act(async () => {
-      resolveOld(new Map([["31923:old:1", { going: 9, faces: [] }]]));
+      resolveOld(new Map([["31923:old:1", { going: 9, faces: [], people: [] }]]));
     });
     expect(result.current.size).toBe(0);
   });

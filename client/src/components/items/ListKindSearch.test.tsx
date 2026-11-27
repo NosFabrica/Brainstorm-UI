@@ -193,11 +193,27 @@ const trust = vi.hoisted(() => ({
   follows: new Set<string>(),
   signedIn: false,
   asked: 0,
+  reactions: 0,
 }));
-vi.mock("@/services/itemEngagement", () => ({
-  fetchItemsReactions: async (items: { id: string }[]) => {
+// The endorsements are read through the store (hooks/useTrustedRecommenders, docs/adr/0005):
+// each endorser is answered as the kind-7 "+" reaction that names the item.
+vi.mock("@/services/itemEngagement", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/itemEngagement")>()),
+  fetchGitHubClaimantProfiles: async () => [],
+  readItemsReactions: async (items: { id: string }[]) => {
     trust.asked++;
-    return new Map(items.filter((i) => trust.endorsers.has(i.id)).map((i) => [i.id, trust.endorsers.get(i.id)!]));
+    return items.flatMap((i) =>
+      (trust.endorsers.get(i.id) ?? []).map((e) => ({
+        // Unique per reaction: the items' own ids differ only in their last digits.
+        id: String(++trust.reactions).padStart(64, "f"),
+        pubkey: e.pubkey,
+        kind: 7,
+        created_at: e.at,
+        tags: [["e", i.id]],
+        content: "+",
+        sig: "",
+      })),
+    );
   },
 }));
 vi.mock("@/hooks/useMyFollows", () => ({
@@ -227,13 +243,15 @@ const githubEvidence = vi.hoisted(() => ({
     { checked?: boolean; named: string[]; blogHost: string | null; claimants?: string[]; provenClaimants: string[] }
   >,
 }));
+// GitHub's own answers (HTTP); nobody claims an account unless a test says (hooks/useGitHubEvidence).
 vi.mock("@/services/github", () => ({
-  fetchGitHubEvidence: async (handle: string) => {
+  fetchGitHubProfileEvidence: async (handle: string) => {
     const known = githubEvidence.of[handle.toLowerCase()];
     return known
-      ? { checked: true, claimants: [], ...known }
-      : { checked: false, named: [], blogHost: null, claimants: [], provenClaimants: [] };
+      ? { checked: known.checked ?? true, named: known.named, blogHost: known.blogHost }
+      : { checked: false, named: [], blogHost: null };
   },
+  gistProvesClaim: async () => false,
 }));
 // Signed out: places are weighed through the curator's lens.
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -244,28 +262,55 @@ const ratings = vi.hoisted(() => ({
   ranks: new Map<string, number>(),
   asked: 0,
 }));
-vi.mock("@/services/placeReviews", () => ({
-  fetchReviewsForPlaces: async (addresses: string[]) => (
+// Both read through the store (hooks/usePlaceReviews, hooks/useLensRanks): each review is answered
+// as its record (kind 34259), each rank as the scorer's kind 30382, the curator's lens as its 10040.
+const SCORER = "5c".repeat(32);
+let answered = 0;
+const answerId = () => String(++answered).padStart(64, "a");
+vi.mock("@/services/placeReviews", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/placeReviews")>()),
+  readPlaceReviewEvents: async (addresses: string[]) => (
     ratings.asked++,
-    new Map(
-      addresses.map((a) => [
-        a,
-        (ratings.reviews.get(a) ?? []).map((r, i) => ({
-          ...r,
-          id: `${a}-${i}`,
-          at: 1,
-          text: "",
-          photos: [],
-          price: null,
-          paid: null,
-        })),
-      ]),
+    addresses.flatMap((a) =>
+      (ratings.reviews.get(a) ?? []).map((r) => ({
+        id: answerId(),
+        kind: 34259,
+        pubkey: r.pubkey,
+        created_at: 1,
+        content: "",
+        sig: "",
+        tags: [["d", `place:${a}`], ["a", a], ...(r.rating == null ? [] : [["s", String(r.rating)]])],
+      })),
     )
   ),
-  fetchLensRanks: async () => ratings.ranks,
+  readLensRanks: async () =>
+    [...ratings.ranks].map(([pubkey, rank]) => ({
+      id: answerId(),
+      kind: 30382,
+      pubkey: SCORER,
+      created_at: 1,
+      content: "",
+      sig: "",
+      tags: [
+        ["d", pubkey],
+        ["rank", String(rank)],
+      ],
+    })),
+}));
+vi.mock("@/services/trustAnchor", () => ({
+  askTrustProviderList: async (pubkey: string) => ({
+    id: answerId(),
+    kind: 10040,
+    pubkey,
+    created_at: 1,
+    content: "",
+    sig: "",
+    tags: [["30382:rank", SCORER, "wss://scores.test"]],
+  }),
 }));
 
 import { LIST_KINDS } from "./ListKindSearch";
+import { __resetAsks } from "@/lib/askOnce";
 
 const page = (key: string, query: string, props: { onTabChange?: (tab: string) => void } = {}) => {
   const kind = LIST_KINDS.find((k) => k.key === key)!;
@@ -904,6 +949,27 @@ describe("a town's events on its map", () => {
     }),
   );
 
+  // A relay read, so it goes through the store's one ask per window (docs/adr/0005), not a
+  // react-query cache: a second screen asking the same town joins the first ask.
+  it("asks for a town's events once per window, however many screens show them", async () => {
+    const soon = Math.floor(Date.now() / 1000) + 3600;
+    townEvents.asked = [];
+    townEvents.list = [event("near", "Meetup by the river", "9qbc3gy", soon)];
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      const first = page("places", "sarasota");
+      await screen.findByTestId("places-events");
+      first.unmount();
+      const second = page("places", "sarasota");
+      expect(await screen.findByTestId("places-events")).toHaveTextContent(/1/);
+      expect(townEvents.asked.filter((t) => t === "Sarasota")).toHaveLength(1);
+      expect(second.queryClient.getQueryCache().findAll({ queryKey: ["town-events"] })).toEqual([]);
+    } finally {
+      itemsOf[PLACES].pop();
+      townEvents.list = [];
+    }
+  });
+
   it("asks for no events when the words name no town", () => {
     townEvents.asked = [];
     preview("places", "cafe");
@@ -1006,6 +1072,8 @@ describe("the Places page, a map app's way", () => {
       ).toEqual(["Best match", "Top rated"]);
       cleanup();
       ratings.reviews = new Map();
+      // A later visit: the reviews are asked again rather than served from this one's ask (lib/askOnce).
+      __resetAsks();
       page("places", "");
       expect(screen.queryByRole("combobox", { name: "Sort" })).toBeNull();
     } finally {
@@ -1077,6 +1145,8 @@ describe("the Places page's filters", () => {
       () => {
         page("places", "");
         expect(screen.getByRole("button", { name: "Open now 1" })).toBeInTheDocument();
+        // A filter pill is the design system's ToggleChip, with a focus ring for the keyboard.
+        expect(screen.getByRole("button", { name: "Open now 1" })).toHaveClass("focus-visible:ring-2");
       },
     );
     cleanup();
@@ -1619,7 +1689,7 @@ describe("the Places map, held steady", () => {
 // their claim, or their verified root handle is on the domain named for the account. Never a name.
 describe("one person, one row", () => {
   const OWNER = "a1".repeat(32);
-  const github = (people?: { pubkey: string; nip05?: string }[]) => {
+  const github = (people?: { pubkey: string; nip05?: string; website?: string }[]) => {
     const kind = LIST_KINDS.find((k) => k.key === "github")!;
     return renderWithProviders(<kind.Suggestion query="riverdev" slot="follow" people={people} />);
   };

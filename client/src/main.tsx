@@ -17,6 +17,9 @@ import { registerServiceWorker } from "./lib/serviceWorker";
 import { startAppResume } from "./services/appResume";
 import { keepStorageForInstalledApp } from "./lib/persistentStorage";
 import { startInstallPrompt } from "./lib/installPrompt";
+import { watchActiveAccount } from "./lib/accountScoped";
+import { queryClient } from "./lib/queryClient";
+import { startQueryPersistence } from "./lib/queryPersist";
 // Brand fonts, bundled: Figtree (interface, upright and italic) + IBM Plex Mono
 // (technical/metadata). Each face's subsets load only when a page uses them.
 import "@fontsource-variable/figtree/wght.css";
@@ -36,6 +39,12 @@ installErrorBuffer();
 // active account's routing events and starts keeping what this visit learns —
 // names, avatars and relay lists alike (lib/eventCache).
 startStoreHydration();
+
+// The caches that answer for one viewer forget it when the Active Account
+// changes (lib/accountScoped), and the signed-in reader's own slow reads are
+// restored from the device and kept as they land (lib/queryPersist).
+watchActiveAccount(accountManager.active$);
+if (typeof indexedDB !== "undefined") startQueryPersistence(queryClient, accountManager);
 
 if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
   window.history.scrollRestoration = "manual";

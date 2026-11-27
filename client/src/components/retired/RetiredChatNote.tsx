@@ -4,6 +4,7 @@ import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
 import { retiredStatus } from "@/services/retired";
+import { displayNameOf } from "@/lib/displayName";
 
 /**
  * In a conversation with a Retired account: a quiet bar under the chat's
@@ -16,8 +17,7 @@ export function RetiredChatNote({ pubkeys, className }: { pubkeys: string[]; cla
   const found = pubkeys.flatMap((pk) => retiredStatus(pk) ?? []);
   const profiles = useLiveProfiles(found.map((s) => s.pubkey));
   if (found.length === 0) return null;
-  const nameOf = (pk: string) =>
-    profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
+  const nameOf = (pk: string) => displayNameOf(profiles.get(pk), pk, "npub12");
   const group = pubkeys.length > 1;
   return (
     <div

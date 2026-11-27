@@ -110,7 +110,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
         void (async () => {
           try {
             await followPubkeys([inviterPubkey]);
-            triggerScoringAndAnchor(user.pubkey); // give the invitee a starter Web of Trust
+            void triggerScoringAndAnchor(user.pubkey); // give the invitee a starter Web of Trust
           } catch {
             /* non-fatal — onboarding's preselected inviter follow is the backstop */
           }
@@ -189,7 +189,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
         ) : (
           // `username` on the name field is what pairs the password with an entry
           // outside Chromium, where form markup is the only capture there is.
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="create-display-name">Display name</Label>
               <Input

@@ -30,6 +30,10 @@ import { fetchEventsByIds } from "@/services/nostr";
 import { fetchRefBatched } from "@/services/refBatch";
 import { topicPath } from "@/lib/topicQuery";
 import { articleTitle } from "@/lib/publication";
+import { APP_EMBED_KINDS } from "@/lib/embedShape";
+import { nameIn } from "@/lib/displayName";
+
+const appName = (ev: MinimalEvent) => ev.tags.find((t) => t[0] === "name")?.[1]?.trim() ?? "";
 
 /** A note on a list, found, with its author and the people it mentions, for its card. */
 export type ListNoteCard = { event: MinimalEvent; author?: ProfileLite; profiles: Map<string, ProfileLite> };
@@ -167,7 +171,7 @@ export function ItemListPreview({ event }: { event: MinimalEvent }) {
   const articleRefs = useMemo(
     () =>
       items.addresses
-        .filter((a) => READER_KINDS.has(a.kind))
+        .filter((a) => READER_KINDS.has(a.kind) || APP_EMBED_KINDS.has(a.kind))
         .slice(0, Math.max(0, PREVIEW_NOTES - previewNotes.length)),
     [items, previewNotes.length],
   );
@@ -180,7 +184,8 @@ export function ItemListPreview({ event }: { event: MinimalEvent }) {
     .map((q) => ({ q, text: noteLine(q.event.content) }))
     .filter((l) => l.text);
   const articleLines = articles
-    .map((ev) => ({ ev, title: articleTitle(ev) }))
+    // An app (NIP-51 app curation set) by its `name`, as its card names it.
+    .map((ev) => ({ ev, title: APP_EMBED_KINDS.has(ev.kind) ? appName(ev) : articleTitle(ev) }))
     .filter((l): l is { ev: MinimalEvent; title: string } => !!l.title);
 
   if (noteLines.length || articleLines.length)
@@ -198,7 +203,7 @@ export function ItemListPreview({ event }: { event: MinimalEvent }) {
                 </AvatarFallback>
               </Avatar>
             }
-            name={q.author?.display_name || q.author?.name}
+            name={nameIn(q.author)}
             text={text}
           />
         ))}
@@ -271,7 +276,7 @@ export const EmbeddedListCard = memo(function EmbeddedListCard({
   const [, navigate] = useLocation();
   const items = useMemo(() => readListItems(event), [event]);
   const Icon = BOOKMARK_KINDS.has(event.kind) ? Bookmark : ListChecks;
-  const name = author?.display_name || author?.name;
+  const name = nameIn(author);
   const to = href ?? listHref(event);
   const onClick = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest("a, button")) return;

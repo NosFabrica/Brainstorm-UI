@@ -12,6 +12,9 @@ vi.mock("@/services/nostr", async () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
 }));
 vi.mock("@/lib/eventStore", async () => ({
+  // lib/eventStore's verified-deletion seam (useStoreEvents reads it): nothing deleted here.
+  isDeleted: () => false,
+  deletions$: { subscribe: () => ({ unsubscribe: () => {} }) },
   eventStore: {
     ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: () => undefined,

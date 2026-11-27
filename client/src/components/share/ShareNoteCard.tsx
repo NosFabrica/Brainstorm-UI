@@ -24,11 +24,13 @@ import { EmbeddedListCard } from "@/components/share/ListPreview";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { POLL_KINDS } from "@/lib/pollKinds";
 import { LazyPollCard } from "@/components/share/LazyPollCard";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { nameIn } from "@/lib/displayName";
 
 /**
  * Click anywhere on a card to open it, EXCEPT on real interactive descendants
@@ -65,7 +67,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
   const tierRing = useTierRing();
   const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
-  const name = p?.display_name || p?.name || "someone";
+  const name = nameIn(p) ?? "someone";
   let npub = "";
   try {
     npub = npubFromPubkey(pubkey);
@@ -204,7 +206,16 @@ export const ShareNoteCard = memo(function ShareNoteCard({
   const contentWarning = useMemo(() => contentWarningOf(event), [event]);
 
   if (isRepost) {
-    const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
+    // NIP-18: the post itself in the content, else a generic repost's `a` (a replaceable
+    // event, its latest version), else its `e`; its `k` names the kind before either arrives.
+    const reposted = event.kind === 16 ? a.addrs[0] : undefined;
+    // The store's copy of the `e` first; the JSON only when it is signed and is that note (lib/embeddedEvent).
+    const inner =
+      (a.repostId ? eventsById.get(a.repostId) : undefined) ??
+      a.repostEvent ??
+      (reposted ? addrByCoord?.get(addrCoord(reposted)) : undefined);
+    const k = event.kind === 16 ? event.tags.find((t) => t[0] === "k")?.[1] : undefined;
+    const what = k && /^\d+$/.test(k) ? kindTypeLabel(Number(k)).toLowerCase() : "note";
     return (
       <div data-testid="note-repost" onClick={onCardClick} className={clickable}>
         <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -240,7 +251,9 @@ export const ShareNoteCard = memo(function ShareNoteCard({
             href={eventPath(inner)}
           />
         ) : (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Reposted a note</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500" data-testid="note-repost-missing">
+            Reposted {/^[aeiou]/.test(what) ? "an" : "a"} {what}
+          </p>
         )}
         <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>
       </div>
@@ -259,8 +272,7 @@ export const ShareNoteCard = memo(function ShareNoteCard({
 
   const heading = noteHeadingOf(event);
   const authorProfile = profiles.get(event.pubkey);
-  const authorName =
-    authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
+  const authorName = nameIn(authorProfile) || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub
@@ -405,7 +417,7 @@ export const ShareNoteCard = memo(function ShareNoteCard({
           // A linked list is drawn as its card below: the card is its link.
           embeddedCoords={listCoords}
           embedThings
-          authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name}
+          authorName={nameIn(profiles.get(event.pubkey))}
         />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}
         {event.content?.trim() && <TranslateLine text={event.content} />}

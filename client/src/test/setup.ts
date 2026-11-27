@@ -1,8 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, expect, vi } from "vitest";
 import { __resetAsks } from "@/lib/askOnce";
 import { __resetListEdits } from "@/lib/listEdits";
+import { eventStore } from "@/lib/eventStore";
 import { cleanup } from "@testing-library/react";
+import { RelayPool } from "applesauce-relay";
+import { relaySocketsAllowed } from "@/test/relaySockets";
 
 // Suites that need no DOM opt into the node environment — jsdom's TextEncoder
 // hands back a foreign-realm Uint8Array, which @noble's strict checks reject, so
@@ -132,6 +135,29 @@ if (hasDom && typeof globalThis.IntersectionObserver === "undefined") {
   } as unknown as typeof IntersectionObserver;
 }
 
+/** Every relay a test asked for, and where from, until the guard below reads them. */
+const dialled: { test: string; url: string; from: string }[] = [];
+/** Where the app opened a socket: its own frames, not rxjs's or applesauce's. */
+const appFrames = (stack = "") =>
+  stack
+    .split("\n")
+    .filter(
+      (line) =>
+        line.includes("/client/src/") &&
+        !line.includes("/client/src/test/setup.ts") &&
+        !line.includes("/client/src/lib/relayPool.ts"),
+    )
+    .slice(0, 6)
+    .map((line) => line.trim())
+    .join("\n    ");
+function deepStack(): string | undefined {
+  const limit = Error.stackTraceLimit;
+  Error.stackTraceLimit = 80;
+  const { stack } = new Error();
+  Error.stackTraceLimit = limit;
+  return stack;
+}
+
 // No unit test talks to a real relay. Node ships a real WebSocket, so anything
 // that reaches the relay pool unmocked would dial the public relays — and a
 // connection that lands after its file has finished fires its event into the
@@ -162,6 +188,11 @@ class OfflineWebSocket extends EventTarget {
   constructor(url: string | URL) {
     super();
     this.url = String(url);
+    dialled.push({
+      test: expect.getState().currentTestName ?? "(outside a test)",
+      url: this.url,
+      from: appFrames(deepStack()),
+    });
   }
 
   send(): void {}
@@ -176,10 +207,61 @@ class OfflineWebSocket extends EventTarget {
 }
 globalThis.WebSocket = OfflineWebSocket as unknown as typeof WebSocket;
 
+// The pool opens a relay's socket only once something subscribes, which can be after the
+// test that asked has ended; and a relay asked once in a file is not dialled again. So an
+// ask is caught where it is made: the pool handing out a relay for a request. A pool given
+// a socket of its own (a fake relay a test drives) is not asking the network.
+const handOut = RelayPool.prototype.relay;
+RelayPool.prototype.relay = function relay(this: RelayPool, url: string) {
+  const test = expect.getState().currentTestName;
+  const ownSocket = (this.options as { WebSocket?: unknown } | undefined)?.WebSocket;
+  if (test && (!ownSocket || ownSocket === OfflineWebSocket)) dialled.push({ test, url, from: appFrames(deepStack()) });
+  return handOut.call(this, url);
+};
+
+// A test that dials a relay fails, as one that fetches does: the socket above never
+// opens, so the code under test only waits out its deadline (a routing lookup's 2.5 s):
+// seven tests opened 36 such sockets unnoticed. Mock the read instead (the module-level service, or put
+// the events in the store). A suite that drives this socket on purpose calls
+// `allowRelaySockets()` (test/relaySockets.ts). TEST_WS_GUARD=warn reports instead.
+function failDialled(): void {
+  if (!dialled.length) return;
+  const [first] = dialled;
+  const urls = [...new Set(dialled.map((d) => d.url))];
+  dialled.length = 0;
+  if (relaySocketsAllowed()) return;
+  const message =
+    `This test dialled a relay (mock the read): ${first.test}: ${urls.join(", ")}` +
+    (first.from ? `\n  first from:\n    ${first.from}` : "");
+  if (process.env.TEST_WS_GUARD === "warn") console.warn(`[ws-guard] ${message}`);
+  else throw new Error(message);
+}
+afterEach(failDialled);
+// A socket a test's leftovers open after the file's last test (a loader's batch window).
+afterAll(failDialled);
+
+/**
+ * The app's EventStore is a module singleton: without this, what one test added
+ * (a fetcher's answer, a publish) was still there for the next, which could pass
+ * only because of it. Its deletions go too: they live in the store's delete
+ * manager, not as events. A test that mocks `@/lib/eventStore` empties the real
+ * one here, harmlessly.
+ */
+function resetEventStore(): void {
+  for (const event of eventStore.getByFilters({})) eventStore.remove(event);
+  // Its delete manager is private and has no reset: what it remembers is two maps.
+  const { deletes } = eventStore as unknown as {
+    deletes: { deletedIds: Map<unknown, unknown>; deletedIdentifiers: Map<unknown, unknown> };
+  };
+  deletes.deletedIds.clear();
+  deletes.deletedIdentifiers.clear();
+}
+
 beforeEach(() => {
   if (hasDom) localStorage.clear();
   __resetAsks();
   __resetListEdits();
+  resetEventStore();
 });
 
 afterEach(() => {

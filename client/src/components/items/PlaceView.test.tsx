@@ -400,6 +400,9 @@ describe("PlaceView", () => {
     const post = within(composer).getByRole("button", { name: "Post review" });
     await userEvent.type(within(composer).getByRole("textbox"), "Best pizza on the key.");
     await userEvent.click(within(composer).getByRole("button", { name: "$$" }));
+    // The price and payment pills are the design system's ToggleChip: pressed, with a focus ring.
+    expect(within(composer).getByRole("button", { name: "$$" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(composer).getByRole("button", { name: "$$" })).toHaveClass("focus-visible:ring-2");
     await userEvent.click(within(composer).getByRole("button", { name: "Lightning" }));
     // A review of a place gives stars: words alone don't post.
     await userEvent.click(within(composer).getByRole("button", { name: "4 stars" }));

@@ -215,19 +215,21 @@ async function fetchWithSession(url: string, options: RequestInit, onLost: LostS
         ...options,
         headers: { ...options.headers, access_token: newToken! },
       });
-      if (retryResponse.status === 401 || retryResponse.status === 403) {
-        throw sessionLost(onLost, "Session expired. Please log in again.");
-      }
-      return retryResponse;
+      if (retryResponse.status === 401) throw sessionLost(onLost, "Session expired. Please log in again.");
+      // Signed in, and still not allowed: forbidden, not a lost Session.
+      return refuseForbidden(retryResponse);
     }
     throw sessionLost(onLost, detail || "Session expired. Please log in again.");
   }
-  if (response.status === 403) {
-    const data = await response.json().catch(() => null);
-    const detail = data?.detail || data?.message || "";
-    throw new Error(detail || `Request forbidden (${response.status})`);
-  }
-  return response;
+  return refuseForbidden(response);
+}
+
+/** A 403 is "you may not": the server's reason, with the Session left as it is. */
+async function refuseForbidden(response: Response): Promise<Response> {
+  if (response.status !== 403) return response;
+  const data = await response.json().catch(() => null);
+  const detail = data?.detail || data?.message || "";
+  throw new Error(detail || `Request forbidden (${response.status})`);
 }
 
 /**

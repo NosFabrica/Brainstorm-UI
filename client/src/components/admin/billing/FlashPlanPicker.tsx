@@ -1,3 +1,4 @@
+import { httpsHref } from "@/lib/safeHref";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2 } from "lucide-react";
@@ -174,11 +175,11 @@ export function FlashPlanPicker({
           <p>
             Flash lists it as <span className="font-medium text-slate-700 dark:text-slate-200">{chosen.status}</span>
             {chosen.description ? ` · ${chosen.description}` : ""}
-            {chosen.signup_url && (
+            {httpsHref(chosen.signup_url) && (
               <>
                 {" · "}
                 <a
-                  href={chosen.signup_url}
+                  href={httpsHref(chosen.signup_url)}
                   target="_blank"
                   rel="noopener"
                   className="inline-flex items-center gap-1 text-brand-link hover:underline"

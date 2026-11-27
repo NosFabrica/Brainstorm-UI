@@ -104,6 +104,25 @@ export function strategyFor(url: URL, request: { method: string; mode: string },
   return null;
 }
 
+/**
+ * Where a tapped notification opens: the path its data names, on this site,
+ * else the home. Parsed against the origin rather than matched with
+ * startsWith("/"), which let `//host` (and `/\host`) through to openWindow as
+ * another site. A pathname that itself begins `//` is refused as well: the
+ * page navigates to it, and reads it as a host. (Not lib/safeHref: this file
+ * is built on its own, with no imports.)
+ */
+export function notificationPath(url: unknown, origin: string): string {
+  if (typeof url !== "string" || !url.startsWith("/")) return "/";
+  try {
+    const at = new URL(url, origin);
+    if (at.origin !== new URL(origin).origin || at.pathname.startsWith("//")) return "/";
+    return `${at.pathname}${at.search}${at.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
 /** The cache key every page load shares: the SPA is one document whatever the path. */
 export const SHELL_KEY = "/";
 
@@ -452,6 +471,10 @@ function startWorker(scope: WorkerScope): void {
         }
         event.waitUntil(fill(__SW_ROUTES__.map(asPath)));
         break;
+      case undefined:
+      default:
+        // Not a message this worker answers.
+        break;
     }
   });
 
@@ -460,7 +483,7 @@ function startWorker(scope: WorkerScope): void {
   scope.addEventListener("notificationclick", (event: NotificationEventLike) => {
     event.notification.close();
     const data = event.notification.data as { url?: unknown } | null;
-    const url = typeof data?.url === "string" && data.url.startsWith("/") ? data.url : "/";
+    const url = notificationPath(data?.url, scope.location.origin);
     event.waitUntil(
       (async () => {
         const windows = await scope.clients.matchAll({ type: "window", includeUncontrolled: true });

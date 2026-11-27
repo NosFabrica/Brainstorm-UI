@@ -13,17 +13,18 @@ import { scopedSearchHref } from "@/lib/searchSyntax";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
-import type { SearchSnapshot } from "@/services/search";
+import type { RepoCounts, SearchSnapshot } from "@/services/search";
+import type { ServerStatus } from "@/lib/serverStatus";
 import type { RibbonList } from "@/hooks/useListRibbon";
 
 const streamMock = vi.fn();
 const moreMock = vi.fn();
-const serverStatusMock = vi.fn(() => ({
-  api: "ok" as const,
-  search: "ok" as const,
+const serverStatusMock = vi.fn<() => ServerStatus>(() => ({
+  api: "ok",
+  search: "ok",
   recovery: 0,
   checking: false,
-  nextProbeAt: null as number | null,
+  nextProbeAt: null,
 }));
 const retryNowMock = vi.fn();
 // List items among results read the Dictionary through the account; they have their own tests.
@@ -70,8 +71,12 @@ vi.mock("@/services/search", async (importOriginal) => {
       return cancelMock;
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
-    fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
-    fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
+    fetchRepoCounts: (address: string) => repoCountsMock(address),
+    // Handed the items themselves (whose status counts is their author's), recorded by id.
+    fetchGitStatuses: (items: (string | { id: string })[]) => {
+      gitItemsAsked.push(...items);
+      return gitStatusesMock(items.map((i) => (typeof i === "string" ? i : i.id)));
+    },
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
     fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
@@ -119,11 +124,12 @@ const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { goin
 );
 const gitCommentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() => Promise.resolve(new Map()));
 // Issue / patch states for the Repos tab — none unless a test says otherwise.
+const gitItemsAsked: (string | { id: string })[] = [];
 const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() =>
   Promise.resolve(new Map()),
 );
-const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>(() =>
-  Promise.resolve({ issues: 0, patches: 0 }),
+const repoCountsMock = vi.fn<(address: string) => Promise<RepoCounts>>(() =>
+  Promise.resolve({ issues: 0, patches: 0, contributors: [], lastAt: null }),
 );
 
 // Member piles hydrate through fetchProfileMap — stubbed so jsdom never
@@ -273,8 +279,10 @@ const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: bo
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
-import { ListKindsContext } from "@/hooks/useListKinds";
-import { SearchResults, __resetSearchMemory } from "./SearchResults";
+import { ListKindsContext, type ListKindSearch } from "@/hooks/useListKinds";
+import { SearchResults } from "./SearchResults";
+import { __resetSearchMemory } from "@/lib/searchMemory";
+import { KIND_FIXTURES } from "@/test/kindFixtures";
 import { FEATURES } from "@/config/featureFlags";
 import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { __forgetAllCategories } from "@/hooks/useAllCategories";
@@ -382,7 +390,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   recentByKindsMock.mockResolvedValue([]);
   profileMapMock.clear();
-  repoCountsMock.mockResolvedValue({ issues: 0, patches: 0 });
+  repoCountsMock.mockResolvedValue({ issues: 0, patches: 0, contributors: [], lastAt: null });
   endorsementsMock.mockReturnValue(null);
   followsMock = new Set();
   personEndorsementsMock.mockReturnValue(null);
@@ -667,6 +675,23 @@ describe("SearchResults", () => {
       expect(results).toHaveTextContent("La Tarantella - Recoleta");
       expect(screen.queryByTestId("media-card-place1")).toBeNull();
     });
+  });
+
+  // NIP-84: the Notes tab drew a highlight as a note of its passage, with no source. It is the
+  // highlight row the Top page and the All tab draw: the passage marked, and where it is from.
+  it("draws a highlight on the Notes tab as its passage and its source, not as a note", async () => {
+    setUrlTab("notes");
+    render(<SearchResults query="essay" pov="nosfabrica" />);
+    const highlight = ev("hl1", 9802, "4".repeat(64), "the words they marked", [
+      ["r", "https://source.example/essay", "source"],
+      ["r", "https://other.example", "mention"],
+    ]);
+    emit({ hits: [{ event: highlight, author: null, rank: null }], eose: true, timeMs: 100 });
+    const passage = await screen.findByTestId("serp-highlight-passage");
+    expect(passage).toHaveTextContent("the words they marked");
+    expect(screen.getByTestId("serp-highlight-source")).toHaveTextContent("source.example");
+    expect(screen.getByTestId("serp-highlight-source")).not.toHaveTextContent("other.example");
+    expect(screen.queryByTestId("note-card")).toBeNull();
   });
 
   // Content tabs land on what's fresh by default; a typed sort: always wins,
@@ -1142,6 +1167,25 @@ describe("SearchResults", () => {
     // card's corner was squeezing titles to "Kansas City Sovereign…" on a
     // phone, where the event page has the real button: it hides below sm and
     // the title takes the width.
+    // A date-only event (31922) today starts at local midnight, before now: it is today's, not ongoing.
+    it("a date-only event today is filed under Today, not Ongoing", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="raystown" pov="nosfabrica" />);
+      const pk = "c".repeat(64);
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const fair = ev("e-fair", 31922, pk, "", [
+        ["d", "fair"],
+        ["title", "County Fair"],
+        ["start", today],
+      ]);
+      emit({ hits: [{ event: fair, author: author(pk, "Raystown Events"), rank: null }], eose: true, timeMs: 120 });
+      await screen.findByTestId("event-card-e-fair");
+      const [day] = screen.getAllByTestId(/^event-day-/);
+      expect(day.getAttribute("data-testid")).toBe(`event-day-${today}`);
+      expect(day).toHaveTextContent("Today");
+    });
+
     it('an event already running leads Upcoming under "Ongoing", and phones give the title its width', async () => {
       setUrlTab("events");
       render(<SearchResults query="raystown" pov="nosfabrica" />);
@@ -2631,6 +2675,20 @@ describe("SearchResults", () => {
     expect(screen.queryByTestId("query-as-sent")).toBeNull();
   });
 
+  // The kinds the kind-surfaces work covers (test/kindFixtures), on the grid: each its own card,
+  // never the generic row or a blank media tile. The other surfaces: share/kindSurfaces.test.tsx.
+  it.each(KIND_FIXTURES)("draws $name on the grid as its own card", async (fx) => {
+    setUrlTab("code");
+    render(<SearchResults query="relay" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: fx.event, author: author(fx.event.pubkey, "maker"), rank: null }],
+      eose: true,
+      timeMs: 200,
+    });
+    const card = await screen.findByTestId(fx.grid === "embedded-note" ? fx.grid : `${fx.grid}${fx.event.id}`);
+    expect((card.textContent ?? "").replace(/\s+/g, " ")).toMatch(fx.cardText);
+  });
+
   it("renders a git repo with name and description", async () => {
     setUrlTab("code");
     render(<SearchResults query="relay" pov="nosfabrica" />);
@@ -2930,6 +2988,7 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("Pull request");
     expect(within(card).getByTestId("git-state-pr1")).toHaveTextContent("Merged");
     expect(gitStatusesMock).toHaveBeenCalledWith([pr.id]);
+    expect(gitItemsAsked.at(-1)).toMatchObject({ id: pr.id, pubkey: pr.pubkey });
   });
 
   // NIP-34 marks a codebase by its earliest unique commit; two announcements
@@ -3621,6 +3680,7 @@ describe("SearchResults", () => {
       ],
       eose: true,
       timeMs: 140,
+      error: null,
     });
 
     const card = await screen.findByTestId("media-card-ep395");
@@ -4461,6 +4521,7 @@ describe("SearchResults", () => {
             artist: {
               id: "wl-handled",
               name: "Handled",
+              url: "https://wavlake.com/artist/wl-handled",
               artworkUrl: "https://img/handled.jpg",
               artistNpub: handled.npub,
             },
@@ -5384,13 +5445,15 @@ describe("a person's handle on their search card", () => {
 // The kinds with a look of their own (Books, Places, GitHub accounts) are handed down from the
 // app's root; each has a page of its own, listed under More with its neighbours.
 describe("a kind's own page", () => {
-  const kinds = [
+  const kinds: ListKindSearch[] = [
     {
       key: "books",
       label: "Books",
       group: "Read & listen",
       community: "39998:b:books",
       Preview: () => null,
+      Warm: () => null,
+      Suggestion: () => null,
       Page: ({ query }: { query: string }) => <div data-testid="kind-page-books">{query}</div>,
     },
     {
@@ -5399,6 +5462,8 @@ describe("a kind's own page", () => {
       group: "Out & about",
       community: "39998:p:places",
       Preview: () => null,
+      Warm: () => null,
+      Suggestion: () => null,
       Page: ({ query }: { query: string }) => <div data-testid="kind-page-places">{query}</div>,
     },
   ];
@@ -5482,6 +5547,7 @@ describe("All's categories", () => {
     more: false,
     href: "/e/naddr1places",
     headers: [PLACES],
+    whole: false,
   };
   const row = (n: string, kind: number) => ({
     event: ev(n.repeat(64), kind, "a".repeat(64), "fork & coin burgers"),

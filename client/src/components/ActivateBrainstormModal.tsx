@@ -39,9 +39,11 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     setHasOtherProvider(false);
     if (!open) return;
     let cancelled = false;
-    (async () => {
+    // checkExistingTrustProvider never rejects: a failed read is "unknown".
+    void (async () => {
       if (!user?.pubkey) return;
       // "unknown"/"none" fall back to the generic disclaimer — best-effort.
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: what the relays hold now, before a 10040 is written over it
       const status = await checkExistingTrustProvider(user.pubkey, serviceKey);
       if (!cancelled && status === "other") setHasOtherProvider(true);
     })();
@@ -249,7 +251,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   </div>
                   <button
                     type="button"
-                    onClick={handleActivate}
+                    onClick={() => void handleActivate()}
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover sm:h-12 sm:text-sm"
                     data-testid="button-activate-retry"
                   >
@@ -269,7 +271,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   </div>
                   <button
                     type="button"
-                    onClick={handleActivate}
+                    onClick={() => void handleActivate()}
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover sm:h-12 sm:text-sm"
                     data-testid="button-activate-retry"
                   >
@@ -302,7 +304,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     ))}
                   <button
                     type="button"
-                    onClick={handleActivate}
+                    onClick={() => void handleActivate()}
                     disabled={activateState === "signing" || activateState === "publishing"}
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:h-12 sm:text-sm"
                     data-testid="button-activate-confirm"

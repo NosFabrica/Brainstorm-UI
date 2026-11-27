@@ -7,13 +7,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { nip19, type NostrEvent } from "nostr-tools";
-import type { SearchSnapshot, SearchParams } from "@/services/search";
+import type { fetchPersonSets, SearchHit, SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetConnectionSpeed } from "@/lib/connection";
 import { ListKindsContext, type ListKindSearch } from "@/hooks/useListKinds";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 const nipPageMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
-const personSetsMock = vi.fn<() => Promise<{ title: string; exporters: number }[]>>(() => Promise.resolve([]));
+const personSetsMock = vi.fn<typeof fetchPersonSets>(() => Promise.resolve([]));
 let streamCalls: { query: string; params: SearchParams; emit: (s: Partial<SearchSnapshot>) => void }[] = [];
 
 vi.mock("@/services/search", async (importOriginal) => {
@@ -22,7 +22,7 @@ vi.mock("@/services/search", async (importOriginal) => {
     ...actual,
     suggestProfiles: () => suggestMock(),
     fetchNipPage: (...args: unknown[]) => nipPageMock(...(args as [])),
-    fetchPersonSets: (...args: unknown[]) => personSetsMock(...(args as [])),
+    fetchPersonSets: (...args: Parameters<typeof fetchPersonSets>) => personSetsMock(...args),
     searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
       streamCalls.push({
         query,
@@ -231,6 +231,7 @@ describe("the person panel's endorsements", () => {
         { pubkey: BOB, score01: 0.4 },
       ],
       total: 1234,
+      vouches: [],
     });
     profileMapMock.set(ALICE, { name: "alice" });
     profileMapMock.set(BOB, { name: "bob" });
@@ -246,7 +247,7 @@ describe("the person panel's endorsements", () => {
 
   it("speaks as the viewer under My perspective", async () => {
     david();
-    personEndorsementsMock.mockReturnValue({ followedBy: [{ pubkey: ALICE, score01: 0.9 }], total: 12 });
+    personEndorsementsMock.mockReturnValue({ followedBy: [{ pubkey: ALICE, score01: 0.9 }], total: 12, vouches: [] });
     render(<KnowledgePanel query="david" pov="mywot" userPubkey={"e".repeat(64)} />);
     const line = await screen.findByTestId("person-followed-by");
     expect(line).toHaveTextContent("accounts you trust");
@@ -338,6 +339,25 @@ describe("the topic panel", () => {
     expect(within(panel).queryByText("Voices on it")).toBeNull();
     expect(within(panel).queryByText("Related topics")).toBeNull();
     expect(within(panel).queryByText("Upcoming events")).toBeNull();
+  });
+
+  // The reset and the lookup run in one commit: the lookup used to read the last query's
+  // person, take it for this query's answer, and never ask — the panel went and stayed gone.
+  it("a new query asks for its own person, off the composed page too", async () => {
+    const who = (name: string, pk: string) => ({
+      pubkey: pk.repeat(64),
+      npub: `npub1${name}`,
+      name,
+      wotRank: 0.8,
+      wotFollowers: 300,
+    });
+    suggestMock.mockResolvedValueOnce([who("jack", "1")]);
+    const view = render(<KnowledgePanel query="jack" pov="nosfabrica" />);
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("jack");
+    suggestMock.mockResolvedValueOnce([who("odell", "2")]);
+    view.rerender(<KnowledgePanel query="odell" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(suggestMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("odell");
   });
 
   it("does not ask again when the reader moves to another tab", async () => {
@@ -435,9 +455,8 @@ describe("the topic panel", () => {
     const full = render(
       <KnowledgePanel query="chicago" pov="nosfabrica" sections={{ people: snap([]), events: snap(three) }} />,
     );
-    await vi.waitFor(() =>
-      expect(streamCalls.some((c) => c.params.tab === "topic" || c.params.tab === "apps")).toBe(true),
-    );
+    // The panel has asked for its other blocks (apps, for words that aren't a #tag)…
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
     expect(streamCalls.some((c) => c.params.tab === "events")).toBe(false);
     full.unmount();
     streamCalls = [];
@@ -1258,7 +1277,9 @@ describe("the person panel's live stream", () => {
     expect(screen.queryByTestId("person-live")).toBeNull();
   });
 
-  it("a replay whose recording no longer answers is not advertised either", async () => {
+  // The reader's browser no longer probes a recording's host during search (ADR 0007;
+  // lib/liveStream verifyRecording): a web-address recording is advertised as it is.
+  it("a replay is advertised without asking the recording's host anything", async () => {
     grinder();
     vi.stubGlobal(
       "fetch",
@@ -1274,9 +1295,8 @@ describe("the person panel's live stream", () => {
     ]);
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
     await screen.findByTestId("knowledge-panel-profile");
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByTestId("person-live-replay")).toBeNull();
+    expect(await screen.findByTestId("person-live-replay")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("data.zap.stream"))).toBe(false);
   });
 
   it("a replay whose recording answers is advertised and plays through our player", async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence, Motion } from "@/lib/motion";
 import { ArrowUp, FileText, ShieldCheck, HelpCircle, List, ChevronDown, Link2 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { pageWidth } from "@/lib/pageWidth";
@@ -238,24 +238,26 @@ export function LegalDocLayout({
                   }`}
                 />
               </button>
-              <AnimatePresence>
-                {mobileTocOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.25, ease: "easeInOut" }}
-                    className="overflow-hidden"
-                  >
-                    <div
-                      id={`toc-panel-${docKind}`}
-                      className="mt-2 rounded-xl border border-brand-accent/15 bg-white/80 p-2 shadow-sm backdrop-blur-xl dark:bg-slate-900/80"
+              <Motion>
+                <AnimatePresence>
+                  {mobileTocOpen && (
+                    <m.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                      className="overflow-hidden"
                     >
-                      {tocList}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      <div
+                        id={`toc-panel-${docKind}`}
+                        className="mt-2 rounded-xl border border-brand-accent/15 bg-white/80 p-2 shadow-sm backdrop-blur-xl dark:bg-slate-900/80"
+                      >
+                        {tocList}
+                      </div>
+                    </m.div>
+                  )}
+                </AnimatePresence>
+              </Motion>
             </div>
 
             {/* Document panel */}
@@ -414,21 +416,23 @@ export function LegalDocLayout({
       </div>
 
       {/* Back to top */}
-      <AnimatePresence>
-        {showTop && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="fixed bottom-[calc(1.5rem+var(--bs-bottom-chrome,0px))] right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-brand-accent/30 bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3] transition-colors hover:bg-brand-deep"
-            aria-label="Back to top"
-            data-testid={`button-back-to-top-${docKind}`}
-          >
-            <ArrowUp className="h-5 w-5" />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      <Motion>
+        <AnimatePresence>
+          {showTop && (
+            <m.button
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 10 }}
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="fixed bottom-[calc(1.5rem+var(--bs-bottom-chrome,0px))] right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-brand-accent/30 bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3] transition-colors hover:bg-brand-deep"
+              aria-label="Back to top"
+              data-testid={`button-back-to-top-${docKind}`}
+            >
+              <ArrowUp className="h-5 w-5" />
+            </m.button>
+          )}
+        </AnimatePresence>
+      </Motion>
     </InfoPageLayout>
   );
 }

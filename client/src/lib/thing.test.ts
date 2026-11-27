@@ -288,7 +288,8 @@ describe("describeThing — reviews", () => {
         "Solid guardians",
       ),
     );
-    expect(t).toMatchObject({ title: "fedmint.example", description: "Solid guardians", facts: ["Ecash mint"] });
+    // NIP-87's `k` says which kind of mint: 38173 is a Fedimint.
+    expect(t).toMatchObject({ title: "fedmint.example", description: "Solid guardians", facts: ["Fedimint"] });
   });
 
   it("leaves out the kind-38000s with no format of their own: a test vote, an unknown `k`", () => {
@@ -903,5 +904,87 @@ describe("describeThing — Open Markets around a listing", () => {
 
   it("all three are things", () => {
     expect([30405, 30406, 31555].every((k) => THING_KINDS.has(k))).toBe(true);
+  });
+});
+
+// NIP-87 names the mint's kind in `k` (38172 Cashu, 38173 Fedimint); a Fedimint's `u`
+// is its invite code, hundreds of characters, which was the review's whole title.
+describe("describeThing — NIP-87 mint recommendations, by the kind of mint", () => {
+  const INVITE = `fed11qgqrgvnhwden5te0v9k8q6rp9ekh2arfdeukuet595cr2ttpd3jhq6rzve6zuer9wchxvetyd938gcewvdhk6tcqqysptkuvknc7erjgf4em3zfh90kffqf9srujn6q53d6r056e4apze5cw27h75`;
+
+  it("a Fedimint reached by an invite code is named by its federation id, shortened", () => {
+    const t = describeThing(
+      ev(
+        38000,
+        [
+          ["k", "38173"],
+          ["d", "9".repeat(64)],
+          ["u", INVITE],
+        ],
+        "Family federation",
+      ),
+    );
+    expect(t).toMatchObject({ title: "Fedimint 99999999…", link: null, facts: ["Fedimint"] });
+    expect(t?.detail).toMatchObject({ subjectLabel: "Fedimint" });
+  });
+
+  it("a Cashu mint is its URL's host, linked, and says it is a Cashu mint", () => {
+    const t = describeThing(
+      ev(38000, [
+        ["k", "38172"],
+        ["d", "f".repeat(66)],
+        ["u", "https://mint.example.com"],
+      ]),
+    );
+    expect(t).toMatchObject({ title: "mint.example.com", link: "https://mint.example.com", facts: ["Cashu mint"] });
+  });
+
+  it("a mint reached only by its pubkey is not titled by 66 hex characters", () => {
+    expect(
+      describeThing(
+        ev(38000, [
+          ["k", "38172"],
+          ["d", "f".repeat(66)],
+          ["u", "f".repeat(66)],
+        ]),
+      )?.title,
+    ).toBe("Cashu mint ffffffff…");
+  });
+});
+
+describe("describeThing — NIP-75 zap goals link what their `r` names", () => {
+  it("reads NIP-75's `r` as the goal's link (and still a `link` some apps write)", () => {
+    const goal = (tags: string[][]) => describeThing(ev(9041, [["amount", "210000"], ...tags], "Nostrasia"));
+    expect(goal([["r", "https://nostrasia.example"]])?.link).toBe("https://nostrasia.example");
+    expect(goal([["link", "https://other.example"]])?.link).toBe("https://other.example");
+    // 210,000 msats is 210 sats: `amount` is millisats.
+    expect(goal([])?.facts).toEqual(["Goal 210 sats"]);
+  });
+});
+
+describe("describeThing — a NIP-89 handler with no metadata of its own", () => {
+  it("is named by its web handler's host, not by its random d", () => {
+    const t = describeThing(
+      ev(31990, [
+        ["d", "1700000000123"],
+        ["k", "30023"],
+        ["web", "https://reader.example/a/<bech32>", "naddr"],
+      ]),
+    );
+    expect(t?.title).toBe("reader.example");
+  });
+
+  it("keeps a d that is a name, and its content's name over both", () => {
+    expect(
+      describeThing(
+        ev(31990, [
+          ["d", "long-reader"],
+          ["web", "https://r.example/<bech32>"],
+        ]),
+      )?.title,
+    ).toBe("long-reader");
+    expect(describeThing(ev(31990, [["d", "1700000000123"]], JSON.stringify({ name: "Long Reader" })))?.title).toBe(
+      "Long Reader",
+    );
   });
 });

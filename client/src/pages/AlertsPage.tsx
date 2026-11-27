@@ -29,6 +29,7 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import { cn } from "@/lib/utils";
 import { pageWidth } from "@/lib/pageWidth";
+import { displayNameOf } from "@/lib/displayName";
 
 // Two scopes plus the ignored list. There used to be an "All" tab, and it was
 // the default — which is what made this page a dump: it mixed the handful of
@@ -76,8 +77,7 @@ export default function AlertsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observer, flaggedSig, !!data]);
   const profiles: Map<string, ProfileLite> = profileMap;
-  const nameFor = (pk: string) =>
-    profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
+  const nameFor = (pk: string) => displayNameOf(profiles.get(pk), pk, "npub12");
 
   const {
     dismissed,
@@ -333,7 +333,11 @@ export default function AlertsPage() {
         ) : q.isError ? (
           <div className="py-8 text-sm text-slate-500 dark:text-slate-400">
             Couldn't load your network alerts.{" "}
-            <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">
+            <button
+              type="button"
+              onClick={() => void q.refetch()}
+              className="font-semibold text-brand-link hover:underline"
+            >
               Try again
             </button>
           </div>

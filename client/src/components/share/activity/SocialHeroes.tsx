@@ -9,7 +9,6 @@ import { Award, CalendarCheck, Check, Users, Vote } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { SetRoster } from "@/components/share/FollowSetHero";
-import { HashtagChips } from "@/components/share/ListPreview";
 import { ReadingText } from "@/components/share/ReadingText";
 import { useRefEvents } from "@/hooks/useRefEvents";
 import { pollChoices, readBadgeAward, readFollows, readPollVote, readRsvp, type ActivityEvent } from "@/lib/activity";
@@ -22,16 +21,8 @@ export function FollowsHero({ event }: { event: ActivityEvent }) {
   const follows = useMemo(() => readFollows(event), [event]);
   return (
     <div data-testid="follows-hero">
-      <ActivityHeader
-        title={`Follows ${plural(follows.people.length, "person", "people")}`}
-        subtitle={follows.hashtags.length ? `and ${plural(follows.hashtags.length, "hashtag")}` : null}
-        icon={Users}
-      />
-      {follows.hashtags.length > 0 && (
-        <Section kicker="Hashtags" testId="follows-hashtags">
-          <HashtagChips hashtags={follows.hashtags} />
-        </Section>
-      )}
+      {/* NIP-02: a follow list is its `p` tags — people, never hashtags. */}
+      <ActivityHeader title={`Follows ${plural(follows.people.length, "person", "people")}`} icon={Users} />
       {/* The roster a follow set opens as: faces in their tier rings, folded after 25. */}
       <SetRoster members={follows.people} />
     </div>

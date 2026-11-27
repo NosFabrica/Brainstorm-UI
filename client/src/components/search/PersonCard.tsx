@@ -23,6 +23,7 @@ import {
 } from "@/components/score/VerificationCoin";
 import { FlaggedChip, PersonCardSlot } from "@/components/search/EndorsementLine";
 import { copyToClipboard } from "@/lib/clipboard";
+import { useToast } from "@/hooks/use-toast";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { useNip05 } from "@/hooks/useNip05";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
@@ -70,6 +71,7 @@ export const PersonCard = memo(function PersonCard({
   tag?: TagChip;
 }) {
   const tierRing = useTierRing();
+  const { toast } = useToast();
   const compromisedRing = useCompromisedRing(result.pubkey);
   const quiet = useQuietTrustChrome();
   const coinReplaced = useCoinReplacedByRing();
@@ -214,7 +216,13 @@ export const PersonCard = memo(function PersonCard({
                 data-testid={`button-copy-npub-${idx}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  copyToClipboard(result.npub);
+                  void copyToClipboard(result.npub).then((ok) =>
+                    toast(
+                      ok
+                        ? { title: "Copied", description: `${result.npub.slice(0, 20)}…`, duration: 1500 }
+                        : { title: "Couldn't copy", description: "Copy the npub by hand.", variant: "destructive" },
+                    ),
+                  );
                 }}
               >
                 <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" />

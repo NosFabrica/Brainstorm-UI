@@ -74,6 +74,7 @@ export function LegacyRolePrompt({
     // parallel means a burst of signer prompts that reads as a hijack.
     for (const role of pending) {
       try {
+        // eslint-disable-next-line no-restricted-syntax -- relay probe: the tag a write applies, minted when none exists
         const tag = await resolveOrMintTag(role);
         const result = await applyTag.mutateAsync({ tag, displayName: role });
         if (!result.failedAt) added++;
@@ -107,7 +108,7 @@ export function LegacyRolePrompt({
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          onClick={addAll}
+          onClick={() => void addAll()}
           disabled={busy}
           className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
           data-testid="legacy-role-add-all"
